@@ -546,7 +546,7 @@ fun PreviewBookmarkList() {
     MyTheme {
         BookmarkList(
             bookmarks = listOf(Bookmark("test 1", "https://www.google.com", false)),
-            bookmarkViewModel = remember { BookmarkViewModel(BookmarkManager()) },
+            bookmarkViewModel = remember { BookmarkViewModel(info.plateaukao.einkbro.AppServices.bookmarkManager) },
             showTwoColumn = true,
             shouldReverse = true,
             shouldShowDragHandle = false,
@@ -571,7 +571,7 @@ fun PreviewDialogPanel() {
         ) {
             BookmarkList(
                 bookmarks = listOf(Bookmark("test 1", "https://www.google.com", false)),
-                bookmarkViewModel = remember { BookmarkViewModel(BookmarkManager()) },
+                bookmarkViewModel = remember { BookmarkViewModel(info.plateaukao.einkbro.AppServices.bookmarkManager) },
                 showTwoColumn = true,
                 shouldReverse = true,
                 shouldShowDragHandle = false,

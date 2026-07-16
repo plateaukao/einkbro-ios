@@ -1,20 +1,23 @@
 package info.plateaukao.einkbro.viewmodel
 
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.browser.WebViewEngine
 import info.plateaukao.einkbro.browser.WebViewEngineListener
 import info.plateaukao.einkbro.browser.createWebViewEngine
+import info.plateaukao.einkbro.database.HistoryRecord
 import info.plateaukao.einkbro.database.Record
-import info.plateaukao.einkbro.database.RecordType
+import info.plateaukao.einkbro.preference.AlbumInfo
+import info.plateaukao.einkbro.preference.SaveHistoryMode
 import info.plateaukao.einkbro.util.System
 import info.plateaukao.einkbro.view.Album
+import kotlinx.coroutines.launch
 
 /**
- * Phase-1 tab orchestration: the common-code half of Android's
- * TabManager/BrowserContainer. History is in-memory until Room lands (Phase 2).
+ * Tab orchestration: the common-code half of Android's TabManager.
+ * Phase 2: history is Room-backed; open tabs persist via TabConfig.
  */
 class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
@@ -25,20 +28,37 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     val currentUrl = mutableStateOf("")
     val progress = mutableStateOf(1f)
 
-    val records = mutableStateListOf<Record>()
+    val records = mutableStateOf<List<Record>>(emptyList())
 
     private val engines = LinkedHashMap<Int, WebViewEngine>()
+    private val config = AppServices.config
+    private val historyDao = AppServices.database.historyDao()
 
     val currentAlbum: Album? get() = albums.value.getOrNull(focusIndex.value)
     val currentEngine: WebViewEngine? get() = currentAlbum?.let { engines[it.id] }
 
-    fun ensureFirstTab(homeUrl: String = DEFAULT_HOME) {
-        if (albums.value.isEmpty()) newTab(homeUrl)
+    init {
+        viewModelScope.launch { reloadRecords() }
     }
 
-    fun newTab(url: String, activate: Boolean = true) {
+    /** Restores the previous session's tabs, or opens the default home. */
+    fun ensureFirstTab(homeUrl: String = DEFAULT_HOME) {
+        if (albums.value.isNotEmpty()) return
+        val saved = if (config.tab.shouldSaveTabs) config.tab.savedAlbumInfoList else emptyList()
+        if (saved.isEmpty()) {
+            newTab(homeUrl)
+            return
+        }
+        saved.forEach { info ->
+            newTab(info.url, activate = false, title = info.title)
+        }
+        focusIndex.value = config.tab.currentAlbumIndex.coerceIn(0, albums.value.lastIndex)
+        syncCurrentState()
+    }
+
+    fun newTab(url: String, activate: Boolean = true, title: String = "New tab") {
         val album = Album(
-            title = "New tab",
+            title = title,
             onShow = { switchTab(it) },
             onRemove = { closeTab(it) },
         )
@@ -50,6 +70,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             syncCurrentState()
         }
         if (url.isNotBlank()) engine.loadUrl(url)
+        persistTabs()
     }
 
     fun switchTab(album: Album) {
@@ -59,6 +80,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             focusIndex.value = index
             currentEngine?.resume()
             syncCurrentState()
+            persistTabs()
         }
     }
 
@@ -75,6 +97,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             focusIndex.value = index.coerceAtMost(list.lastIndex)
             syncCurrentState()
         }
+        persistTabs()
     }
 
     /** URL bar submission: scheme/host heuristics, else search engine query. */
@@ -88,12 +111,19 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             !trimmed.contains(' ') && trimmed.contains('.') -> "https://$trimmed"
 
             else -> {
-                val template = AppServices.config.browser.searchEngineUrl
+                val template = config.browser.searchEngineUrl
                     .ifBlank { "https://www.google.com/search?q=%s" }
                 template.replace("%s", percentEncode(trimmed))
             }
         }
         currentEngine?.loadUrl(url)
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch {
+            historyDao.deleteAll()
+            reloadRecords()
+        }
     }
 
     // --- WebViewEngineListener ---
@@ -113,21 +143,41 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     override fun onPageFinished(engine: WebViewEngine, url: String, title: String) {
         engine.album.isLoaded = true
+        persistTabs()
         if (url.isBlank() || url == "about:blank") return
-        records.removeAll { it.url == url }
-        records.add(
-            Record(
-                title = title.ifBlank { url },
-                url = url,
-                time = System.currentTimeMillis(),
-                type = RecordType.History,
+        if (config.isIncognitoMode) return
+        if (config.tab.saveHistoryMode == SaveHistoryMode.DISABLED) return
+        viewModelScope.launch {
+            historyDao.deleteByUrl(url)
+            historyDao.insert(
+                HistoryRecord(
+                    TITLE = title.ifBlank { url },
+                    URL = url,
+                    TIME = System.currentTimeMillis(),
+                )
             )
-        )
+            reloadRecords()
+        }
+    }
+
+    private suspend fun reloadRecords() {
+        records.value = historyDao.getAllHistory().map { it.toRecord() }
+    }
+
+    private fun persistTabs() {
+        if (!config.tab.shouldSaveTabs) return
+        config.tab.savedAlbumInfoList = albums.value.map { album ->
+            AlbumInfo(
+                title = album.albumTitle,
+                url = engines[album.id]?.currentUrl() ?: "",
+            )
+        }.filter { it.url.isNotBlank() }
+        config.tab.currentAlbumIndex = focusIndex.value
     }
 
     private fun syncCurrentState() {
         currentTitle.value = currentAlbum?.albumTitle.orEmpty()
-        currentUrl.value = currentEngine?.let { currentUrl.value } ?: ""
+        currentUrl.value = currentEngine?.currentUrl().orEmpty()
         progress.value = 1f
     }
 

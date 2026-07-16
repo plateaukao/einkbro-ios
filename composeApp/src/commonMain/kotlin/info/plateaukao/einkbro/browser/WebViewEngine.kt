@@ -19,6 +19,7 @@ interface WebViewEngine {
     fun goForward()
     fun canGoBack(): Boolean
     fun canGoForward(): Boolean
+    fun currentUrl(): String?
 
     /** Discrete e-ink style paging; Phase 1 uses plain viewport scrolls, the
      * fix_scrolling.js mechanism replaces the body in Phase 3. */

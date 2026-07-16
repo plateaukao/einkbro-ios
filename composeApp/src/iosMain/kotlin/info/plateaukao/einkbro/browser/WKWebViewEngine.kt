@@ -65,6 +65,8 @@ class WKWebViewEngine(
 
     override fun canGoForward(): Boolean = webView.canGoForward
 
+    override fun currentUrl(): String? = webView.URL?.absoluteString
+
     override fun pageUp() {
         evaluateJavascript(
             "window.scrollBy({top: -window.innerHeight * 0.92, left: 0, behavior: 'instant'});"

@@ -20,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +44,7 @@ import info.plateaukao.einkbro.view.dialog.compose.TouchAreaDialogContent
 import info.plateaukao.einkbro.view.toolbaricons.ToolbarAction
 import info.plateaukao.einkbro.view.toolbaricons.ToolbarActionInfo
 import info.plateaukao.einkbro.viewmodel.BrowserViewModel
+import kotlinx.coroutines.launch
 
 /**
  * Phase-1 browser: real WKWebView behind the ported EinkBro chrome.
@@ -56,6 +58,7 @@ fun BrowserScreen(
     val config = AppServices.config
     var showTabStrip by remember { mutableStateOf(false) }
     var showOverview by remember { mutableStateOf(false) }
+    var overviewShowsHistory by remember { mutableStateOf(false) }
     var showUrlInput by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showBookmarks by remember { mutableStateOf(false) }
@@ -64,6 +67,7 @@ fun BrowserScreen(
     var showFastToggle by remember { mutableStateOf(false) }
     var showTouchAreaDialog by remember { mutableStateOf(false) }
     var touchPagingEnabled by remember { mutableStateOf(config.touch.enableTouchTurn) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { browserViewModel.ensureFirstTab() }
 
@@ -117,13 +121,14 @@ fun BrowserScreen(
             MenuItemType.TouchSetting -> showTouchAreaDialog = true
             MenuItemType.SaveBookmark -> {
                 val album = browserViewModel.currentAlbum ?: return
-                AppServices.bookmarkManager.bookmarks.add(
-                    info.plateaukao.einkbro.database.Bookmark(
-                        title = album.albumTitle,
-                        url = browserViewModel.currentUrl.value,
+                val title = album.albumTitle
+                val url = browserViewModel.currentUrl.value
+                scope.launch {
+                    AppServices.bookmarkManager.insert(
+                        info.plateaukao.einkbro.database.Bookmark(title = title, url = url)
                     )
-                )
-                EBToast.show(AppServices.context, "Bookmark saved")
+                    EBToast.show(AppServices.context, "Bookmark saved")
+                }
             }
 
             MenuItemType.Quit -> onOpenCatalog()
@@ -151,14 +156,14 @@ fun BrowserScreen(
             if (showOverview) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
                     HistoryAndTabs(
-                        isHistoryOpen = false,
+                        isHistoryOpen = overviewShowsHistory,
                         albumList = browserViewModel.albums,
                         albumFocusIndex = browserViewModel.focusIndex,
-                        onTabIconClick = {},
+                        onTabIconClick = { overviewShowsHistory = false },
                         onTabClick = { browserViewModel.switchTab(it); showOverview = false },
                         onTabLongClick = { browserViewModel.closeTab(it) },
-                        records = browserViewModel.records.reversed(),
-                        onHistoryIconClick = {},
+                        records = browserViewModel.records.value,
+                        onHistoryIconClick = { overviewShowsHistory = true },
                         onHistoryItemClick = {
                             browserViewModel.loadUrlOrSearch(it.url); showOverview = false
                         },
@@ -171,7 +176,7 @@ fun BrowserScreen(
                             showOverview = false
                         },
                         closePanel = { showOverview = false },
-                        onDeleteAction = { browserViewModel.records.clear() },
+                        onDeleteAction = { browserViewModel.clearHistory() },
                         onCloseAllTabs = {
                             browserViewModel.albums.value.toList()
                                 .forEach { browserViewModel.closeTab(it) }
@@ -191,8 +196,8 @@ fun BrowserScreen(
                         )
                     )
                 }
-                val recordsState = remember(browserViewModel.records.size) {
-                    mutableStateOf(browserViewModel.records.reversed())
+                val recordsState = remember(browserViewModel.records.value.size) {
+                    mutableStateOf(browserViewModel.records.value)
                 }
                 val urlFocusRequester = remember { FocusRequester() }
                 LaunchedEffect(Unit) { urlFocusRequester.requestFocus() }

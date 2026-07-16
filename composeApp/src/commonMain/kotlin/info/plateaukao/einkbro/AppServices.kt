@@ -16,7 +16,9 @@ import org.koin.dsl.module
 object AppServices {
     val context = Context()
     val sharedPreferences = SharedPreferences()
-    val bookmarkManager = BookmarkManager()
+    val database: info.plateaukao.einkbro.database.AppDatabase =
+        info.plateaukao.einkbro.database.createAppDatabase()
+    val bookmarkManager = BookmarkManager(database)
     val dialogManager = DialogManager(context)
 
     val config: ConfigManager
@@ -27,6 +29,7 @@ object AppServices {
                 module {
                     single { bookmarkManager }
                     single { sharedPreferences }
+                    single { database }
                 }
             )
         }
