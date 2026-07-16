@@ -57,6 +57,15 @@ interface WebViewEngine {
     /** Adds/removes the shared adblock content-rule list on this web view. */
     fun setAdBlockEnabled(enabled: Boolean)
 
+    /**
+     * Forces the page's `prefers-color-scheme`. dark=true makes dark-capable
+     * sites render dark; null follows the system appearance.
+     */
+    fun setDarkMode(dark: Boolean?)
+
+    /** Enables/disables pinch-to-zoom on the page. */
+    fun setZoomEnabled(enabled: Boolean)
+
     // --- export (Phase 7) ---
     /** Renders the current page to PDF bytes (null on failure). */
     fun createPdf(callback: (ByteArray?) -> Unit)

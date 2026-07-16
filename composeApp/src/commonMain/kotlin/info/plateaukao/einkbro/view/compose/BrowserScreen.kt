@@ -246,8 +246,20 @@ fun BrowserScreen(
             BrowserAction.Noop -> Unit
 
             // Tab management
-            BrowserAction.NewATab ->
-                browserViewModel.newTab(config.favoriteUrl.ifBlank { BrowserViewModel.DEFAULT_HOME })
+            BrowserAction.NewATab -> when (config.tab.newTabBehavior) {
+                info.plateaukao.einkbro.preference.NewTabBehavior.START_INPUT -> {
+                    browserViewModel.newTab("", title = "New tab")
+                    showUrlInput = true
+                }
+                info.plateaukao.einkbro.preference.NewTabBehavior.SHOW_HOME ->
+                    browserViewModel.newTab(
+                        config.favoriteUrl.ifBlank { BrowserViewModel.DEFAULT_HOME }
+                    )
+                info.plateaukao.einkbro.preference.NewTabBehavior.SHOW_RECENT_BOOKMARKS -> {
+                    browserViewModel.newTab("", title = "New tab")
+                    showBookmarks = true
+                }
+            }
             BrowserAction.DuplicateTab ->
                 browserViewModel.newTab(browserViewModel.currentUrl.value)
             BrowserAction.RemoveAlbum ->
@@ -670,6 +682,10 @@ fun BrowserScreen(
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
                     AutoCompleteTextField(
                         focusRequester = urlFocusRequester,
+                        // Behavior pref: surface bookmarks (with favicons) in the
+                        // input bar's suggestion list.
+                        bookmarkManager = if (config.browser.showBookmarksInInputBar)
+                            AppServices.bookmarkManager else null,
                         text = text,
                         recordList = recordsState,
                         onTextSubmit = {
@@ -1002,6 +1018,41 @@ fun BrowserScreen(
     if (showUserScripts) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
             UserScriptListScreen(onClose = { showUserScripts = false })
+        }
+    }
+
+    // Confirm-tab-close (parity Phase C, confirmTabClose pref).
+    browserViewModel.pendingTabClose.value?.let { album ->
+        val cancel = { browserViewModel.pendingTabClose.value = null }
+        Dialog(onDismissRequest = cancel) {
+            Surface(color = MaterialTheme.colors.background) {
+                Column(Modifier.padding(16.dp)) {
+                    androidx.compose.material.Text(
+                        "Close this tab?",
+                        style = MaterialTheme.typography.h6,
+                        color = MaterialTheme.colors.onBackground,
+                    )
+                    androidx.compose.material.Text(
+                        album.albumTitle.ifBlank { "Current tab" },
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        color = MaterialTheme.colors.onBackground,
+                    )
+                    androidx.compose.foundation.layout.Row(Modifier.align(Alignment.End)) {
+                        androidx.compose.material.TextButton(onClick = cancel) {
+                            androidx.compose.material.Text(
+                                "Cancel", color = MaterialTheme.colors.onBackground,
+                            )
+                        }
+                        androidx.compose.material.TextButton(
+                            onClick = { browserViewModel.confirmPendingTabClose() }
+                        ) {
+                            androidx.compose.material.Text(
+                                "Close", color = MaterialTheme.colors.onBackground,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 

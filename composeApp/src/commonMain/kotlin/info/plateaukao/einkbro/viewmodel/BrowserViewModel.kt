@@ -48,8 +48,14 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     val pendingSslError = mutableStateOf<info.plateaukao.einkbro.browser.SslErrorRequest?>(null)
     val pendingJsDialog = mutableStateOf<info.plateaukao.einkbro.browser.JsDialogRequest?>(null)
 
+    // Parity Phase C: a tab awaiting close confirmation (confirmTabClose pref).
+    val pendingTabClose = mutableStateOf<Album?>(null)
+
     private val engines = LinkedHashMap<Int, WebViewEngine>()
     private val helpers = LinkedHashMap<Int, WebContentHelper>()
+    // Background tabs whose load was deferred (enableWebBkgndLoad off); the
+    // URL loads the first time the tab is activated.
+    private val pendingLoads = LinkedHashMap<Int, String>()
     private val config = AppServices.config
     private val historyDao = AppServices.database.historyDao()
     private val json = Json { ignoreUnknownKeys = true }
@@ -65,8 +71,8 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         viewModelScope.launch { reloadRecords() }
     }
 
-    /** Restores the previous session's tabs, or opens the default home. */
-    fun ensureFirstTab(homeUrl: String = DEFAULT_HOME) {
+    /** Restores the previous session's tabs, or opens the configured home. */
+    fun ensureFirstTab(homeUrl: String = config.favoriteUrl.ifBlank { DEFAULT_HOME }) {
         if (albums.value.isNotEmpty()) return
         val saved = if (config.tab.shouldSaveTabs) config.tab.savedAlbumInfoList else emptyList()
         if (saved.isEmpty()) {
@@ -114,7 +120,15 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             syncCurrentState()
         }
         applyWebConfig(engine, url.ifBlank { DEFAULT_HOME })
-        if (url.isNotBlank()) engine.loadUrl(url)
+        // Behavior pref: a background tab only preloads when background loading
+        // is enabled; otherwise defer the load until the tab is first shown.
+        if (url.isNotBlank()) {
+            if (activate || config.tab.enableWebBkgndLoad) {
+                engine.loadUrl(url)
+            } else {
+                pendingLoads[album.id] = url
+            }
+        }
         persistTabs()
     }
 
@@ -129,6 +143,15 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         engine.setUserAgent(ua)
         engine.setJavaScriptEnabled(config.getEnableJavascript(url))
         engine.setAdBlockEnabled(ContentBlocker.isReady && config.getEnableAdBlock(url))
+        // Display prefs (parity Phase C): dark-mode override + pinch zoom.
+        engine.setDarkMode(
+            when (config.display.darkMode) {
+                info.plateaukao.einkbro.preference.DarkMode.FORCE_ON -> true
+                info.plateaukao.einkbro.preference.DarkMode.DISABLED -> false
+                info.plateaukao.einkbro.preference.DarkMode.SYSTEM -> null
+            }
+        )
+        engine.setZoomEnabled(config.display.enableZoom)
     }
 
     /** Re-applies web config to every open tab (after a toggle or adblock compile). */
@@ -243,9 +266,19 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     fun searchInNewTab(query: String) {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return
-        val template = config.browser.searchEngineUrl
-            .ifBlank { "https://www.google.com/search?q=%s" }
-        newTab(template.replace("%s", percentEncode(trimmed)))
+        newTab(searchUrlFor(trimmed))
+    }
+
+    /** Builds the search URL for [query] honoring the chosen search engine. */
+    private fun searchUrlFor(query: String): String {
+        val ordinal = config.browser.searchEngine.toIntOrNull()
+            ?: info.plateaukao.einkbro.search.SearchEngine.GOOGLE.ordinal
+        return info.plateaukao.einkbro.search.SearchEngineUrls.searchUrl(
+            ordinal = ordinal,
+            encodedQuery = percentEncode(query),
+            customTemplate = config.browser.searchEngineUrl
+                .ifBlank { "https://www.google.com/search?q=%s" },
+        )
     }
 
     fun switchTab(album: Album) {
@@ -254,6 +287,10 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             currentEngine?.pause()
             focusIndex.value = index
             currentEngine?.resume()
+            // A deferred background tab loads the first time it's shown.
+            pendingLoads.remove(album.id)?.let { url ->
+                engines[album.id]?.loadUrl(url)
+            }
             // Stale selection/menu from the previous tab must not linger.
             selectionInfo.value = null
             contextMenuLink.value = null
@@ -278,40 +315,63 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         switchTab(list[if (i > list.lastIndex) 0 else i])
     }
 
+    /**
+     * Closes [album]. When [confirmTabClose] is set the host is asked to
+     * confirm first (via [pendingTabClose]); the confirmed close then calls
+     * back in here. [shouldShowNextAfterRemoveTab] picks whether focus lands
+     * on the following tab or the previous one.
+     */
     fun closeTab(album: Album) {
+        if (config.tab.confirmTabClose && pendingTabClose.value?.id != album.id) {
+            pendingTabClose.value = album
+            return
+        }
+        pendingTabClose.value = null
         val list = albums.value.toMutableList()
         val index = list.indexOfFirst { it.id == album.id }
         if (index < 0) return
         engines.remove(album.id)?.destroy()
         helpers.remove(album.id)
+        pendingLoads.remove(album.id)
         list.removeAt(index)
         albums.value = list
         selectionInfo.value = null
         contextMenuLink.value = null
         if (list.isEmpty()) {
-            newTab(DEFAULT_HOME)
+            newTab(config.favoriteUrl.ifBlank { DEFAULT_HOME })
         } else {
-            focusIndex.value = index.coerceAtMost(list.lastIndex)
+            val next = if (config.tab.shouldShowNextAfterRemoveTab) index else index - 1
+            focusIndex.value = next.coerceIn(0, list.lastIndex)
+            currentEngine?.resume()
             syncCurrentState()
         }
         persistTabs()
     }
 
+    /** Confirms a pending tab close (host tapped OK on the confirm dialog). */
+    fun confirmPendingTabClose() {
+        pendingTabClose.value?.let { closeTab(it) }
+    }
+
     /** URL bar submission: scheme/host heuristics, else search engine query. */
     fun loadUrlOrSearch(input: String) {
-        val trimmed = input.trim()
+        var trimmed = input.trim()
+        // Behavior pref: strip pasted prefix junk before the real scheme.
+        if (config.browser.shouldTrimInputUrl) {
+            trimmed = info.plateaukao.einkbro.util.UrlTidy.trimBeforeScheme(trimmed)
+        }
         if (trimmed.isEmpty()) return
-        val url = when {
+        var url = when {
             trimmed.startsWith("http://") || trimmed.startsWith("https://") ||
                 trimmed.startsWith("file://") || trimmed.startsWith("about:") -> trimmed
 
             !trimmed.contains(' ') && trimmed.contains('.') -> "https://$trimmed"
 
-            else -> {
-                val template = config.browser.searchEngineUrl
-                    .ifBlank { "https://www.google.com/search?q=%s" }
-                template.replace("%s", percentEncode(trimmed))
-            }
+            else -> searchUrlFor(trimmed)
+        }
+        // Behavior pref: drop known tracking query parameters.
+        if (config.browser.shouldPruneQueryParameters) {
+            url = info.plateaukao.einkbro.util.UrlTidy.pruneQueryParameters(url)
         }
         currentEngine?.let { engine ->
             applyWebConfig(engine, url)
@@ -428,7 +488,10 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             .map { album ->
                 AlbumInfo(
                     title = album.albumTitle,
-                    url = engines[album.id]?.currentUrl() ?: "",
+                    // A deferred background tab hasn't loaded yet — persist its
+                    // pending URL so it survives a relaunch.
+                    url = engines[album.id]?.currentUrl()?.takeIf { it.isNotBlank() }
+                        ?: pendingLoads[album.id] ?: "",
                 )
             }.filter { it.url.isNotBlank() }
         config.tab.currentAlbumIndex = focusIndex.value.coerceAtMost(albums.value.lastIndex)

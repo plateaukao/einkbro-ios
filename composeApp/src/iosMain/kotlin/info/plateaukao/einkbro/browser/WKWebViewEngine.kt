@@ -30,6 +30,7 @@ import platform.Foundation.credentialWithUser
 import platform.Foundation.serverTrust
 import platform.Security.SecTrustEvaluateWithError
 import platform.UIKit.UIApplication
+import platform.UIKit.UIUserInterfaceStyle
 import platform.WebKit.WKDownload
 import platform.WebKit.WKDownloadDelegateProtocol
 import platform.WebKit.WKFrameInfo
@@ -174,6 +175,21 @@ class WKWebViewEngine(
         val list = ContentBlocker.compiledList ?: return
         if (enabled) controller.addContentRuleList(list)
         else controller.removeContentRuleList(list)
+    }
+
+    override fun setDarkMode(dark: Boolean?) {
+        // overrideUserInterfaceStyle drives prefers-color-scheme in the page.
+        webView.setOverrideUserInterfaceStyle(
+            when (dark) {
+                true -> UIUserInterfaceStyle.UIUserInterfaceStyleDark
+                false -> UIUserInterfaceStyle.UIUserInterfaceStyleLight
+                null -> UIUserInterfaceStyle.UIUserInterfaceStyleUnspecified
+            }
+        )
+    }
+
+    override fun setZoomEnabled(enabled: Boolean) {
+        webView.scrollView.pinchGestureRecognizer?.enabled = enabled
     }
 
     override fun evaluateJavascript(script: String, callback: ((String?) -> Unit)?) {
