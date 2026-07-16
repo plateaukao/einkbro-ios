@@ -171,14 +171,22 @@ private class RealBackupOps(
  * in-settings search, backed by AppServices.config.
  */
 @Composable
-fun SettingsScreen(onClose: () -> Unit = {}, onOpenUserScripts: () -> Unit = {}) {
+fun SettingsScreen(
+    onClose: () -> Unit = {},
+    onOpenUserScripts: () -> Unit = {},
+    onOpenGptActions: () -> Unit = {},
+    onOpenGptQueries: () -> Unit = {},
+) {
     val config = AppServices.config
     val dialogManager = AppServices.dialogManager
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     val deps = remember {
-        SettingScreenDeps(context, config, scope, RealBackupOps(context, scope), onOpenUserScripts)
+        SettingScreenDeps(
+            context, config, scope, RealBackupOps(context, scope),
+            onOpenUserScripts, onOpenGptActions, onOpenGptQueries,
+        )
     }
 
     val mainSettings = remember { buildMainSettingItems() }

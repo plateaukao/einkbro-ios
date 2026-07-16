@@ -11,10 +11,13 @@ import info.plateaukao.einkbro.data.remote.OpenAiRepository
 import info.plateaukao.einkbro.data.remote.TranslateRepository
 import info.plateaukao.einkbro.data.remote.toSystemMessage
 import info.plateaukao.einkbro.data.remote.toUserMessage
+import info.plateaukao.einkbro.database.ChatGptQuery
 import info.plateaukao.einkbro.preference.ChatGPTActionInfo
 import info.plateaukao.einkbro.preference.ConfigManager
+import info.plateaukao.einkbro.preference.GptActionScope
 import info.plateaukao.einkbro.preference.GptActionType
 import info.plateaukao.einkbro.unit.HelperUnit
+import info.plateaukao.einkbro.util.System
 import info.plateaukao.einkbro.util.TranslationLanguage
 import info.plateaukao.einkbro.view.EBToast
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -313,9 +316,42 @@ class TranslationViewModel(
         _showEditDialogWithIndex.value = -1
     }
 
-    /** GPT-query persistence (ChatGptQuery table) arrives with Phase 7 data work. */
+    /** Persists the current query + result to the `chat_gpt_query` table (Phase K). */
     suspend fun saveTranslationResult() {
-        EBToast.show(AppServices.context, "saving results: later phase")
+        val bookmarkManager = AppServices.bookmarkManager
+        if (_translateMethod.value != TRANSLATE_API.LLM) {
+            bookmarkManager.addChatGptQuery(
+                ChatGptQuery(
+                    date = System.currentTimeMillis(),
+                    url = url,
+                    model = _translateMethod.value.name,
+                    selectedText = _inputMessage.value,
+                    result = _responseMessage.value.text,
+                )
+            )
+        } else {
+            val isWholePage = gptActionInfo.scope == GptActionScope.WholePage
+            val (_, selectedText) = getSelectedTextAndPromptPrefix()
+            val model = gptActionInfo.model.ifEmpty {
+                when (gptActionInfo.actionType) {
+                    GptActionType.OpenAi -> config.ai.gptModel
+                    GptActionType.Gemini -> config.ai.geminiModel
+                    GptActionType.SelfHosted -> config.ai.alternativeModel
+                    GptActionType.Default -> config.ai.getDefaultActionModel()
+                }
+            }
+            bookmarkManager.addChatGptQuery(
+                ChatGptQuery(
+                    date = System.currentTimeMillis(),
+                    url = url,
+                    model = "${gptActionInfo.name} $model",
+                    selectedText = if (isWholePage) pageTitle else selectedText,
+                    result = toBeSavedResponseString,
+                )
+            )
+        }
+        toBeSavedResponseString = ""
+        EBToast.show(AppServices.context, "Saved to query history")
     }
 
     fun emitScrollEvent(isUp: Boolean) {

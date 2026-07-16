@@ -18,6 +18,10 @@ class SettingScreenDeps(
     val backupOps: BackupOps,
     /** Opens the userscript manager (parity Phase H); wired by the host screen. */
     val onOpenUserScripts: () -> Unit = {},
+    /** Opens the GPT action editor (parity Phase K); wired by the host screen. */
+    val onOpenGptActions: () -> Unit = {},
+    /** Opens the persisted GPT query history (parity Phase K); wired by the host screen. */
+    val onOpenGptQueries: () -> Unit = {},
 )
 
 interface BackupOps {

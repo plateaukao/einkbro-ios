@@ -20,6 +20,7 @@ import androidx.sqlite.execSQL
  *  v2 — articles + highlights (Phase 5 text-selection highlights).
  *  v3 — saved_pages (Phase 7 offline archives).
  *  v4 — user_scripts + user_script_values (parity Phase H userscripts).
+ *  v5 — chat_gpt_query (parity Phase K AI query persistence).
  */
 @Database(
     entities = [
@@ -32,8 +33,9 @@ import androidx.sqlite.execSQL
         SavedPage::class,
         UserScript::class,
         UserScriptValue::class,
+        ChatGptQuery::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -47,6 +49,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun savedPageDao(): SavedPageDao
     abstract fun userScriptDao(): UserScriptDao
     abstract fun userScriptValueDao(): UserScriptValueDao
+    abstract fun chatGptQueryDao(): ChatGptQueryDao
 }
 
 /** Adds the articles + highlights tables without dropping existing data. */
@@ -94,6 +97,18 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
             "CREATE TABLE IF NOT EXISTS `user_script_values` (" +
                 "`scriptId` INTEGER NOT NULL, `key` TEXT NOT NULL, `value` TEXT NOT NULL, " +
                 "PRIMARY KEY(`scriptId`, `key`))"
+        )
+    }
+}
+
+/** Adds the chat_gpt_query table (persisted AI query/result history). */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `chat_gpt_query` (" +
+                "`date` INTEGER NOT NULL, `url` TEXT NOT NULL, `model` TEXT NOT NULL, " +
+                "`selectedText` TEXT NOT NULL, `result` TEXT NOT NULL, " +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)"
         )
     }
 }

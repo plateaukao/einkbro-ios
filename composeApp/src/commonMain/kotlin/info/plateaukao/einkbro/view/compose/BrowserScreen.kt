@@ -132,6 +132,9 @@ fun BrowserScreen(
     var showUserScripts by remember { mutableStateOf(false) }
     var showEpubDialog by remember { mutableStateOf(false) }
     var showInstapaperConfig by remember { mutableStateOf(false) }
+    var showChatWithWeb by remember { mutableStateOf(false) }
+    var showGptActions by remember { mutableStateOf(false) }
+    var showGptQueries by remember { mutableStateOf(false) }
     // Userscript GM_registerMenuCommand entries for the current page (parity Phase H).
     var userScriptCommands by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var languageConfigApi by remember { mutableStateOf<TRANSLATE_API?>(null) }
@@ -155,6 +158,7 @@ fun BrowserScreen(
     // dialog closes, and translate results survive reopening the popup.
     val ttsViewModel = remember { TtsViewModel() }
     val translationViewModel = remember { TranslationViewModel() }
+    val chatWithWebViewModel = remember { info.plateaukao.einkbro.viewmodel.ChatWithWebViewModel() }
 
     LaunchedEffect(Unit) {
         info.plateaukao.einkbro.browser.Assets.preload()
@@ -470,7 +474,28 @@ fun BrowserScreen(
                     } ?: Unit
                 }
             }
-            is BrowserAction.ChatWithWeb -> comingSoon("Chat with web", 'K')
+            is BrowserAction.ChatWithWeb -> {
+                if (!translationViewModel.hasOpenAiApiKey() &&
+                    config.ai.geminiApiKey.isBlank() && !config.ai.useCustomGptUrl
+                ) {
+                    EBToast.show(AppServices.context, "Set an AI API key in Settings first")
+                } else {
+                    val runAction = action.runWithAction
+                    val presetContent = action.content
+                    currentHelper?.getRawText { text ->
+                        val content = presetContent ?: text
+                        if (content.isNotBlank()) {
+                            chatWithWebViewModel.start(
+                                content,
+                                browserViewModel.currentTitle.value,
+                                browserViewModel.currentUrl.value,
+                            )
+                            showChatWithWeb = true
+                            runAction?.let { chatWithWebViewModel.runInitialAction(it) }
+                        }
+                    } ?: Unit
+                }
+            }
             BrowserAction.ShowPageAiActionMenu -> {
                 if (!translationViewModel.hasOpenAiApiKey() &&
                     config.ai.geminiApiKey.isBlank() && !config.ai.useCustomGptUrl
@@ -480,9 +505,11 @@ fun BrowserScreen(
                     showPageAiActions = true
                 }
             }
-            BrowserAction.ShowTaskMenu -> comingSoon("Task runner", 'K')
-            is BrowserAction.RunTask -> comingSoon("Task runner", 'K')
-            is BrowserAction.RunCustomTask -> comingSoon("Task runner", 'K')
+            BrowserAction.ShowTaskMenu, is BrowserAction.RunTask, is BrowserAction.RunCustomTask ->
+                EBToast.show(
+                    AppServices.context,
+                    "The AI task runner (browser automation agent) is not available on iOS yet",
+                )
 
             // File
             BrowserAction.ShowEpubDialog -> showEpubDialog = true
@@ -607,8 +634,40 @@ fun BrowserScreen(
                 handleBrowserAction(BrowserAction.SaveBookmark(url = url, title = url))
             ContextMenuItemType.GotoLink -> browserViewModel.currentEngine?.loadUrl(url)
             ContextMenuItemType.SplitScreen -> browserViewModel.toggleSplitScreen(url)
-            ContextMenuItemType.Summarize -> comingSoon("Link summarize", 'K')
-            ContextMenuItemType.Tts -> comingSoon("Read link aloud", 'K')
+            ContextMenuItemType.Summarize -> {
+                if (!translationViewModel.hasOpenAiApiKey() &&
+                    config.ai.geminiApiKey.isBlank() && !config.ai.useCustomGptUrl
+                ) {
+                    EBToast.show(AppServices.context, "Set an AI API key in Settings first")
+                } else {
+                    EBToast.show(AppServices.context, "Fetching link…")
+                    scope.launch {
+                        val text =
+                            info.plateaukao.einkbro.data.remote.PageContentFetcher.fetchText(url)
+                        if (text.isNullOrBlank()) {
+                            EBToast.show(AppServices.context, "Could not fetch link content")
+                            return@launch
+                        }
+                        translationViewModel.url = url
+                        translationViewModel.pageTitle = url
+                        translationViewModel.setupTextSummary(text)
+                        translateDialogWholePage = true
+                        showTranslateDialog = true
+                    }
+                }
+            }
+            ContextMenuItemType.Tts -> {
+                EBToast.show(AppServices.context, "Fetching link…")
+                scope.launch {
+                    val text =
+                        info.plateaukao.einkbro.data.remote.PageContentFetcher.fetchText(url)
+                    if (text.isNullOrBlank()) {
+                        EBToast.show(AppServices.context, "Could not fetch link content")
+                        return@launch
+                    }
+                    ttsViewModel.readArticle(text, url)
+                }
+            }
             ContextMenuItemType.SaveAs -> browserViewModel.currentEngine?.startDownload(url)
             ContextMenuItemType.TranslateImage -> comingSoon("Image translation", 'M')
             ContextMenuItemType.SelectText ->
@@ -978,7 +1037,21 @@ fun BrowserScreen(
             SettingsScreen(
                 onClose = { showSettings = false },
                 onOpenUserScripts = { showSettings = false; showUserScripts = true },
+                onOpenGptActions = { showSettings = false; showGptActions = true },
+                onOpenGptQueries = { showSettings = false; showGptQueries = true },
             )
+        }
+    }
+
+    if (showGptActions) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            info.plateaukao.einkbro.activity.GptActionsScreen(onClose = { showGptActions = false })
+        }
+    }
+
+    if (showGptQueries) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            info.plateaukao.einkbro.activity.GptQueryListScreen(onClose = { showGptQueries = false })
         }
     }
 
@@ -1125,9 +1198,20 @@ fun BrowserScreen(
                             }
                         }
                     },
-                    onChatWithWebClicked = { comingSoon("Chat with web", 'K') },
-                    onChatWithWebLongClicked = { comingSoon("Chat with web", 'K') },
-                    onTaskRunnerClicked = { comingSoon("Task runner", 'K') },
+                    onChatWithWebClicked = {
+                        showPageAiActions = false
+                        handleBrowserAction(BrowserAction.ChatWithWeb(useSplitScreen = false))
+                    },
+                    onChatWithWebLongClicked = {
+                        showPageAiActions = false
+                        handleBrowserAction(BrowserAction.ChatWithWeb(useSplitScreen = true))
+                    },
+                    onTaskRunnerClicked = {
+                        EBToast.show(
+                            AppServices.context,
+                            "The AI task runner (browser automation agent) is not available on iOS yet",
+                        )
+                    },
                     onDismiss = { showPageAiActions = false },
                 )
             }
@@ -1198,6 +1282,16 @@ fun BrowserScreen(
                 if (browserViewModel.hasInstapaperCredentials()) browserViewModel.addToInstapaper()
             },
             onDismiss = { showInstapaperConfig = false },
+        )
+    }
+
+    if (showChatWithWeb) {
+        info.plateaukao.einkbro.view.dialog.compose.ChatWithWebDialog(
+            viewModel = chatWithWebViewModel,
+            onDismiss = {
+                chatWithWebViewModel.cancel()
+                showChatWithWeb = false
+            },
         )
     }
 

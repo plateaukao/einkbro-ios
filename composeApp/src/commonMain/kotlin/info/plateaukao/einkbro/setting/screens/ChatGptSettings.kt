@@ -87,12 +87,12 @@ fun buildChatGptSettingItems(deps: SettingScreenDeps): List<SettingItemInterface
             Res.string.setting_title_gpt_action_list,
             null,
             Res.string.setting_summary_gpt_action_list,
-        ) { EBToast.show(deps.context, "would open the GPT actions editor") },
+        ) { deps.onOpenGptActions() },
         ActionSettingItem(
             Res.string.setting_title_gpt_query_list,
             null,
             Res.string.setting_summary_gpt_query_list,
-        ) { EBToast.show(deps.context, "would open the GPT query history") },
+        ) { deps.onOpenGptQueries() },
     )
 }
 

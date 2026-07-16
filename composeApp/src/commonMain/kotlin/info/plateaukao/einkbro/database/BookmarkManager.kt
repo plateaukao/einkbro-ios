@@ -18,6 +18,7 @@ class BookmarkManager(private val database: AppDatabase) {
     private val articleDao = database.articleDao()
     private val highlightDao = database.highlightDao()
     private val savedPageDao = database.savedPageDao()
+    private val chatGptQueryDao = database.chatGptQueryDao()
 
     // For the fire-and-forget calls that come from non-suspend contexts
     // (ConfigManager property setters).
@@ -128,6 +129,22 @@ class BookmarkManager(private val database: AppDatabase) {
     }
 
     suspend fun deleteSavedPage(savedPage: SavedPage) = savedPageDao.delete(savedPage)
+
+    // --- persisted AI queries (Phase K) ---
+
+    fun getAllChatGptQueries(): kotlinx.coroutines.flow.Flow<List<ChatGptQuery>> =
+        chatGptQueryDao.getAllChatGptQueries()
+
+    suspend fun getAllChatGptQueriesAsync(): List<ChatGptQuery> =
+        chatGptQueryDao.getAllChatGptQueriesAsync()
+
+    suspend fun addChatGptQuery(chatGptQuery: ChatGptQuery) =
+        chatGptQueryDao.addChatGptQuery(chatGptQuery)
+
+    suspend fun deleteChatGptQuery(chatGptQuery: ChatGptQuery) =
+        chatGptQueryDao.deleteChatGptQuery(chatGptQuery)
+
+    suspend fun deleteAllChatGptQueries() = chatGptQueryDao.deleteAll()
 
     // Favicon bitmaps are not rendered yet (decode helper arrives with the
     // favicon-capture work); UI falls back to the default globe icon.
