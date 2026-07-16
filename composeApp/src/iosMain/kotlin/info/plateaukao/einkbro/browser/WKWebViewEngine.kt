@@ -70,25 +70,19 @@ class WKWebViewEngine(
     override fun currentUrl(): String? = webView.URL?.absoluteString
 
     override fun pageUp() {
-        evaluateJavascript(
-            "window.scrollBy({top: -window.innerHeight * 0.92, left: 0, behavior: 'instant'});"
-        )
+        evaluateJavascript(Assets.get("engine_scroll_by_page.js").replace("__SIGN__", "-1"))
     }
 
     override fun pageDown() {
-        evaluateJavascript(
-            "window.scrollBy({top: window.innerHeight * 0.92, left: 0, behavior: 'instant'});"
-        )
+        evaluateJavascript(Assets.get("engine_scroll_by_page.js").replace("__SIGN__", "1"))
     }
 
     override fun jumpToTop() {
-        evaluateJavascript("window.scrollTo({top: 0, left: 0, behavior: 'instant'});")
+        evaluateJavascript(Assets.get("scroll_to_top.js"))
     }
 
     override fun jumpToBottom() {
-        evaluateJavascript(
-            "window.scrollTo({top: document.body.scrollHeight, left: 0, behavior: 'instant'});"
-        )
+        evaluateJavascript(Assets.get("scroll_to_bottom.js"))
     }
 
     override fun installUserScript(source: String, atDocumentStart: Boolean) {

@@ -38,5 +38,14 @@ object Assets {
         "audio_only_mode.js",
         "audio_only_mode_off.js",
         "highlight.css",
+        // Extracted inline JS (reader/vertical/paging), filled via __PLACEHOLDER__.
+        "vertical_scroll_helpers.js",
+        "page_scroll.js",
+        "replace_reader_body.js",
+        "disable_reader_mode.js",
+        "vertical_scroll_to.js",
+        "scroll_to_top.js",
+        "scroll_to_bottom.js",
+        "engine_scroll_by_page.js",
     )
 }

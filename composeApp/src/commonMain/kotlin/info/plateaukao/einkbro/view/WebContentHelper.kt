@@ -50,14 +50,9 @@ class WebContentHelper(
 
     fun clearCssSlot(slot: String) = updateCssSlot(slot, "")
 
-    private fun evaluateJsFile(
-        fileName: String,
-        withPrefix: Boolean = true,
-        callback: ((String?) -> Unit)? = null,
-    ) {
-        val content = Assets.get(fileName)
-        val js = if (withPrefix) "(function() { $content })()" else content
-        engine.evaluateJavascript(js, callback)
+    // Each asset here is already a self-contained IIFE, so it evaluates as-is.
+    private fun evaluateJsFile(fileName: String, callback: ((String?) -> Unit)? = null) {
+        engine.evaluateJavascript(Assets.get(fileName), callback)
     }
 
     private fun setViewportContent(content: String) {
@@ -133,21 +128,9 @@ class WebContentHelper(
         } else {
             "{classesToPreserve: preservedClasses, overwriteImgSrc: true}"
         }
-        val js = """
-            (function() {
-                ${if (keepExtra) "inlineCodeStyles();" else ""}
-                var scopedDoc = (typeof getReadabilityScopedDocument === 'function') ? getReadabilityScopedDocument() : null;
-                var documentClone = scopedDoc || document.cloneNode(true);
-                var article = new Readability(documentClone, $options).parse();
-                document.innerHTMLCache = document.body.innerHTML;
-                if (article) {
-                    article.readingTime = getReadingTime(article.length, document.documentElement.lang.substring(0, 2));
-                    document.body.outerHTML = createHtmlBody(article);
-                    var viewport = document.getElementsByName('viewport')[0];
-                    if (viewport) viewport.setAttribute('content', 'width=device-width');
-                }
-            })();
-        """.trimIndent()
+        val js = Assets.get("replace_reader_body.js")
+            .replace("__INLINE_CODE_STYLES__", if (keepExtra) "inlineCodeStyles();" else "")
+            .replace("__READABILITY_OPTIONS__", options)
         engine.evaluateJavascript(js) { done() }
     }
 
@@ -156,18 +139,12 @@ class WebContentHelper(
         clearCssSlot(CSS_SLOT_VERTICAL)
         clearCssSlot(CSS_SLOT_READER_SETTINGS)
         setViewportContent(VIEWPORT_DEFAULT)
-        engine.evaluateJavascript(
-            "(function() {" +
-                "document.body.innerHTML = document.innerHTMLCache;" +
-                "document.body.classList.remove(\"mozac-readerview-body\");" +
-                "window.scrollTo(0, 0);" +
-                "})()"
-        )
+        engine.evaluateJavascript(Assets.get("disable_reader_mode.js"))
     }
 
     private fun applyVerticalTextProcessing() {
         updateReaderSettingsStyle()
-        evaluateJsFile("process_text_nodes.js", withPrefix = false) {
+        evaluateJsFile("process_text_nodes.js") {
             measureVerticalLineAdvance {
                 jumpToTop()
             }
@@ -175,7 +152,7 @@ class WebContentHelper(
     }
 
     private fun measureVerticalLineAdvance(then: () -> Unit = {}) {
-        evaluateJsFile("measure_line_advance.js", withPrefix = false) { value ->
+        evaluateJsFile("measure_line_advance.js") { value ->
             // JS reports CSS px; iOS paging also runs in CSS px — no scaling.
             verticalLineAdvanceCssPx = value?.trim('"')?.toFloatOrNull() ?: 0f
             then()
@@ -294,66 +271,44 @@ class WebContentHelper(
     fun pageUp() = pageScroll(-1)
 
     private fun pageScroll(direction: Int) {
-        engine.evaluateJavascript(
-            "(function(dir){ ${pagingJsBody()} })($direction);"
-        )
+        val (reservePct, reservePx) = reservedOffset()
+        val twoColumnConfigured = isReaderModeOn && !isVerticalRead &&
+                config.display.readerTwoColumnInLandscape
+        val js = Assets.get("page_scroll.js")
+            .replace("__VERTICAL_SCROLL_HELPERS__", verticalScrollHelpers())
+            .replace("__IS_VERTICAL_READER__", (isVerticalRead && isReaderModeOn).toString())
+            .replace("__LINE_ADVANCE__", verticalLineAdvanceCssPx.toString())
+            .replace("__TWO_COLUMN__", twoColumnConfigured.toString())
+            .replace("__RESERVE_PCT__", reservePct.toString())
+            .replace("__RESERVE_PX__", reservePx.toString())
+            .replace("__DIRECTION__", direction.toString())
+        engine.evaluateJavascript(js)
     }
 
     fun jumpToTop() {
         if (isVerticalRead) {
-            // Reading start = right edge; see scrollFromStart helpers for the
-            // vertical-rl scrollLeft sign convention handling.
-            engine.evaluateJavascript(
-                "(function(){ ${VERTICAL_SCROLL_HELPERS} __ebSetFromStart(0); })();"
-            )
+            // Reading start = right edge; the helpers hide the sign convention.
+            engine.evaluateJavascript(verticalScrollToJs("0"))
         } else {
-            engine.evaluateJavascript(
-                "window.scrollTo({top: 0, left: 0, behavior: 'instant'});" +
-                    "window.__einkbroScrollToTop && window.__einkbroScrollToTop();"
-            )
+            engine.evaluateJavascript(Assets.get("scroll_to_top.js"))
         }
     }
 
     fun jumpToBottom() {
         if (isVerticalRead) {
-            engine.evaluateJavascript(
-                "(function(){ ${VERTICAL_SCROLL_HELPERS} __ebSetFromStart(__ebMax()); })();"
-            )
+            engine.evaluateJavascript(verticalScrollToJs("__ebMax()"))
         } else {
-            engine.evaluateJavascript(
-                "window.scrollTo({top: document.documentElement.scrollHeight, left: 0, behavior: 'instant'});"
-            )
+            engine.evaluateJavascript(Assets.get("scroll_to_bottom.js"))
         }
     }
 
-    private fun pagingJsBody(): String {
-        val (reservePct, reservePx) = reservedOffset()
-        val twoColumnConfigured = isReaderModeOn && !isVerticalRead &&
-                config.display.readerTwoColumnInLandscape
-        return """
-            if (${isVerticalRead && isReaderModeOn}) {
-                $VERTICAL_SCROLL_HELPERS
-                var line = $verticalLineAdvanceCssPx;
-                var usable = window.innerWidth - 40;
-                var step = (line > 1 && line < usable) ? Math.floor(usable / line) * line : usable;
-                // dir=+1 (pageDown) advances toward the document end (leftward);
-                // __ebSetFromStart hides the vertical-rl scrollLeft sign convention.
-                var cur = Math.round(__ebFromStart() / step);
-                __ebSetFromStart(Math.min(Math.max((cur + dir) * step, 0), __ebMax()));
-                return;
-            }
-            if ($twoColumnConfigured && matchMedia('(orientation: landscape)').matches) {
-                var w = window.innerWidth;
-                var maxX = Math.max(0, document.documentElement.scrollWidth - w);
-                var page = Math.round(window.scrollX / w) + dir;
-                window.scrollTo({left: Math.min(Math.max(page * w, 0), maxX), top: 0, behavior: 'instant'});
-                return;
-            }
-            if (window.__einkbroPageScroll && window.__einkbroPageScroll(dir, $reservePct, $reservePx)) return;
-            var usableH = window.innerHeight * (1 - $reservePct) - $reservePx;
-            window.scrollBy({top: dir * usableH, left: 0, behavior: 'instant'});
-        """.trimIndent()
-    }
+    private fun verticalScrollHelpers(): String = Assets.get("vertical_scroll_helpers.js")
+
+    /** Absolute vertical-rl jump; target is distance from the reading start. */
+    private fun verticalScrollToJs(target: String): String =
+        Assets.get("vertical_scroll_to.js")
+            .replace("__VERTICAL_SCROLL_HELPERS__", verticalScrollHelpers())
+            .replace("__TARGET__", target)
 
     private fun reservedOffset(): Pair<Double, Int> {
         val offset = config.touch.pageReservedOffsetInString
@@ -381,30 +336,6 @@ class WebContentHelper(
         const val CSS_SLOT_VERTICAL = "vertical"
         const val VIEWPORT_DEFAULT = "width=device-width"
         const val VIEWPORT_FIXED_SCALE = "width=device-width, initial-scale=1.0, minimum-scale=1.0"
-
-        /**
-         * vertical-rl scroll coordinates differ by engine convention: modern
-         * WebKit uses a negative scrollLeft range (0 at the right-edge reading
-         * start, -max at the end); older engines use 0..max with max at the
-         * start. These helpers normalize to "distance from reading start".
-         */
-        val VERTICAL_SCROLL_HELPERS = """
-            var __ebDoc = document.scrollingElement || document.documentElement;
-            function __ebMax() { return Math.max(0, __ebDoc.scrollWidth - __ebDoc.clientWidth); }
-            function __ebNegRange() {
-                var o = __ebDoc.scrollLeft;
-                __ebDoc.scrollLeft = -1;
-                var neg = __ebDoc.scrollLeft < 0;
-                __ebDoc.scrollLeft = o;
-                return neg;
-            }
-            function __ebFromStart() {
-                return __ebNegRange() ? -__ebDoc.scrollLeft : (__ebMax() - __ebDoc.scrollLeft);
-            }
-            function __ebSetFromStart(v) {
-                __ebDoc.scrollLeft = __ebNegRange() ? -v : (__ebMax() - v);
-            }
-        """
 
         const val SERIF_FONT_CSS = "* {\nfont-family: serif !important;\n}\n"
 
