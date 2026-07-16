@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -104,25 +105,65 @@ enum class SettingRoute(val titleId: StringResource) {
     GesturePicker(Res.string.setting_gestures);
 }
 
-/** All backup flows are Android file-picker/socket driven; surface a toast. */
-private class ToastBackupOps(private val context: Context) : BackupOps {
-    override fun exportAppData() =
-        EBToast.show(context, "would pick a file and export app data")
+/**
+ * Real backup operations (parity Phase J): export builds a ZIP / bookmark JSON
+ * and hands it to the iOS share sheet; import uses the system file picker and
+ * restores through [BackupManager]. LAN share/receive is deferred (needs the
+ * multicast entitlement, which requires an Apple developer provisioning setup).
+ */
+private class RealBackupOps(
+    private val context: Context,
+    private val scope: kotlinx.coroutines.CoroutineScope,
+) : BackupOps {
+    override fun exportAppData() {
+        scope.launch {
+            val bytes = info.plateaukao.einkbro.backup.BackupManager.exportBackupZip()
+            val path = info.plateaukao.einkbro.util.FileStore.writeBytes(
+                "backup", "einkbro-backup.zip", bytes,
+            )
+            if (path != null) info.plateaukao.einkbro.util.FileStore.share(path)
+            else EBToast.show(context, "Couldn't create backup")
+        }
+    }
 
-    override fun importAppData() =
-        EBToast.show(context, "would pick a backup file and import app data")
+    override fun importAppData() {
+        info.plateaukao.einkbro.util.FilePicker.pick { _, bytes ->
+            scope.launch {
+                val ok = info.plateaukao.einkbro.backup.BackupManager.importBackupZip(bytes)
+                EBToast.show(
+                    context,
+                    if (ok) "Backup restored — relaunch to apply all settings"
+                    else "Not a valid EinkBro backup",
+                )
+            }
+        }
+    }
 
     override fun shareAppData() =
-        EBToast.show(context, "would share app data over the local network")
+        EBToast.show(context, "LAN app-data share needs the multicast entitlement (Apple account)")
 
     override fun receiveAppData() =
-        EBToast.show(context, "would receive app data over the local network")
+        EBToast.show(context, "LAN app-data receive needs the multicast entitlement (Apple account)")
 
-    override fun exportBookmarks() =
-        EBToast.show(context, "would pick a file and export bookmarks")
+    override fun exportBookmarks() {
+        scope.launch {
+            val text = info.plateaukao.einkbro.backup.BackupManager.exportBookmarksJson()
+            val path = info.plateaukao.einkbro.util.FileStore.writeBytes(
+                "backup", "bookmarks.json", text.encodeToByteArray(),
+            )
+            if (path != null) info.plateaukao.einkbro.util.FileStore.share(path)
+            else EBToast.show(context, "Couldn't export bookmarks")
+        }
+    }
 
-    override fun importBookmarks() =
-        EBToast.show(context, "would pick a file and import bookmarks")
+    override fun importBookmarks() {
+        info.plateaukao.einkbro.util.FilePicker.pick { _, bytes ->
+            scope.launch {
+                info.plateaukao.einkbro.backup.BackupManager.importBookmarks(bytes.decodeToString())
+                EBToast.show(context, "Bookmarks imported")
+            }
+        }
+    }
 }
 
 /**
@@ -137,7 +178,7 @@ fun SettingsScreen(onClose: () -> Unit = {}, onOpenUserScripts: () -> Unit = {})
     val scope = rememberCoroutineScope()
 
     val deps = remember {
-        SettingScreenDeps(context, config, scope, ToastBackupOps(context), onOpenUserScripts)
+        SettingScreenDeps(context, config, scope, RealBackupOps(context, scope), onOpenUserScripts)
     }
 
     val mainSettings = remember { buildMainSettingItems() }

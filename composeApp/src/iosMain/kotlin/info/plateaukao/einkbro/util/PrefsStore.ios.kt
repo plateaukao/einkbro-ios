@@ -1,6 +1,13 @@
 package info.plateaukao.einkbro.util
 
+import platform.Foundation.NSJSONSerialization
+import platform.Foundation.NSMutableDictionary
+import platform.Foundation.NSString
+import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.NSUserDefaults
+import platform.Foundation.create
+import platform.Foundation.dataUsingEncoding
+import platform.Foundation.setValue
 
 private class UserDefaultsPrefsStore : PrefsStore {
     private val defaults = NSUserDefaults.standardUserDefaults
@@ -43,6 +50,30 @@ private class UserDefaultsPrefsStore : PrefsStore {
     override fun remove(key: String) = defaults.removeObjectForKey(key)
 
     override fun contains(key: String): Boolean = defaults.objectForKey(key) != null
+
+    @OptIn(kotlinx.cinterop.ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
+    override fun exportPrefs(prefix: String): String {
+        val all = defaults.dictionaryRepresentation()
+        val out = NSMutableDictionary()
+        all.keys.forEach { key ->
+            val k = key as? String ?: return@forEach
+            if (k.startsWith(prefix)) out.setValue(all[key], forKey = k)
+        }
+        val data = NSJSONSerialization.dataWithJSONObject(out, options = 0uL, error = null)
+            ?: return "{}"
+        return NSString.create(data, NSUTF8StringEncoding) as String? ?: "{}"
+    }
+
+    @OptIn(kotlinx.cinterop.ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
+    override fun importPrefs(json: String) {
+        val data = (json as NSString).dataUsingEncoding(NSUTF8StringEncoding) ?: return
+        @Suppress("UNCHECKED_CAST")
+        val obj = NSJSONSerialization.JSONObjectWithData(data, options = 0uL, error = null)
+            as? Map<Any?, *> ?: return
+        obj.forEach { (key, value) ->
+            (key as? String)?.let { defaults.setObject(value, it) }
+        }
+    }
 }
 
 actual fun createPrefsStore(): PrefsStore = UserDefaultsPrefsStore()

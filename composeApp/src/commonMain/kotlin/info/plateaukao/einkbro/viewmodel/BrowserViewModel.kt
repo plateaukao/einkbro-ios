@@ -341,6 +341,39 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         config.removeSavedEpubFile(info)
     }
 
+    // --- Instapaper (parity Phase J) ---
+
+    private val instapaperRepo = info.plateaukao.einkbro.data.remote.InstapaperRepository()
+
+    fun hasInstapaperCredentials(): Boolean =
+        config.instapaperUsername.isNotBlank() && config.instapaperPassword.isNotBlank()
+
+    /** POSTs the current page to Instapaper's Simple API using the saved credentials. */
+    fun addToInstapaper() {
+        val url = currentUrl.value
+        if (url.isBlank()) {
+            EBToast.show(AppServices.context, "URL is empty")
+            return
+        }
+        val title = currentTitle.value
+        EBToast.show(AppServices.context, "Adding to Instapaper…")
+        viewModelScope.launch {
+            val result = instapaperRepo.addUrl(
+                url, config.instapaperUsername, config.instapaperPassword, title,
+            )
+            val message = when (result) {
+                is info.plateaukao.einkbro.data.remote.InstapaperResult.Success -> result.message
+                is info.plateaukao.einkbro.data.remote.InstapaperResult.Error -> result.message
+            }
+            EBToast.show(AppServices.context, message)
+        }
+    }
+
+    fun saveInstapaperCredentials(username: String, password: String) {
+        config.instapaperUsername = username.trim()
+        config.instapaperPassword = password.trim()
+    }
+
     /** Opens an offline saved page (.webarchive) in a new tab. */
     fun openSavedPage(filePath: String, title: String) {
         newTab(url = "", title = title)

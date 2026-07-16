@@ -28,6 +28,12 @@ class SharedPreferences(
 
     fun contains(key: String): Boolean = store.contains(key)
 
+    /** JSON snapshot of all `sp_`-prefixed prefs (parity Phase J backup). */
+    fun exportPrefs(prefix: String = "sp_"): String = store.exportPrefs(prefix)
+
+    /** Restores prefs from a snapshot produced by [exportPrefs]. */
+    fun importPrefs(json: String) = store.importPrefs(json)
+
     fun edit(): Editor = Editor(this)
 
     fun registerOnSharedPreferenceChangeListener(listener: OnSharedPreferenceChangeListener) {

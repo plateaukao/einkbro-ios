@@ -53,6 +53,7 @@ import info.plateaukao.einkbro.activity.SavedPagesScreen
 import info.plateaukao.einkbro.activity.SettingsScreen
 import info.plateaukao.einkbro.activity.UserScriptListScreen
 import info.plateaukao.einkbro.view.dialog.compose.EpubDialog
+import info.plateaukao.einkbro.view.dialog.compose.InstapaperDialog
 import info.plateaukao.einkbro.browser.Assets
 import info.plateaukao.einkbro.browser.BrowserAction
 import info.plateaukao.einkbro.browser.MultitouchDirection
@@ -130,6 +131,7 @@ fun BrowserScreen(
     var showPageAiActions by remember { mutableStateOf(false) }
     var showUserScripts by remember { mutableStateOf(false) }
     var showEpubDialog by remember { mutableStateOf(false) }
+    var showInstapaperConfig by remember { mutableStateOf(false) }
     // Userscript GM_registerMenuCommand entries for the current page (parity Phase H).
     var userScriptCommands by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var languageConfigApi by remember { mutableStateOf<TRANSLATE_API?>(null) }
@@ -418,10 +420,18 @@ fun BrowserScreen(
                 ShareLongPressAction.LAST_SHARE_TARGET ->
                     EBToast.show(AppServices.context, "iOS share sheet has no last-target shortcut")
             }
-            is BrowserAction.SendToRemote -> comingSoon("LAN link sharing", 'J')
-            BrowserAction.AddToInstapaper -> comingSoon("Instapaper", 'J')
-            BrowserAction.ConfigureInstapaper -> comingSoon("Instapaper", 'J')
-            BrowserAction.ToggleReceiveLink -> comingSoon("LAN link sharing", 'J')
+            is BrowserAction.SendToRemote -> EBToast.show(
+                AppServices.context,
+                "LAN link sharing needs the multicast entitlement (Apple account required)",
+            )
+            BrowserAction.AddToInstapaper ->
+                if (browserViewModel.hasInstapaperCredentials()) browserViewModel.addToInstapaper()
+                else showInstapaperConfig = true
+            BrowserAction.ConfigureInstapaper -> showInstapaperConfig = true
+            BrowserAction.ToggleReceiveLink -> EBToast.show(
+                AppServices.context,
+                "LAN link sharing needs the multicast entitlement (Apple account required)",
+            )
 
             // Touch config
             BrowserAction.ToggleTouchTurnPage, BrowserAction.ToggleTouchPagination -> {
@@ -1174,6 +1184,20 @@ fun BrowserScreen(
             onAppend = { chap, path -> browserViewModel.exportEpub("", chap, path) },
             onRemove = { info -> browserViewModel.removeSavedEpub(info); savedEpubs = config.savedEpubFileInfos },
             onDismiss = { showEpubDialog = false },
+        )
+    }
+
+    if (showInstapaperConfig) {
+        InstapaperDialog(
+            initialUsername = config.instapaperUsername,
+            initialPassword = config.instapaperPassword,
+            onSave = { user, pass ->
+                browserViewModel.saveInstapaperCredentials(user, pass)
+                showInstapaperConfig = false
+                // If saved from the "Add" flow, add the page right away.
+                if (browserViewModel.hasInstapaperCredentials()) browserViewModel.addToInstapaper()
+            },
+            onDismiss = { showInstapaperConfig = false },
         )
     }
 

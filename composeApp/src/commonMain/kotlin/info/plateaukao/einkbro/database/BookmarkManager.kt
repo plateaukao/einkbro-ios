@@ -46,6 +46,12 @@ class BookmarkManager(private val database: AppDatabase) {
 
     suspend fun existsUrl(url: String): Boolean = bookmarkDao.getBookmarkByUrl(url) != null
 
+    /** Replaces all bookmarks (parity Phase J backup/import). */
+    suspend fun overwriteBookmarks(bookmarks: List<Bookmark>) {
+        bookmarkDao.deleteAll()
+        bookmarks.forEach { bookmarkDao.insert(it) }
+    }
+
     /** First-launch convenience so the bookmark UI isn't empty. */
     suspend fun seedDefaultsIfEmpty() {
         if (bookmarkDao.count() > 0) return

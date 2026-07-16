@@ -21,6 +21,12 @@ interface PrefsStore {
 
     fun remove(key: String)
     fun contains(key: String): Boolean
+
+    /** JSON snapshot of every key starting with [prefix] (parity Phase J backup). */
+    fun exportPrefs(prefix: String): String
+
+    /** Restores keys from a snapshot produced by [exportPrefs]. */
+    fun importPrefs(json: String)
 }
 
 expect fun createPrefsStore(): PrefsStore
