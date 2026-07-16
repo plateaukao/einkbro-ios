@@ -176,6 +176,10 @@ fun SettingsScreen(
     onOpenUserScripts: () -> Unit = {},
     onOpenGptActions: () -> Unit = {},
     onOpenGptQueries: () -> Unit = {},
+    onOpenToolbarConfig: () -> Unit = {},
+    onOpenStatusbarConfig: () -> Unit = {},
+    onOpenAdBlockSettings: () -> Unit = {},
+    onOpenWhitelist: (WhiteListType) -> Unit = {},
 ) {
     val config = AppServices.config
     val dialogManager = AppServices.dialogManager
@@ -186,6 +190,7 @@ fun SettingsScreen(
         SettingScreenDeps(
             context, config, scope, RealBackupOps(context, scope),
             onOpenUserScripts, onOpenGptActions, onOpenGptQueries,
+            onOpenToolbarConfig, onOpenStatusbarConfig, onOpenAdBlockSettings, onOpenWhitelist,
         )
     }
 

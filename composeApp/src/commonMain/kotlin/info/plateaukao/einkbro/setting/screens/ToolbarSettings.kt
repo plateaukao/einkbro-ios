@@ -32,7 +32,7 @@ fun buildToolbarSettingItems(deps: SettingScreenDeps): List<SettingItemInterface
             null,
             Res.string.toolbar_icons_description,
         ) {
-            EBToast.show(deps.context, "would open the toolbar icons editor")
+            deps.onOpenToolbarConfig()
         },
         BooleanSettingItem(
             Res.string.setting_title_hideToolbar,
@@ -69,7 +69,7 @@ fun buildToolbarSettingItems(deps: SettingScreenDeps): List<SettingItemInterface
             null,
             Res.string.setting_summary_statusbar_items,
         ) {
-            EBToast.show(deps.context, "would open the statusbar items editor")
+            deps.onOpenStatusbarConfig()
         },
     )
 }

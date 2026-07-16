@@ -170,6 +170,12 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         engine.setUserAgent(ua)
         engine.setJavaScriptEnabled(config.getEnableJavascript(url))
         engine.setAdBlockEnabled(ContentBlocker.isReady && config.getEnableAdBlock(url))
+        // Privacy enforcement (parity Phase N): block images when disabled, strip
+        // cookies when the per-site/global cookie setting is off, and expose the
+        // web view to Safari Web Inspector when debug is on.
+        engine.setImageBlockEnabled(!config.browser.enableImages)
+        engine.setCookieBlockEnabled(!config.getEnableCookies(url))
+        engine.setInspectable(config.browser.debugWebView)
         // Display prefs (parity Phase C): dark-mode override + pinch zoom.
         engine.setDarkMode(
             when (config.display.darkMode) {

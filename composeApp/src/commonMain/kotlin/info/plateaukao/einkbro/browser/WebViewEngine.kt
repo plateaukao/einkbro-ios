@@ -60,6 +60,15 @@ interface WebViewEngine {
     /** Adds/removes the shared adblock content-rule list on this web view. */
     fun setAdBlockEnabled(enabled: Boolean)
 
+    /** Blocks all image loads via a content rule (parity Phase N, !enableImages). */
+    fun setImageBlockEnabled(enabled: Boolean)
+
+    /** Strips cookies from requests via a content rule (parity Phase N, !cookies). */
+    fun setCookieBlockEnabled(enabled: Boolean)
+
+    /** Makes the web view inspectable in Safari Web Inspector (debugWebView). */
+    fun setInspectable(enabled: Boolean)
+
     /**
      * Forces the page's `prefers-color-scheme`. dark=true makes dark-capable
      * sites render dark; null follows the system appearance.

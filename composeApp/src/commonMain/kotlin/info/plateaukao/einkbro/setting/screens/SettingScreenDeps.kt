@@ -1,6 +1,7 @@
 package info.plateaukao.einkbro.setting.screens
 
 import android.content.Context
+import info.plateaukao.einkbro.activity.WhiteListType
 import info.plateaukao.einkbro.preference.ConfigManager
 import kotlinx.coroutines.CoroutineScope
 
@@ -22,6 +23,14 @@ class SettingScreenDeps(
     val onOpenGptActions: () -> Unit = {},
     /** Opens the persisted GPT query history (parity Phase K); wired by the host screen. */
     val onOpenGptQueries: () -> Unit = {},
+    /** Opens the toolbar-icon editor (parity Phase N). */
+    val onOpenToolbarConfig: () -> Unit = {},
+    /** Opens the custom-statusbar item editor (parity Phase N). */
+    val onOpenStatusbarConfig: () -> Unit = {},
+    /** Opens the ad-block update/settings screen (parity Phase N). */
+    val onOpenAdBlockSettings: () -> Unit = {},
+    /** Opens a per-type whitelist editor (adblock/JS/cookie/split-search, Phase N). */
+    val onOpenWhitelist: (WhiteListType) -> Unit = {},
 )
 
 interface BackupOps {

@@ -1,5 +1,6 @@
 package info.plateaukao.einkbro.setting.screens
 
+import info.plateaukao.einkbro.activity.WhiteListType
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.*
 import info.plateaukao.einkbro.setting.ActionSettingItem
@@ -66,7 +67,7 @@ fun buildStartSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> 
             null,
             Res.string.setting_summary_update_adblock,
         ) {
-            EBToast.show(deps.context, "would open the adblock update settings")
+            deps.onOpenAdBlockSettings()
         },
         // On Android this opens DataListActivity(WhiteListType.Adblock).
         ActionSettingItem(
@@ -74,7 +75,7 @@ fun buildStartSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> 
             null,
             Res.string.setting_summary_whitelist,
         ) {
-            EBToast.show(deps.context, "would open the adblock whitelist")
+            deps.onOpenWhitelist(WhiteListType.Adblock)
         },
         DividerSettingItem(),
         BooleanSettingItem(
@@ -89,7 +90,7 @@ fun buildStartSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> 
             null,
             Res.string.setting_summary_whitelistJS,
         ) {
-            EBToast.show(deps.context, "would open the JavaScript whitelist")
+            deps.onOpenWhitelist(WhiteListType.Javascript)
         },
         // Opens the userscript manager (parity Phase H).
         ActionSettingItem(
@@ -110,7 +111,7 @@ fun buildStartSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> 
             null,
             Res.string.setting_summary_whitelistCookie,
         ) {
-            EBToast.show(deps.context, "would open the cookie whitelist")
+            deps.onOpenWhitelist(WhiteListType.Cookie)
         },
         DividerSettingItem(),
         BooleanSettingItem(

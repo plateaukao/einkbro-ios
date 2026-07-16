@@ -25,6 +25,7 @@ import platform.Foundation.NSURLAuthenticationMethodServerTrust
 import platform.Foundation.NSURLCredential
 import platform.Foundation.NSURLCredentialPersistence
 import platform.Foundation.NSURLRequest
+import platform.Foundation.NSURLRequestReturnCacheDataElseLoad
 import platform.Foundation.NSURLResponse
 import platform.Foundation.NSURLSessionAuthChallengeCancelAuthenticationChallenge
 import platform.Foundation.NSURLSessionAuthChallengeDisposition
@@ -122,7 +123,13 @@ class WKWebViewEngine(
 
     override fun loadUrl(url: String) {
         val nsUrl = NSURL.URLWithString(url) ?: return
-        webView.loadRequest(NSURLRequest.requestWithURL(nsUrl))
+        // webLoadCacheFirst: serve from cache when available, else hit the network.
+        val request = if (AppServices.config.browser.webLoadCacheFirst) {
+            NSURLRequest.requestWithURL(nsUrl, NSURLRequestReturnCacheDataElseLoad, 60.0)
+        } else {
+            NSURLRequest.requestWithURL(nsUrl)
+        }
+        webView.loadRequest(request)
         notifyStarted()
     }
 
@@ -211,6 +218,25 @@ class WKWebViewEngine(
         val list = ContentBlocker.compiledList ?: return
         if (enabled) controller.addContentRuleList(list)
         else controller.removeContentRuleList(list)
+    }
+
+    override fun setImageBlockEnabled(enabled: Boolean) {
+        val controller = webView.configuration.userContentController
+        val list = ContentBlocker.imageBlockList ?: return
+        if (enabled) controller.addContentRuleList(list)
+        else controller.removeContentRuleList(list)
+    }
+
+    override fun setCookieBlockEnabled(enabled: Boolean) {
+        val controller = webView.configuration.userContentController
+        val list = ContentBlocker.cookieBlockList ?: return
+        if (enabled) controller.addContentRuleList(list)
+        else controller.removeContentRuleList(list)
+    }
+
+    override fun setInspectable(enabled: Boolean) {
+        // isInspectable is iOS 16.4+; the binding guards older targets at runtime.
+        webView.inspectable = enabled
     }
 
     override fun setDarkMode(dark: Boolean?) {

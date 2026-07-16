@@ -136,6 +136,13 @@ fun BrowserScreen(
     var showChatWithWeb by remember { mutableStateOf(false) }
     var showGptActions by remember { mutableStateOf(false) }
     var showGptQueries by remember { mutableStateOf(false) }
+    // Settings sub-editors reachable from the settings screen (parity Phase N).
+    // (showToolbarConfig already exists above for the IconSetting toolbar action.)
+    var showStatusbarConfig by remember { mutableStateOf(false) }
+    var showAdBlockSettings by remember { mutableStateOf(false) }
+    var showWhitelist by remember {
+        mutableStateOf<info.plateaukao.einkbro.activity.WhiteListType?>(null)
+    }
     // Userscript GM_registerMenuCommand entries for the current page (parity Phase H).
     var userScriptCommands by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var languageConfigApi by remember { mutableStateOf<TRANSLATE_API?>(null) }
@@ -167,6 +174,10 @@ fun BrowserScreen(
         info.plateaukao.einkbro.browser.ContentBlocker.preload(
             info.plateaukao.einkbro.browser.Assets.get("adblock_rules.json")
         ) { browserViewModel.reapplyWebConfig() }
+        // Compile the privacy content rules (image/cookie block, parity Phase N).
+        info.plateaukao.einkbro.browser.ContentBlocker.preloadPrivacyRules {
+            browserViewModel.reapplyWebConfig()
+        }
         browserViewModel.ensureFirstTab()
     }
 
@@ -946,6 +957,48 @@ fun BrowserScreen(
             }
         }
         }
+
+        // Toolbar + custom statusbar as reusable slots so toolbarPosition (Top vs
+        // Bottom) and statusbarPosition can place them around the pane (parity
+        // Phase N). Left/Right toolbar falls back to bottom for now.
+        val toolbarAtTop = config.ui.isToolbarOnTop
+        val renderToolbar: @Composable () -> Unit = {
+            if (!isFullscreen) {
+                ComposedToolbar(
+                    showTabs = showTabStrip,
+                    toolbarActionInfos = remember(toolbarRefreshTick) {
+                        config.ui.toolbarActions.map { ToolbarActionInfo(it, false) }
+                    },
+                    title = browserViewModel.currentTitle.value
+                        .ifBlank { browserViewModel.currentUrl.value },
+                    tabCount = browserViewModel.albums.value.size.toString(),
+                    pageInfo = "",
+                    isIncognito = browserViewModel.currentAlbum?.incognito == true,
+                    onIconClick = { toolbarActionHandler.handleClick(it) },
+                    onIconLongClick = { toolbarActionHandler.handleLongClick(it) },
+                    albumList = browserViewModel.albums,
+                    albumFocusIndex = browserViewModel.focusIndex,
+                    onAlbumClick = { browserViewModel.switchTab(it) },
+                    onAlbumLongClick = { browserViewModel.closeTab(it) },
+                )
+            }
+        }
+        val renderStatusbar: @Composable () -> Unit = {
+            if (config.ui.statusbarEnabled && !isFullscreen) {
+                info.plateaukao.einkbro.view.statusbar.Statusbar(
+                    items = config.ui.statusbarItems,
+                    pageInfo = "",
+                )
+            }
+        }
+        if (toolbarAtTop) renderToolbar()
+        if (config.ui.statusbarEnabled &&
+            config.ui.statusbarPosition ==
+            info.plateaukao.einkbro.view.statusbar.StatusbarPosition.Top
+        ) {
+            renderStatusbar()
+        }
+
         // Split screen (parity Phase G): the second pane sits beside the main one,
         // horizontally (side-by-side) or vertically (stacked) per orientation.
         val splitAlbumG = browserViewModel.splitAlbum.value
@@ -998,25 +1051,13 @@ fun BrowserScreen(
 
         // Fullscreen (parity Phase D) hides the toolbar; a small exit chip
         // brings it back (iOS has no back key to restore it like Android).
-        if (!isFullscreen) {
-            ComposedToolbar(
-                showTabs = showTabStrip,
-                toolbarActionInfos = remember(toolbarRefreshTick) {
-                    config.ui.toolbarActions.map { ToolbarActionInfo(it, false) }
-                },
-                title = browserViewModel.currentTitle.value
-                    .ifBlank { browserViewModel.currentUrl.value },
-                tabCount = browserViewModel.albums.value.size.toString(),
-                pageInfo = "",
-                isIncognito = browserViewModel.currentAlbum?.incognito == true,
-                onIconClick = { toolbarActionHandler.handleClick(it) },
-                onIconLongClick = { toolbarActionHandler.handleLongClick(it) },
-                albumList = browserViewModel.albums,
-                albumFocusIndex = browserViewModel.focusIndex,
-                onAlbumClick = { browserViewModel.switchTab(it) },
-                onAlbumLongClick = { browserViewModel.closeTab(it) },
-            )
+        if (config.ui.statusbarEnabled &&
+            config.ui.statusbarPosition ==
+            info.plateaukao.einkbro.view.statusbar.StatusbarPosition.Bottom
+        ) {
+            renderStatusbar()
         }
+        if (!toolbarAtTop) renderToolbar()
     }
 
     if (isFullscreen) {
@@ -1140,6 +1181,10 @@ fun BrowserScreen(
                 onOpenUserScripts = { showSettings = false; showUserScripts = true },
                 onOpenGptActions = { showSettings = false; showGptActions = true },
                 onOpenGptQueries = { showSettings = false; showGptQueries = true },
+                onOpenToolbarConfig = { showSettings = false; showToolbarConfig = true },
+                onOpenStatusbarConfig = { showSettings = false; showStatusbarConfig = true },
+                onOpenAdBlockSettings = { showSettings = false; showAdBlockSettings = true },
+                onOpenWhitelist = { type -> showSettings = false; showWhitelist = type },
             )
         }
     }
@@ -1153,6 +1198,31 @@ fun BrowserScreen(
     if (showGptQueries) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
             info.plateaukao.einkbro.activity.GptQueryListScreen(onClose = { showGptQueries = false })
+        }
+    }
+
+    if (showStatusbarConfig) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            info.plateaukao.einkbro.activity.StatusbarConfigScreen(
+                onClose = { showStatusbarConfig = false },
+            )
+        }
+    }
+
+    if (showAdBlockSettings) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            info.plateaukao.einkbro.activity.AdBlockSettingScreen(
+                onClose = { showAdBlockSettings = false },
+            )
+        }
+    }
+
+    showWhitelist?.let { type ->
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            info.plateaukao.einkbro.activity.DataListScreen(
+                type = type,
+                onClose = { showWhitelist = null },
+            )
         }
     }
 

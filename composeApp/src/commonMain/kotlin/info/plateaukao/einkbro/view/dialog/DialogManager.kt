@@ -3,12 +3,15 @@ package info.plateaukao.einkbro.view.dialog
 import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import info.plateaukao.einkbro.util.blockingString
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import org.jetbrains.compose.resources.StringResource
 
 /**
- * Stand-in for the Android AlertDialog orchestrator. Ok/cancel confirmations
- * are published as observable state and rendered by the catalog host as a
- * Compose dialog; input/selection flows resolve to null (cancelled).
+ * Stand-in for the Android AlertDialog orchestrator. Ok/cancel confirmations,
+ * option pickers, and text inputs are published as observable state and
+ * rendered by the shared dialog hosts (App.kt) as Compose dialogs; the suspend
+ * picker/input calls resolve when the host reports a choice or dismissal.
  */
 class DialogManager(private val context: Context = Context()) {
 
@@ -17,6 +20,20 @@ class DialogManager(private val context: Context = Context()) {
         val message: String?,
         val okAction: () -> Unit,
         val cancelAction: (() -> Unit)?,
+    )
+
+    class SelectOptionRequest(
+        val title: String,
+        val options: List<String>,
+        val selectedIndex: Int,
+        val onResult: (Int?) -> Unit,
+    )
+
+    class TextInputRequest(
+        val title: String,
+        val description: String?,
+        val initialValue: String,
+        val onResult: (String?) -> Unit,
     )
 
     fun showOkCancelDialog(
@@ -48,13 +65,25 @@ class DialogManager(private val context: Context = Context()) {
         titleId: StringResource,
         descriptionId: StringResource? = null,
         defaultValue: T,
-    ): String? = null
+    ): String? = suspendCancellableCoroutine { cont ->
+        pendingTextInput.value = TextInputRequest(
+            title = blockingString(titleId),
+            description = descriptionId?.let { blockingString(it) },
+            initialValue = defaultValue?.toString().orEmpty(),
+        ) { result ->
+            pendingTextInput.value = null
+            if (cont.isActive) cont.resume(result)
+        }
+        cont.invokeOnCancellation { pendingTextInput.value = null }
+    }
 
     suspend fun getSelectedOption(
         titleId: StringResource,
         listSettings: List<StringResource>,
         defaultValue: Int,
-    ): Int? = null
+    ): Int? = getSelectedOptionWithString(
+        titleId, listSettings.map { blockingString(it) }, defaultValue
+    )
 
     suspend fun getSelectedOptionWithString(
         titleId: StringResource,
@@ -63,7 +92,17 @@ class DialogManager(private val context: Context = Context()) {
         titleActionIconResId: Any? = null,
         titleActionDescriptionResId: StringResource? = null,
         onTitleAction: (() -> Unit)? = null,
-    ): Int? = null
+    ): Int? = suspendCancellableCoroutine { cont ->
+        pendingSelectOption.value = SelectOptionRequest(
+            title = blockingString(titleId),
+            options = listSettings,
+            selectedIndex = defaultValue,
+        ) { result ->
+            pendingSelectOption.value = null
+            if (cont.isActive) cont.resume(result)
+        }
+        cont.invokeOnCancellation { pendingSelectOption.value = null }
+    }
 
     suspend fun getBookmarkFolderName(): String? = null
 
@@ -77,5 +116,7 @@ class DialogManager(private val context: Context = Context()) {
 
     companion object {
         val pendingOkCancel = mutableStateOf<OkCancelRequest?>(null)
+        val pendingSelectOption = mutableStateOf<SelectOptionRequest?>(null)
+        val pendingTextInput = mutableStateOf<TextInputRequest?>(null)
     }
 }

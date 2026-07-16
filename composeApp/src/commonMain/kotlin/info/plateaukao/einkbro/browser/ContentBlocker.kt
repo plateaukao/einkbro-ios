@@ -11,4 +11,10 @@ expect object ContentBlocker {
 
     /** True once the rule list has compiled and can be applied to web views. */
     val isReady: Boolean
+
+    /**
+     * Compiles the image-block and cookie-block content rules (parity Phase N
+     * privacy enforcement). [onReady] fires when both are compiled.
+     */
+    fun preloadPrivacyRules(onReady: () -> Unit = {})
 }

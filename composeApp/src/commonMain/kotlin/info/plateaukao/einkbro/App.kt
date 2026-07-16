@@ -12,11 +12,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.RadioButton
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
@@ -82,6 +87,8 @@ fun App() {
                     )
                     ToastOverlay(Modifier.align(Alignment.BottomCenter))
                     OkCancelDialogHost()
+                    SelectOptionDialogHost()
+                    TextInputDialogHost()
                 }
                 return@Surface
             }
@@ -139,6 +146,8 @@ fun App() {
 
                 ToastOverlay(Modifier.align(Alignment.BottomCenter))
                 OkCancelDialogHost()
+                SelectOptionDialogHost()
+                TextInputDialogHost()
             }
         }
     }
@@ -239,6 +248,85 @@ private fun OkCancelDialogHost() {
                 DialogManager.pendingOkCancel.value = null
                 req.cancelAction?.invoke()
             }) { Text("Cancel", color = MaterialTheme.colors.onBackground) }
+        },
+        backgroundColor = MaterialTheme.colors.background,
+    )
+}
+
+/** Renders enum/option pickers (Settings ListSettingItem etc.), Phase N. */
+@Composable
+private fun SelectOptionDialogHost() {
+    val request by DialogManager.pendingSelectOption
+    val req = request ?: return
+    AlertDialog(
+        onDismissRequest = { req.onResult(null) },
+        title = { Text(req.title, color = MaterialTheme.colors.onBackground) },
+        text = {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState())
+            ) {
+                req.options.forEachIndexed { index, option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { req.onResult(index) }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = index == req.selectedIndex,
+                            onClick = { req.onResult(index) },
+                        )
+                        Text(
+                            text = option,
+                            modifier = Modifier.padding(start = 8.dp),
+                            color = MaterialTheme.colors.onBackground,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = { req.onResult(null) }) {
+                Text("Cancel", color = MaterialTheme.colors.onBackground)
+            }
+        },
+        backgroundColor = MaterialTheme.colors.background,
+    )
+}
+
+/** Renders text-input settings (ValueSettingItem etc.), Phase N. */
+@Composable
+private fun TextInputDialogHost() {
+    val request by DialogManager.pendingTextInput
+    val req = request ?: return
+    var text by remember(req) { mutableStateOf(req.initialValue) }
+    AlertDialog(
+        onDismissRequest = { req.onResult(null) },
+        title = { Text(req.title, color = MaterialTheme.colors.onBackground) },
+        text = {
+            Column {
+                req.description?.let {
+                    Text(it, color = MaterialTheme.colors.onBackground)
+                }
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { req.onResult(text) }) {
+                Text("OK", color = MaterialTheme.colors.onBackground)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { req.onResult(null) }) {
+                Text("Cancel", color = MaterialTheme.colors.onBackground)
+            }
         },
         backgroundColor = MaterialTheme.colors.background,
     )
