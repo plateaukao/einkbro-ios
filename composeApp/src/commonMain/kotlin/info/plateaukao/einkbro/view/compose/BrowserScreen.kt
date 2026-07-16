@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.activity.HighlightsScreen
+import info.plateaukao.einkbro.activity.SavedPagesScreen
 import info.plateaukao.einkbro.activity.SettingsScreen
 import info.plateaukao.einkbro.browser.WebViewHost
 import info.plateaukao.einkbro.catalog.DialogFrame
@@ -93,6 +94,7 @@ fun BrowserScreen(
     var showSiteSettings by remember { mutableStateOf(false) }
     var showTouchAreaDialog by remember { mutableStateOf(false) }
     var showHighlights by remember { mutableStateOf(false) }
+    var showSavedPages by remember { mutableStateOf(false) }
     var showTtsDialog by remember { mutableStateOf(false) }
     var showTranslateDialog by remember { mutableStateOf(false) }
     var translateDialogWholePage by remember { mutableStateOf(false) }
@@ -295,6 +297,25 @@ fun BrowserScreen(
                     EBToast.show(AppServices.context, "Bookmark saved")
                 }
             }
+
+            MenuItemType.SavePdf -> {
+                EBToast.show(AppServices.context, "Saving PDF…")
+                browserViewModel.saveAsPdf { ok ->
+                    if (!ok) EBToast.show(AppServices.context, "Couldn't save PDF")
+                }
+            }
+
+            MenuItemType.SaveArchive, MenuItemType.SaveMht -> {
+                EBToast.show(AppServices.context, "Saving page…")
+                browserViewModel.saveWebArchive { ok ->
+                    EBToast.show(
+                        AppServices.context,
+                        if (ok) "Saved for offline reading" else "Couldn't save page",
+                    )
+                }
+            }
+
+            MenuItemType.Download -> showSavedPages = true
 
             MenuItemType.Quit -> onOpenCatalog()
             else -> EBToast.show(AppServices.context, "${item.name}: later phase")
@@ -603,6 +624,18 @@ fun BrowserScreen(
     if (showHighlights) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
             HighlightsScreen(onClose = { showHighlights = false })
+        }
+    }
+
+    if (showSavedPages) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            SavedPagesScreen(
+                onClose = { showSavedPages = false },
+                onOpenPage = { savedPage ->
+                    showSavedPages = false
+                    browserViewModel.openSavedPage(savedPage.filePath, savedPage.title)
+                },
+            )
         }
     }
 

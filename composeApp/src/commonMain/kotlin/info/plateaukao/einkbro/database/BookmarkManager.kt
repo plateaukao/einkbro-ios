@@ -17,6 +17,7 @@ class BookmarkManager(private val database: AppDatabase) {
     private val domainConfigurationDao = database.domainConfigurationDao()
     private val articleDao = database.articleDao()
     private val highlightDao = database.highlightDao()
+    private val savedPageDao = database.savedPageDao()
 
     // For the fire-and-forget calls that come from non-suspend contexts
     // (ConfigManager property setters).
@@ -110,6 +111,17 @@ class BookmarkManager(private val database: AppDatabase) {
             }).id
         highlightDao.insert(Highlight(articleId = articleId, content = content))
     }
+
+    // --- saved pages (Phase 7) ---
+
+    suspend fun getAllSavedPages(): List<SavedPage> = savedPageDao.getAll()
+
+    suspend fun insertSavedPage(savedPage: SavedPage): SavedPage {
+        val id = savedPageDao.insert(savedPage)
+        return savedPage.apply { this.id = id.toInt() }
+    }
+
+    suspend fun deleteSavedPage(savedPage: SavedPage) = savedPageDao.delete(savedPage)
 
     // Favicon bitmaps are not rendered yet (decode helper arrives with the
     // favicon-capture work); UI falls back to the default globe icon.

@@ -16,6 +16,10 @@ interface WebViewEngine {
     val incognito: Boolean
 
     fun loadUrl(url: String)
+
+    /** Loads a local file (grants sandbox read access to its directory). */
+    fun loadFile(path: String)
+
     fun reload()
     fun stopLoading()
     fun goBack()
@@ -52,6 +56,13 @@ interface WebViewEngine {
 
     /** Adds/removes the shared adblock content-rule list on this web view. */
     fun setAdBlockEnabled(enabled: Boolean)
+
+    // --- export (Phase 7) ---
+    /** Renders the current page to PDF bytes (null on failure). */
+    fun createPdf(callback: (ByteArray?) -> Unit)
+
+    /** Serializes the current page to a .webarchive (offline snapshot). */
+    fun createWebArchive(callback: (ByteArray?) -> Unit)
 
     fun pause()
     fun resume()

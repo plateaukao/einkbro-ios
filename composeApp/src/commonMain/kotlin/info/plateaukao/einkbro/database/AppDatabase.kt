@@ -18,6 +18,7 @@ import androidx.sqlite.execSQL
  * Schema history:
  *  v1 — bookmarks, history, favicons, domain_configuration (Phase 2).
  *  v2 — articles + highlights (Phase 5 text-selection highlights).
+ *  v3 — saved_pages (Phase 7 offline archives).
  */
 @Database(
     entities = [
@@ -27,8 +28,9 @@ import androidx.sqlite.execSQL
         DomainConfiguration::class,
         Article::class,
         Highlight::class,
+        SavedPage::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -39,6 +41,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun domainConfigurationDao(): DomainConfigurationDao
     abstract fun articleDao(): ArticleDao
     abstract fun highlightDao(): HighlightDao
+    abstract fun savedPageDao(): SavedPageDao
 }
 
 /** Adds the articles + highlights tables without dropping existing data. */
@@ -58,6 +61,17 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         )
         connection.execSQL(
             "CREATE INDEX IF NOT EXISTS `index_highlights_articleId` ON `highlights` (`articleId`)"
+        )
+    }
+}
+
+/** Adds the saved_pages table (offline archive metadata). */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `saved_pages` (" +
+                "`title` TEXT NOT NULL, `url` TEXT NOT NULL, `filePath` TEXT NOT NULL, " +
+                "`savedAt` INTEGER NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)"
         )
     }
 }
@@ -159,6 +173,21 @@ interface ArticleDao {
     suspend fun deleteById(id: Int)
 
     @Query("DELETE FROM articles")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface SavedPageDao {
+    @Query("SELECT * FROM saved_pages ORDER BY savedAt DESC")
+    suspend fun getAll(): List<SavedPage>
+
+    @Insert
+    suspend fun insert(savedPage: SavedPage): Long
+
+    @Delete
+    suspend fun delete(savedPage: SavedPage)
+
+    @Query("DELETE FROM saved_pages")
     suspend fun deleteAll()
 }
 

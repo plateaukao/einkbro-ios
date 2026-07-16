@@ -6,7 +6,9 @@ import androidx.compose.ui.viewinterop.UIKitView
 import info.plateaukao.einkbro.view.Album
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readValue
+import info.plateaukao.einkbro.util.toByteArray
 import platform.CoreGraphics.CGRectZero
+import platform.Foundation.NSData
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLRequest
 import platform.WebKit.WKNavigation
@@ -56,6 +58,14 @@ class WKWebViewEngine(
     override fun loadUrl(url: String) {
         val nsUrl = NSURL.URLWithString(url) ?: return
         webView.loadRequest(NSURLRequest.requestWithURL(nsUrl))
+        notifyStarted()
+    }
+
+    override fun loadFile(path: String) {
+        val fileUrl = NSURL.fileURLWithPath(path)
+        // Grant read access to the containing directory (webarchive/resources).
+        val dirUrl = fileUrl.URLByDeletingLastPathComponent ?: fileUrl
+        webView.loadFileURL(fileUrl, allowingReadAccessToURL = dirUrl)
         notifyStarted()
     }
 
@@ -136,6 +146,18 @@ class WKWebViewEngine(
     override fun evaluateJavascript(script: String, callback: ((String?) -> Unit)?) {
         webView.evaluateJavaScript(script) { result, _ ->
             callback?.invoke(result?.toString())
+        }
+    }
+
+    override fun createPdf(callback: (ByteArray?) -> Unit) {
+        webView.createPDFWithConfiguration(null) { data, _ ->
+            callback(data?.toByteArray())
+        }
+    }
+
+    override fun createWebArchive(callback: (ByteArray?) -> Unit) {
+        webView.createWebArchiveDataWithCompletionHandler { data, _ ->
+            callback((data as? NSData)?.toByteArray())
         }
     }
 

@@ -184,6 +184,54 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         selectionInfo.value = null
     }
 
+    // --- export / offline (Phase 7) ---
+
+    /** Renders the current page to a PDF and opens the iOS share sheet. */
+    fun saveAsPdf(onResult: (Boolean) -> Unit) {
+        val engine = currentEngine ?: return onResult(false)
+        val name = info.plateaukao.einkbro.util.sanitizeFileName(currentTitle.value.ifBlank { "page" })
+        engine.createPdf { bytes ->
+            if (bytes == null) return@createPdf onResult(false)
+            val path = info.plateaukao.einkbro.util.FileStore.writeBytes("pdf", "$name.pdf", bytes)
+            if (path != null) {
+                info.plateaukao.einkbro.util.FileStore.share(path)
+                onResult(true)
+            } else {
+                onResult(false)
+            }
+        }
+    }
+
+    /** Snapshots the current page to a .webarchive and records it (saved pages). */
+    fun saveWebArchive(onResult: (Boolean) -> Unit) {
+        val engine = currentEngine ?: return onResult(false)
+        val title = currentTitle.value.ifBlank { currentUrl.value }
+        val name = info.plateaukao.einkbro.util.sanitizeFileName(title)
+        val url = currentUrl.value
+        engine.createWebArchive { bytes ->
+            if (bytes == null) return@createWebArchive onResult(false)
+            val path = info.plateaukao.einkbro.util.FileStore.writeBytes(
+                "saved_pages", "${name}_${System.currentTimeMillis()}.webarchive", bytes,
+            )
+            if (path == null) return@createWebArchive onResult(false)
+            viewModelScope.launch {
+                AppServices.bookmarkManager.insertSavedPage(
+                    info.plateaukao.einkbro.database.SavedPage(
+                        title = title, url = url, filePath = path,
+                        savedAt = System.currentTimeMillis(),
+                    )
+                )
+                onResult(true)
+            }
+        }
+    }
+
+    /** Opens an offline saved page (.webarchive) in a new tab. */
+    fun openSavedPage(filePath: String, title: String) {
+        newTab(url = "", title = title)
+        currentEngine?.loadFile(filePath)
+    }
+
     /** Opens a search for [query] in a fresh tab (selection-menu Search). */
     fun searchInNewTab(query: String) {
         val trimmed = query.trim()

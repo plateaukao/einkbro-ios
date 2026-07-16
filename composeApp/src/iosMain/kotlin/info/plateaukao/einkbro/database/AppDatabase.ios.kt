@@ -19,7 +19,7 @@ actual fun createAppDatabase(): AppDatabase {
     )
     val dbPath = requireNotNull(documents?.path) { "no documents directory" } + "/einkbro.db"
     return Room.databaseBuilder<AppDatabase>(name = dbPath)
-        .addMigrations(MIGRATION_1_2)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
         .setDriver(BundledSQLiteDriver())
         .setQueryCoroutineContext(Dispatchers.IO)
         .build()

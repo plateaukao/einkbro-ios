@@ -37,7 +37,10 @@ import org.jetbrains.compose.resources.vectorResource
 
 /** Port of SavedPagesActivity: the saved-pages (offline archive) list. */
 @Composable
-fun SavedPagesScreen(onClose: () -> Unit = {}) {
+fun SavedPagesScreen(
+    onClose: () -> Unit = {},
+    onOpenPage: ((SavedPage) -> Unit)? = null,
+) {
     val viewModel = remember { SavedPageViewModel() }
     val context = LocalContext.current
 
@@ -49,8 +52,12 @@ fun SavedPagesScreen(onClose: () -> Unit = {}) {
             modifier = Modifier.padding(innerPadding),
             viewModel = viewModel,
             onPageClick = { savedPage ->
-                // On Android this opened the archived file in the browser.
-                IntentUnit.launchUrl(context, "file://${savedPage.filePath}")
+                if (onOpenPage != null) {
+                    onOpenPage(savedPage)
+                } else {
+                    // Fallback (e.g. from the catalog) — hand off to the system opener.
+                    IntentUnit.launchUrl(context, "file://${savedPage.filePath}")
+                }
             },
             onPageDelete = { savedPage ->
                 viewModel.deleteSavedPage(savedPage)
