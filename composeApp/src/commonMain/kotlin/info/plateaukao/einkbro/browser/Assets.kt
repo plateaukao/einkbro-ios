@@ -68,5 +68,7 @@ object Assets {
         "split_scroll_report.js",
         // Userscripts (Phase H): GM_* runtime + per-page injection dispatcher.
         "userscript_runtime.js",
+        // EPUB export (Phase I): capture the page as a chapter (reader XHTML + images).
+        "get_epub_chapter.js",
     )
 }

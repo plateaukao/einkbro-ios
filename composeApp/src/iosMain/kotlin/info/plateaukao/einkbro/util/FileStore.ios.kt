@@ -10,6 +10,7 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSURL
 import platform.Foundation.NSUserDomainMask
 import platform.Foundation.dataWithBytes
+import platform.Foundation.dataWithContentsOfFile
 import platform.Foundation.writeToFile
 import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIApplication
@@ -41,6 +42,19 @@ actual object FileStore {
     actual fun writeBytes(subDir: String, fileName: String, bytes: ByteArray): String? {
         val dir = dirPath(subDir) ?: return null
         val path = "$dir/$fileName"
+        val data: NSData = bytes.usePinned { pinned ->
+            NSData.dataWithBytes(
+                bytes = if (bytes.isEmpty()) null else pinned.addressOf(0),
+                length = bytes.size.toULong(),
+            )
+        }
+        return if (data.writeToFile(path, atomically = true)) path else null
+    }
+
+    actual fun readBytes(path: String): ByteArray? =
+        (NSData.dataWithContentsOfFile(path))?.toByteArray()
+
+    actual fun writeToPath(path: String, bytes: ByteArray): String? {
         val data: NSData = bytes.usePinned { pinned ->
             NSData.dataWithBytes(
                 bytes = if (bytes.isEmpty()) null else pinned.addressOf(0),

@@ -333,6 +333,21 @@ class WebContentHelper(
         }
     }
 
+    /**
+     * Captures the current page as an EPUB chapter (parity Phase I): runs
+     * Readability then serializes the article to XHTML with rewritten image
+     * paths. Returns the raw JSON `{title, xhtml, images:[{name,url}]}` (or
+     * `{error}`); the caller parses it and fetches the images.
+     */
+    fun getEpubChapter(callback: (String) -> Unit) {
+        val readabilityLib = Assets.get("MozReadability.js") + "\n" + Assets.get("jsonld_article.js")
+        engine.evaluateJavascript(readabilityLib) {
+            engine.evaluateJavascript(Assets.get("get_epub_chapter.js")) { result ->
+                callback(result.orEmpty())
+            }
+        }
+    }
+
     // --- find on page (parity Phase E) -----------------------------------
 
     /** Runs a find command (find/next/prev/clear); reports {count,index}. */

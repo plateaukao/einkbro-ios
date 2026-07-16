@@ -287,6 +287,60 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         }
     }
 
+    // --- EPUB export (parity Phase I) ---
+
+    private val epubExporter = info.plateaukao.einkbro.epub.EpubExporter()
+
+    /** 0..100 while an EPUB export runs; null when idle. Drives the dialog's progress. */
+    val epubProgress = mutableStateOf<Int?>(null)
+
+    /** Bumped each time an export finishes (any outcome); the dialog dismisses on change. */
+    val epubDoneTick = mutableStateOf(0)
+
+    /**
+     * Captures the current page as an EPUB chapter and writes a new book (or
+     * appends to [appendToPath] and rewrites it). Reader HTML + embedded images.
+     */
+    fun exportEpub(bookName: String, chapterTitle: String, appendToPath: String?) {
+        val helper = currentHelper ?: return
+        val url = currentUrl.value
+        epubProgress.value = 0
+        helper.getEpubChapter { raw ->
+            val capture = epubExporter.parseCapture(raw)
+            if (capture == null || capture.error != null || capture.xhtml.isBlank()) {
+                epubProgress.value = null
+                epubDoneTick.value++
+                EBToast.show(AppServices.context, "Couldn't capture page for EPUB")
+                return@getEpubChapter
+            }
+            viewModelScope.launch {
+                val result = epubExporter.export(
+                    capture, bookName, chapterTitle, url, appendToPath,
+                ) { p -> epubProgress.value = p }
+                epubProgress.value = null
+                epubDoneTick.value++
+                when (result) {
+                    is info.plateaukao.einkbro.epub.ExportResult.Success -> {
+                        if (appendToPath == null) {
+                            config.addSavedEpubFile(
+                                info.plateaukao.einkbro.preference.SavedFileInfo(
+                                    result.bookTitle, result.path,
+                                )
+                            )
+                        }
+                        EBToast.show(AppServices.context, "Saved EPUB: ${result.bookTitle}")
+                    }
+                    is info.plateaukao.einkbro.epub.ExportResult.Failure ->
+                        EBToast.show(AppServices.context, "EPUB failed: ${result.message}")
+                }
+            }
+        }
+    }
+
+    fun removeSavedEpub(info: info.plateaukao.einkbro.preference.SavedFileInfo) {
+        config.removeSavedEpubFile(info)
+    }
+
     /** Opens an offline saved page (.webarchive) in a new tab. */
     fun openSavedPage(filePath: String, title: String) {
         newTab(url = "", title = title)

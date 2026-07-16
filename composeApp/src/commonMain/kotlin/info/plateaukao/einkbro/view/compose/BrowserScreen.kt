@@ -52,6 +52,7 @@ import info.plateaukao.einkbro.activity.HighlightsScreen
 import info.plateaukao.einkbro.activity.SavedPagesScreen
 import info.plateaukao.einkbro.activity.SettingsScreen
 import info.plateaukao.einkbro.activity.UserScriptListScreen
+import info.plateaukao.einkbro.view.dialog.compose.EpubDialog
 import info.plateaukao.einkbro.browser.Assets
 import info.plateaukao.einkbro.browser.BrowserAction
 import info.plateaukao.einkbro.browser.MultitouchDirection
@@ -128,6 +129,7 @@ fun BrowserScreen(
     var showToolbarConfig by remember { mutableStateOf(false) }
     var showPageAiActions by remember { mutableStateOf(false) }
     var showUserScripts by remember { mutableStateOf(false) }
+    var showEpubDialog by remember { mutableStateOf(false) }
     // Userscript GM_registerMenuCommand entries for the current page (parity Phase H).
     var userScriptCommands by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var languageConfigApi by remember { mutableStateOf<TRANSLATE_API?>(null) }
@@ -473,7 +475,7 @@ fun BrowserScreen(
             is BrowserAction.RunCustomTask -> comingSoon("Task runner", 'K')
 
             // File
-            BrowserAction.ShowEpubDialog -> comingSoon("EPUB export", 'I')
+            BrowserAction.ShowEpubDialog -> showEpubDialog = true
             BrowserAction.SavePageForLater, BrowserAction.SaveWebArchive -> {
                 EBToast.show(AppServices.context, "Saving page…")
                 browserViewModel.saveWebArchive { ok ->
@@ -1154,6 +1156,25 @@ fun BrowserScreen(
                 )
             }
         }
+    }
+
+    if (showEpubDialog) {
+        val epubProgress = browserViewModel.epubProgress.value
+        val doneTick = browserViewModel.epubDoneTick.value
+        var savedEpubs by remember { mutableStateOf(config.savedEpubFileInfos) }
+        // Dismiss when the export finishes: a tick change is always delivered,
+        // unlike the fast progress transitions (which Compose can coalesce).
+        val openedAtTick = remember { doneTick }
+        LaunchedEffect(doneTick) { if (doneTick != openedAtTick) showEpubDialog = false }
+        EpubDialog(
+            defaultTitle = browserViewModel.currentTitle.value.ifBlank { "page" },
+            savedEpubs = savedEpubs,
+            progress = epubProgress,
+            onSaveNew = { book, chap -> browserViewModel.exportEpub(book, chap, null) },
+            onAppend = { chap, path -> browserViewModel.exportEpub("", chap, path) },
+            onRemove = { info -> browserViewModel.removeSavedEpub(info); savedEpubs = config.savedEpubFileInfos },
+            onDismiss = { showEpubDialog = false },
+        )
     }
 
     if (showUserScripts) {

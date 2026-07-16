@@ -11,6 +11,12 @@ expect object FileStore {
     /** Ensures Documents/[subDir] exists and returns its absolute path. */
     fun dirPath(subDir: String): String?
 
+    /** Reads the whole file at [path], or null if it can't be read. */
+    fun readBytes(path: String): ByteArray?
+
+    /** Writes [bytes] to an absolute [path] (overwrite); returns the path or null. */
+    fun writeToPath(path: String, bytes: ByteArray): String?
+
     fun exists(path: String): Boolean
     fun delete(path: String)
 
