@@ -8,4 +8,7 @@ expect object Crypto {
     fun hmacMd5(key: ByteArray, data: ByteArray): ByteArray
     fun hmacSha1(key: ByteArray, data: ByteArray): ByteArray
     fun md5Hex(data: ByteArray): String
+
+    /** Uppercase hex SHA-256 (Edge-TTS Sec-MS-GEC token, parity Phase L). */
+    fun sha256Hex(data: ByteArray): String
 }

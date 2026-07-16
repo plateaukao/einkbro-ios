@@ -4,6 +4,7 @@ import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.preference.ChatGPTActionInfo
 import info.plateaukao.einkbro.preference.ConfigManager
 import info.plateaukao.einkbro.preference.GptActionType
+import io.ktor.client.call.body
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.preparePost
@@ -37,6 +38,34 @@ class OpenAiRepository(
     fun cancel() {
         streamJob?.cancel()
         streamJob = null
+    }
+
+    /**
+     * OpenAI-compatible text-to-speech (parity Phase L). Returns the mp3 bytes
+     * for [text], or null on any failure. Honors the self-hosted server URL so
+     * an OpenAI-compatible TTS endpoint can be used; otherwise api.openai.com.
+     */
+    suspend fun tts(text: String): ByteArray? = try {
+        val serverUrl = if (config.ai.useCustomGptUrl) config.ai.gptUrl else "https://api.openai.com"
+        val response = client.post("$serverUrl$TTS_PATH") {
+            contentType(ContentType.Application.Json)
+            header("Authorization", "Bearer ${config.ai.gptApiKey}")
+            setBody(
+                json.encodeToString(
+                    TTSRequest.serializer(),
+                    TTSRequest(
+                        input = text,
+                        model = config.ai.gptVoiceModel,
+                        voice = config.ai.gptVoiceOption.name.lowercase(),
+                        speed = config.tts.ttsSpeedValue / 100.0,
+                        instructions = config.ai.gptVoicePrompt.ifBlank { null },
+                    ),
+                )
+            )
+        }
+        if (response.status.value != 200) null else response.body<ByteArray>()
+    } catch (e: Exception) {
+        null
     }
 
     suspend fun chatCompletion(
@@ -190,6 +219,7 @@ class OpenAiRepository(
 
     companion object {
         private const val COMPLETION_PATH = "/v1/chat/completions"
+        private const val TTS_PATH = "/v1/audio/speech"
         private const val GEMINI_API_PREFIX =
             "https://generativelanguage.googleapis.com/v1beta/models/"
     }

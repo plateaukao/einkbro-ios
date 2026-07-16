@@ -77,6 +77,16 @@ data class ChatMessage(
 fun String.toUserMessage() = ChatMessage(content = this, role = ChatRole.User)
 fun String.toSystemMessage() = ChatMessage(content = this, role = ChatRole.System)
 
+/** OpenAI /v1/audio/speech request body (parity Phase L OpenAI-TTS). */
+@Serializable
+data class TTSRequest(
+    val input: String,
+    val model: String,
+    val voice: String,
+    val speed: Double = 1.0,
+    val instructions: String? = null,
+)
+
 // ── Gemini generateContent types ──────────────────────────────────────────
 
 @Serializable

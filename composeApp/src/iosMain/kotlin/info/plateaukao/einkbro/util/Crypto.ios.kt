@@ -8,6 +8,8 @@ import platform.CoreCrypto.CCHmac
 import platform.CoreCrypto.CC_MD5
 import platform.CoreCrypto.CC_MD5_DIGEST_LENGTH
 import platform.CoreCrypto.CC_SHA1_DIGEST_LENGTH
+import platform.CoreCrypto.CC_SHA256
+import platform.CoreCrypto.CC_SHA256_DIGEST_LENGTH
 import platform.CoreCrypto.kCCHmacAlgMD5
 import platform.CoreCrypto.kCCHmacAlgSHA1
 
@@ -52,5 +54,18 @@ actual object Crypto {
         return result.joinToString("") { byte ->
             (byte.toInt() and 0xff).toString(16).padStart(2, '0')
         }
+    }
+
+    actual fun sha256Hex(data: ByteArray): String {
+        val result = ByteArray(CC_SHA256_DIGEST_LENGTH)
+        val safeData = if (data.isEmpty()) ByteArray(1) else data
+        safeData.usePinned { pinned ->
+            result.usePinned { pinnedResult ->
+                CC_SHA256(pinned.addressOf(0), data.size.toUInt(), pinnedResult.addressOf(0).reinterpret())
+            }
+        }
+        return result.joinToString("") { byte ->
+            (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+        }.uppercase()
     }
 }
