@@ -2,6 +2,7 @@ package info.plateaukao.einkbro.setting.screens
 
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.*
+import info.plateaukao.einkbro.browser.ClearDataService
 import info.plateaukao.einkbro.setting.ActionSettingItem
 import info.plateaukao.einkbro.setting.BooleanSettingItem
 import info.plateaukao.einkbro.setting.SettingItemInterface
@@ -42,9 +43,10 @@ fun buildClearDataSettingItems(deps: SettingScreenDeps): List<SettingItemInterfa
             null,
             Res.string.clear_summary_deleteDatabase,
         ) {
-            // On Android this deletes the app databases and finishes the activity.
-            config.restartChanged = true
-            EBToast.show(deps.context, "would delete the browser databases (Android-only)")
+            // Clears web data (cache/cookies/local storage) and Room history now.
+            ClearDataService.clear(cache = true, cookies = true, history = true, localStorage = true) {
+                EBToast.show(deps.context, "Browsing data cleared")
+            }
         }
     )
 }

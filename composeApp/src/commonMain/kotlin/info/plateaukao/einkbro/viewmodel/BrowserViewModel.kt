@@ -7,6 +7,7 @@ import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.browser.WebViewEngine
 import info.plateaukao.einkbro.browser.WebViewEngineListener
 import info.plateaukao.einkbro.browser.Assets
+import info.plateaukao.einkbro.browser.ContentBlocker
 import info.plateaukao.einkbro.browser.createWebViewEngine
 import info.plateaukao.einkbro.view.WebContentHelper
 import info.plateaukao.einkbro.database.HistoryRecord
@@ -60,13 +61,19 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         syncCurrentState()
     }
 
-    fun newTab(url: String, activate: Boolean = true, title: String = "New tab") {
+    fun newTab(
+        url: String,
+        activate: Boolean = true,
+        title: String = "New tab",
+        incognito: Boolean = config.isIncognitoMode,
+    ) {
         val album = Album(
             title = title,
             onShow = { switchTab(it) },
             onRemove = { closeTab(it) },
         )
-        val engine = createWebViewEngine(album, this)
+        album.incognito = incognito
+        val engine = createWebViewEngine(album, this, incognito)
         engines[album.id] = engine
         helpers[album.id] = WebContentHelper(engine, config)
         if (Assets.isLoaded) {
@@ -82,8 +89,29 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             focusIndex.value = albums.value.lastIndex
             syncCurrentState()
         }
+        applyWebConfig(engine, url.ifBlank { DEFAULT_HOME })
         if (url.isNotBlank()) engine.loadUrl(url)
         persistTabs()
+    }
+
+    /** Applies per-domain user agent, JavaScript, and adblock to [engine]. */
+    private fun applyWebConfig(engine: WebViewEngine, url: String) {
+        val ua = when {
+            config.getDesktopMode(url) -> DESKTOP_USER_AGENT
+            config.browser.enableCustomUserAgent &&
+                !config.browser.customUserAgent.isNullOrBlank() -> config.browser.customUserAgent
+            else -> null
+        }
+        engine.setUserAgent(ua)
+        engine.setJavaScriptEnabled(config.getEnableJavascript(url))
+        engine.setAdBlockEnabled(ContentBlocker.isReady && config.getEnableAdBlock(url))
+    }
+
+    /** Re-applies web config to every open tab (after a toggle or adblock compile). */
+    fun reapplyWebConfig() {
+        engines.values.forEach { engine ->
+            applyWebConfig(engine, engine.currentUrl().orEmpty().ifBlank { DEFAULT_HOME })
+        }
     }
 
     fun switchTab(album: Album) {
@@ -130,7 +158,10 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
                 template.replace("%s", percentEncode(trimmed))
             }
         }
-        currentEngine?.loadUrl(url)
+        currentEngine?.let { engine ->
+            applyWebConfig(engine, url)
+            engine.loadUrl(url)
+        }
     }
 
     fun clearHistory() {
@@ -161,7 +192,8 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             ?.let { helpers[it.id]?.onPageLoaded() }
         persistTabs()
         if (url.isBlank() || url == "about:blank") return
-        if (config.isIncognitoMode) return
+        // Incognito (per-tab or global) leaves no history trace.
+        if (engine.incognito || config.isIncognitoMode) return
         if (config.tab.saveHistoryMode == SaveHistoryMode.DISABLED) return
         viewModelScope.launch {
             historyDao.deleteByUrl(url)
@@ -182,13 +214,16 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     private fun persistTabs() {
         if (!config.tab.shouldSaveTabs) return
-        config.tab.savedAlbumInfoList = albums.value.map { album ->
-            AlbumInfo(
-                title = album.albumTitle,
-                url = engines[album.id]?.currentUrl() ?: "",
-            )
-        }.filter { it.url.isNotBlank() }
-        config.tab.currentAlbumIndex = focusIndex.value
+        // Incognito tabs leave no trace, so they never persist across launches.
+        config.tab.savedAlbumInfoList = albums.value
+            .filterNot { it.incognito }
+            .map { album ->
+                AlbumInfo(
+                    title = album.albumTitle,
+                    url = engines[album.id]?.currentUrl() ?: "",
+                )
+            }.filter { it.url.isNotBlank() }
+        config.tab.currentAlbumIndex = focusIndex.value.coerceAtMost(albums.value.lastIndex)
     }
 
     private fun syncCurrentState() {
@@ -207,5 +242,10 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     companion object {
         const val DEFAULT_HOME = "https://en.wikipedia.org"
+
+        // Desktop Safari UA (mirrors Android's UA_DESKTOP_PREFIX switch).
+        const val DESKTOP_USER_AGENT =
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 " +
+                "(KHTML, like Gecko) Version/17.4.1 Safari/605.1.15"
     }
 }

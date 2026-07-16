@@ -47,5 +47,7 @@ object Assets {
         "scroll_to_top.js",
         "scroll_to_bottom.js",
         "engine_scroll_by_page.js",
+        // Adblock content-rule list (WKContentRuleList JSON), compiled at startup.
+        "adblock_rules.json",
     )
 }

@@ -12,6 +12,9 @@ import info.plateaukao.einkbro.view.Album
 interface WebViewEngine {
     val album: Album
 
+    /** Non-persistent data store (private browsing); set at creation. */
+    val incognito: Boolean
+
     fun loadUrl(url: String)
     fun reload()
     fun stopLoading()
@@ -33,6 +36,16 @@ interface WebViewEngine {
     /** Installs a script run on every future navigation (WKUserScript on iOS). */
     fun installUserScript(source: String, atDocumentStart: Boolean)
 
+    // --- privacy & blocking (Phase 4) ---
+    /** Overrides the user agent; null restores the platform default. */
+    fun setUserAgent(userAgent: String?)
+
+    /** Enables/disables page JavaScript for future navigations. */
+    fun setJavaScriptEnabled(enabled: Boolean)
+
+    /** Adds/removes the shared adblock content-rule list on this web view. */
+    fun setAdBlockEnabled(enabled: Boolean)
+
     fun pause()
     fun resume()
     fun destroy()
@@ -45,7 +58,11 @@ interface WebViewEngineListener {
     fun onPageFinished(engine: WebViewEngine, url: String, title: String) {}
 }
 
-expect fun createWebViewEngine(album: Album, listener: WebViewEngineListener): WebViewEngine
+expect fun createWebViewEngine(
+    album: Album,
+    listener: WebViewEngineListener,
+    incognito: Boolean = false,
+): WebViewEngine
 
 @Composable
 expect fun WebViewHost(engine: WebViewEngine, modifier: Modifier)

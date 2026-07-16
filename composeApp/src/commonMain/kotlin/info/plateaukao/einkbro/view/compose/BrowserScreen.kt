@@ -18,6 +18,7 @@ import androidx.compose.material.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,6 +41,7 @@ import info.plateaukao.einkbro.view.dialog.compose.FastToggleDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.FontDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.MenuDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.MenuItemType
+import info.plateaukao.einkbro.view.dialog.compose.SiteSettingsDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.TouchAreaDialogContent
 import info.plateaukao.einkbro.view.toolbaricons.ToolbarAction
 import info.plateaukao.einkbro.view.toolbaricons.ToolbarActionInfo
@@ -65,12 +67,17 @@ fun BrowserScreen(
     var showSettings by remember { mutableStateOf(false) }
     var showFontDialog by remember { mutableStateOf(false) }
     var showFastToggle by remember { mutableStateOf(false) }
+    var showSiteSettings by remember { mutableStateOf(false) }
     var showTouchAreaDialog by remember { mutableStateOf(false) }
     var touchPagingEnabled by remember { mutableStateOf(config.touch.enableTouchTurn) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         info.plateaukao.einkbro.browser.Assets.preload()
+        // Compile the adblock rule list once; re-apply to tabs when it's ready.
+        info.plateaukao.einkbro.browser.ContentBlocker.preload(
+            info.plateaukao.einkbro.browser.Assets.get("adblock_rules.json")
+        ) { browserViewModel.reapplyWebConfig() }
         browserViewModel.ensureFirstTab()
     }
 
@@ -136,6 +143,7 @@ fun BrowserScreen(
             MenuItemType.OpenHome -> engine?.loadUrl(BrowserViewModel.DEFAULT_HOME)
             MenuItemType.Settings -> showSettings = true
             MenuItemType.QuickToggle -> showFastToggle = true
+            MenuItemType.SiteSettings -> showSiteSettings = true
             MenuItemType.FontSize -> showFontDialog = true
             MenuItemType.TouchSetting -> showTouchAreaDialog = true
             MenuItemType.ReaderMode -> helper?.toggleReaderMode()
@@ -174,7 +182,11 @@ fun BrowserScreen(
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (engine != null) {
-                WebViewHost(engine, Modifier.fillMaxSize())
+                // Key by tab id so UIKitView re-embeds the current tab's
+                // WKWebView when the active tab changes (its factory runs once).
+                key(browserViewModel.currentAlbum?.id) {
+                    WebViewHost(engine, Modifier.fillMaxSize())
+                }
             }
 
             if (touchPagingEnabled) {
@@ -212,7 +224,8 @@ fun BrowserScreen(
                         },
                         onHistoryItemLongClick = { _, _ -> },
                         addIncognitoTab = {
-                            EBToast.show(AppServices.context, "Incognito: phase 4")
+                            browserViewModel.newTab(BrowserViewModel.DEFAULT_HOME, incognito = true)
+                            showOverview = false
                         },
                         addTab = {
                             browserViewModel.newTab(BrowserViewModel.DEFAULT_HOME)
@@ -278,7 +291,7 @@ fun BrowserScreen(
                 .ifBlank { browserViewModel.currentUrl.value },
             tabCount = browserViewModel.albums.value.size.toString(),
             pageInfo = "",
-            isIncognito = false,
+            isIncognito = browserViewModel.currentAlbum?.incognito == true,
             onIconClick = { handleToolbarAction(it) },
             onIconLongClick = {
                 when (it) {
@@ -331,8 +344,34 @@ fun BrowserScreen(
         }
     }
     if (showFastToggle) {
-        Dialog(onDismissRequest = { showFastToggle = false }) {
-            DialogFrame { FastToggleDialogContent(onDismiss = { showFastToggle = false }) }
+        Dialog(onDismissRequest = {
+            showFastToggle = false
+            browserViewModel.reapplyWebConfig()
+        }) {
+            DialogFrame {
+                FastToggleDialogContent(onDismiss = {
+                    showFastToggle = false
+                    // Adblock/JS/cookie/incognito toggles take effect on live tabs.
+                    browserViewModel.reapplyWebConfig()
+                })
+            }
+        }
+    }
+    if (showSiteSettings) {
+        Dialog(onDismissRequest = {
+            showSiteSettings = false
+            browserViewModel.reapplyWebConfig()
+        }) {
+            DialogFrame {
+                SiteSettingsDialogContent(
+                    url = browserViewModel.currentUrl.value,
+                    onDismiss = {
+                        showSiteSettings = false
+                        // Per-site JS/adblock/UA overrides apply to future loads.
+                        browserViewModel.reapplyWebConfig()
+                    },
+                )
+            }
         }
     }
     if (showTouchAreaDialog) {

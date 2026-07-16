@@ -105,6 +105,16 @@ class DomainConfigManager(
         return domainConfigurationMap[host]?.enableJavascript ?: browser.enableJavascript
     }
 
+    fun getEnableAdBlock(url: String): Boolean {
+        val host = Uri.parse(url)?.host ?: return browser.adBlock
+        return domainConfigurationMap[host]?.enableAdBlock ?: browser.adBlock
+    }
+
+    fun getEnableCookies(url: String): Boolean {
+        val host = Uri.parse(url)?.host ?: return browser.cookies
+        return domainConfigurationMap[host]?.enableCookies ?: browser.cookies
+    }
+
     fun getTranslationMode(url: String): TranslationMode {
         val host = Uri.parse(url)?.host ?: return translation.translationMode
         return domainConfigurationMap[host]?.translationMode ?: translation.translationMode

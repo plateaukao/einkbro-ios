@@ -123,6 +123,10 @@ class ConfigManager(
 
     fun getEnableJavascript(url: String): Boolean = domain.getEnableJavascript(url)
 
+    fun getEnableAdBlock(url: String): Boolean = domain.getEnableAdBlock(url)
+
+    fun getEnableCookies(url: String): Boolean = domain.getEnableCookies(url)
+
     fun getTranslationMode(url: String): TranslationMode = domain.getTranslationMode(url)
 
     fun getCustomCss(url: String): String? = domain.getCustomCss(url)

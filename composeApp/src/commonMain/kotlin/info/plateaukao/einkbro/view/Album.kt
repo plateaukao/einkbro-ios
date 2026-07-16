@@ -20,6 +20,7 @@ class Album(
 
     var isLoaded = false
     var isTranslatePage = false
+    var incognito = false
     var albumTitle: String by mutableStateOf(title)
     var bitmap: ImageBitmap? by mutableStateOf(null)
     var isActivated = false

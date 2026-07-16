@@ -15,6 +15,7 @@ import platform.WebKit.WKUserScript
 import platform.WebKit.WKUserScriptInjectionTime
 import platform.WebKit.WKWebView
 import platform.WebKit.WKWebViewConfiguration
+import platform.WebKit.WKWebsiteDataStore
 import platform.darwin.NSObject
 
 /**
@@ -26,6 +27,7 @@ import platform.darwin.NSObject
 class WKWebViewEngine(
     override val album: Album,
     private val listener: WebViewEngineListener,
+    override val incognito: Boolean = false,
 ) : WebViewEngine {
 
     private val navigationDelegate = NavigationDelegate(this)
@@ -34,6 +36,9 @@ class WKWebViewEngine(
         frame = CGRectZero.readValue(),
         configuration = WKWebViewConfiguration().apply {
             allowsInlineMediaPlayback = true
+            // Private browsing: a non-persistent store leaves nothing on disk
+            // (cookies, cache, local storage all vanish when it's released).
+            if (incognito) websiteDataStore = WKWebsiteDataStore.nonPersistentDataStore()
         },
     ).apply {
         navigationDelegate = this@WKWebViewEngine.navigationDelegate
@@ -93,6 +98,23 @@ class WKWebViewEngine(
         )
     }
 
+    override fun setUserAgent(userAgent: String?) {
+        webView.customUserAgent = userAgent
+    }
+
+    override fun setJavaScriptEnabled(enabled: Boolean) {
+        // Applies to future navigations in this web view (same as Android, which
+        // reloads on a JS toggle).
+        webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = enabled
+    }
+
+    override fun setAdBlockEnabled(enabled: Boolean) {
+        val controller = webView.configuration.userContentController
+        val list = ContentBlocker.compiledList ?: return
+        if (enabled) controller.addContentRuleList(list)
+        else controller.removeContentRuleList(list)
+    }
+
     override fun evaluateJavascript(script: String, callback: ((String?) -> Unit)?) {
         webView.evaluateJavaScript(script) { result, _ ->
             callback?.invoke(result?.toString())
@@ -150,8 +172,11 @@ private class NavigationDelegate(
     }
 }
 
-actual fun createWebViewEngine(album: Album, listener: WebViewEngineListener): WebViewEngine =
-    WKWebViewEngine(album, listener)
+actual fun createWebViewEngine(
+    album: Album,
+    listener: WebViewEngineListener,
+    incognito: Boolean,
+): WebViewEngine = WKWebViewEngine(album, listener, incognito)
 
 @Composable
 actual fun WebViewHost(engine: WebViewEngine, modifier: Modifier) {
