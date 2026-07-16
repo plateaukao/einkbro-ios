@@ -1,8 +1,11 @@
 # EinkBro → iOS feature migration plan
 
-Status: adopted 2026-07-16. Scope: turn the ported UI catalog into a working
-e-ink-oriented browser on iOS with feature parity where the platform allows it,
-and documented divergence where it does not.
+Status: adopted 2026-07-16. **All 8 phases implemented and simulator-verified
+2026-07-16** (Phase 1 browser → Phase 8 platform polish); remaining gaps are the
+documented divergences below and items needing an Apple developer account (share
+extension, TestFlight/App Store signing). Scope: turn the ported UI catalog into a
+working e-ink-oriented browser on iOS with feature parity where the platform
+allows it, and documented divergence where it does not.
 
 The plan is grounded in a full inventory of the Android browser layer
 (EBWebView + helpers, 40+ JS/CSS assets, tab model, services, persistence).
