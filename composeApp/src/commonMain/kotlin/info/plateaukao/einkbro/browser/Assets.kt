@@ -62,5 +62,7 @@ object Assets {
         // Table of contents (Phase A): heading extraction + jump.
         "get_toc.js",
         "goto_toc.js",
+        // Find on page (Phase E): highlight + step + clear.
+        "find_onpage.js",
     )
 }

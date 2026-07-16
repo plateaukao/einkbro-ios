@@ -333,6 +333,38 @@ class WebContentHelper(
         }
     }
 
+    // --- find on page (parity Phase E) -----------------------------------
+
+    /** Runs a find command (find/next/prev/clear); reports {count,index}. */
+    fun findOnPage(command: String, query: String = "", callback: (Int, Int) -> Unit = { _, _ -> }) {
+        val js = Assets.get("find_onpage.js")
+            .replace("__CMD__", command)
+            .replace("__ARG__", encodeUriComponent(query))
+        engine.evaluateJavascript(js) { result ->
+            val count = extractJsonInt(result, "count")
+            val index = extractJsonInt(result, "index")
+            callback(count, index)
+        }
+    }
+
+    private fun encodeUriComponent(s: String): String = buildString {
+        for (b in s.encodeToByteArray()) {
+            val c = b.toInt().toChar()
+            if (c.isLetterOrDigit() || c in "-_.!~*'()") append(c)
+            else append('%').append(b.toUByte().toString(16).uppercase().padStart(2, '0'))
+        }
+    }
+
+    private fun extractJsonInt(json: String?, key: String): Int {
+        if (json == null) return 0
+        val marker = "\"$key\":"
+        val at = json.indexOf(marker)
+        if (at < 0) return 0
+        val start = at + marker.length
+        val digits = json.substring(start).trimStart().takeWhile { it.isDigit() }
+        return digits.toIntOrNull() ?: 0
+    }
+
     // --- audio only ------------------------------------------------------
 
     var isAudioOnlyOn = false

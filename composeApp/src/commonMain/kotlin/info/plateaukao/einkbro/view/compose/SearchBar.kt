@@ -27,6 +27,7 @@ fun ComposedSearchBar(
     onCloseClick: ()->Unit,
     onUpClick: (String)->Unit,
     onDownClick: (String)->Unit,
+    resultInfo: String = "",
 ) {
     Row(
         modifier = Modifier
@@ -50,6 +51,13 @@ fun ComposedSearchBar(
             onValueChanged = onTextChanged,
         )
 
+        if (resultInfo.isNotEmpty()) {
+            Text(
+                resultInfo,
+                color = MaterialTheme.colors.onBackground,
+                modifier = Modifier.padding(horizontal = 6.dp),
+            )
+        }
         SearchBarIcon(iconResId = Res.drawable.icon_arrow_down_gest, onClick = { onDownClick(text.value) })
         SearchBarIcon(iconResId = Res.drawable.icon_arrow_up_gest, onClick = { onUpClick(text.value) })
         SearchBarIcon(iconResId = Res.drawable.icon_close, onClick = { text.value = "" ; onCloseClick() })

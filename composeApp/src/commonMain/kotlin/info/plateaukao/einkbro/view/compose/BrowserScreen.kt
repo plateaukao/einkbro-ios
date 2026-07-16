@@ -126,6 +126,8 @@ fun BrowserScreen(
     var tocItems by remember { mutableStateOf<List<TocItem>?>(null) }
     var toolbarRefreshTick by remember { mutableStateOf(0) }
     var isFullscreen by remember { mutableStateOf(false) }
+    var showSearchBar by remember { mutableStateOf(false) }
+    var searchResultInfo by remember { mutableStateOf("") }
     var touchPagingEnabled by remember { mutableStateOf(config.touch.enableTouchTurn) }
     val scope = rememberCoroutineScope()
 
@@ -383,7 +385,10 @@ fun BrowserScreen(
             }
 
             // Search / remote (Phases E and J)
-            BrowserAction.ShowSearchPanel -> comingSoon("Find on page", 'E')
+            BrowserAction.ShowSearchPanel -> {
+                searchResultInfo = ""
+                showSearchBar = true
+            }
             BrowserAction.ToggleTextSearch -> comingSoon("Remote text search", 'J')
             BrowserAction.ToggleReceiveTextSearch -> comingSoon("Remote text search", 'J')
 
@@ -732,6 +737,29 @@ fun BrowserScreen(
                 progress = progress,
                 modifier = Modifier.fillMaxWidth().height(2.dp),
                 color = MaterialTheme.colors.onBackground,
+            )
+        }
+
+        // Find-on-page bar (parity Phase E) sits just above the toolbar.
+        if (showSearchBar) {
+            fun applyFind(count: Int, index: Int) {
+                searchResultInfo = if (count == 0) "0/0" else "$index/$count"
+            }
+            val searchFocus = remember { FocusRequester() }
+            LaunchedEffect(Unit) { searchFocus.requestFocus() }
+            ComposedSearchBar(
+                focusRequester = searchFocus,
+                onTextChanged = { q ->
+                    helper?.findOnPage("find", q) { c, i -> applyFind(c, i) }
+                },
+                onDownClick = { helper?.findOnPage("next") { c, i -> applyFind(c, i) } },
+                onUpClick = { helper?.findOnPage("prev") { c, i -> applyFind(c, i) } },
+                onCloseClick = {
+                    helper?.findOnPage("clear")
+                    searchResultInfo = ""
+                    showSearchBar = false
+                },
+                resultInfo = searchResultInfo,
             )
         }
 
