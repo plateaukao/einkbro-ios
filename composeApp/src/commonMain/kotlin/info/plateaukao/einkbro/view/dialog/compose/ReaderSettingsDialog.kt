@@ -1,0 +1,208 @@
+package info.plateaukao.einkbro.view.dialog.compose
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Slider
+import androidx.compose.material.Switch
+import androidx.compose.material.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import info.plateaukao.einkbro.AppServices
+import info.plateaukao.einkbro.resources.Res
+import info.plateaukao.einkbro.resources.*
+import info.plateaukao.einkbro.view.compose.MyTheme
+import org.jetbrains.compose.resources.stringResource
+import kotlin.math.roundToInt
+
+/**
+ * Reader mode layout settings, shown on long-clicking the reader mode icon
+ * (also reachable from Settings > UI). All changes are persisted and applied
+ * to the current page immediately.
+ *
+ * Entry composable; was ReaderSettingsDialogFragment.Content().
+ */
+@Composable
+fun ReaderSettingsDialogContent(
+    onSettingChanged: () -> Unit = {},
+    onKeepExtraContentChanged: () -> Unit = {},
+    onFontConfigClick: () -> Unit = {},
+    onDismiss: () -> Unit = {},
+) {
+    val config = AppServices.config
+    ReaderSettingsContent(
+        initPageMargin = config.display.paddingForReaderMode,
+        initLineSpacing = config.display.readerLineSpacing,
+        initTwoColumn = config.display.readerTwoColumnInLandscape,
+        initKeepExtraContent = config.display.readerKeepExtraContent,
+        onPageMarginChanged = {
+            config.display.paddingForReaderMode = it
+            onSettingChanged()
+        },
+        onLineSpacingChanged = {
+            config.display.readerLineSpacing = it
+            onSettingChanged()
+        },
+        onTwoColumnChanged = {
+            config.display.readerTwoColumnInLandscape = it
+            onSettingChanged()
+        },
+        onKeepExtraContentChanged = {
+            config.display.readerKeepExtraContent = it
+            onKeepExtraContentChanged()
+        },
+        onFontConfigClick = {
+            onDismiss()
+            onFontConfigClick()
+        },
+    )
+}
+
+@Composable
+fun ReaderSettingsContent(
+    initPageMargin: Int,
+    initLineSpacing: Int,
+    initTwoColumn: Boolean,
+    initKeepExtraContent: Boolean,
+    onPageMarginChanged: (Int) -> Unit,
+    onLineSpacingChanged: (Int) -> Unit,
+    onTwoColumnChanged: (Boolean) -> Unit,
+    onKeepExtraContentChanged: (Boolean) -> Unit,
+    onFontConfigClick: () -> Unit,
+) {
+    var pageMargin by remember { mutableFloatStateOf(initPageMargin.toFloat()) }
+    var lineSpacing by remember { mutableFloatStateOf(initLineSpacing.toFloat()) }
+    var twoColumn by remember { mutableStateOf(initTwoColumn) }
+    var keepExtraContent by remember { mutableStateOf(initKeepExtraContent) }
+
+    Column(
+        modifier = Modifier
+            .width(300.dp)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(Res.string.reader_settings),
+                color = MaterialTheme.colors.onBackground,
+                style = MaterialTheme.typography.h6,
+            )
+            IconButton(onClick = onFontConfigClick) {
+                Icon(
+                    imageVector = Icons.Outlined.FormatSize,
+                    contentDescription = stringResource(Res.string.font_size),
+                    tint = MaterialTheme.colors.onBackground,
+                )
+            }
+        }
+
+        HorizontalSeparator()
+
+        Text(
+            text = "${stringResource(Res.string.page_margin)}: ${pageMargin.roundToInt()}px",
+            color = MaterialTheme.colors.onBackground,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+        Slider(
+            value = pageMargin,
+            valueRange = 0f..100f,
+            steps = 19,
+            onValueChange = {
+                pageMargin = it
+                onPageMarginChanged(it.roundToInt())
+            },
+        )
+
+        Text(
+            text = "${stringResource(Res.string.line_spacing)}: " +
+                    formatOneDecimal(lineSpacing / 10f),
+            color = MaterialTheme.colors.onBackground,
+        )
+        Slider(
+            value = lineSpacing,
+            valueRange = 10f..25f,
+            steps = 14,
+            onValueChange = {
+                lineSpacing = it
+                onLineSpacingChanged(it.roundToInt())
+            },
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(Res.string.two_column_in_landscape),
+                color = MaterialTheme.colors.onBackground,
+            )
+            Switch(
+                checked = twoColumn,
+                onCheckedChange = {
+                    twoColumn = it
+                    onTwoColumnChanged(it)
+                },
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(Res.string.keep_extra_content),
+                color = MaterialTheme.colors.onBackground,
+            )
+            Switch(
+                checked = keepExtraContent,
+                onCheckedChange = {
+                    keepExtraContent = it
+                    onKeepExtraContentChanged(it)
+                },
+            )
+        }
+    }
+}
+
+/** Common-Kotlin stand-in for String.format(Locale.ROOT, "%.1f", value). */
+private fun formatOneDecimal(value: Float): String {
+    val tenths = (value * 10).roundToInt()
+    return "${tenths / 10}.${tenths % 10}"
+}
+
+@Composable
+fun PreviewReaderSettingsContent() {
+    MyTheme {
+        ReaderSettingsContent(
+            initPageMargin = 10,
+            initLineSpacing = 15,
+            initTwoColumn = false,
+            initKeepExtraContent = false,
+            onPageMarginChanged = {},
+            onLineSpacingChanged = {},
+            onTwoColumnChanged = {},
+            onKeepExtraContentChanged = {},
+            onFontConfigClick = {},
+        )
+    }
+}

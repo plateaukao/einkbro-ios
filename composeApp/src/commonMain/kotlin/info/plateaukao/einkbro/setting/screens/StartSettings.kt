@@ -1,0 +1,123 @@
+package info.plateaukao.einkbro.setting.screens
+
+import info.plateaukao.einkbro.resources.Res
+import info.plateaukao.einkbro.resources.*
+import info.plateaukao.einkbro.setting.ActionSettingItem
+import info.plateaukao.einkbro.setting.BooleanSettingItem
+import info.plateaukao.einkbro.setting.DividerSettingItem
+import info.plateaukao.einkbro.setting.ListSettingWithEnumItem
+import info.plateaukao.einkbro.setting.SettingItemInterface
+import info.plateaukao.einkbro.view.EBToast
+
+fun buildStartSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
+    val config = deps.config
+    return listOf(
+        BooleanSettingItem(
+            Res.string.setting_title_images,
+            null,
+            Res.string.setting_summary_images,
+            config.browser::enableImages
+        ),
+        BooleanSettingItem(
+            Res.string.setting_title_auto_fill_form,
+            null,
+            Res.string.setting_summary_auto_fill_form,
+            config.browser::autoFillForm
+        ),
+        ListSettingWithEnumItem(
+            Res.string.setting_title_history,
+            null,
+            Res.string.setting_summary_history,
+            config.tab::saveHistoryMode,
+            listOf(
+                Res.string.save_history_mode_save_when_open,
+                Res.string.save_history_mode_save_when_close,
+                Res.string.save_history_mode_disabled,
+            )
+        ),
+        BooleanSettingItem(
+            Res.string.setting_title_debug,
+            null,
+            Res.string.setting_summary_debug,
+            config.browser::debugWebView
+        ),
+        BooleanSettingItem(
+            Res.string.setting_title_remote,
+            null,
+            Res.string.setting_summary_remote,
+            config.browser::enableRemoteAccess
+        ),
+        BooleanSettingItem(
+            Res.string.setting_title_location,
+            null,
+            Res.string.setting_summary_location,
+            config.browser::shareLocation
+        ),
+        DividerSettingItem(),
+        BooleanSettingItem(
+            Res.string.setting_title_adblock,
+            null,
+            Res.string.setting_summary_adblock,
+            config.browser::adBlock
+        ),
+        // On Android this opens AdBlockSettingActivity.
+        ActionSettingItem(
+            Res.string.setting_title_update_adblock,
+            null,
+            Res.string.setting_summary_update_adblock,
+        ) {
+            EBToast.show(deps.context, "would open the adblock update settings")
+        },
+        // On Android this opens DataListActivity(WhiteListType.Adblock).
+        ActionSettingItem(
+            Res.string.setting_title_whitelist,
+            null,
+            Res.string.setting_summary_whitelist,
+        ) {
+            EBToast.show(deps.context, "would open the adblock whitelist")
+        },
+        DividerSettingItem(),
+        BooleanSettingItem(
+            Res.string.setting_title_javascript,
+            null,
+            Res.string.setting_summary_javascript,
+            config.browser::enableJavascript
+        ),
+        // On Android this opens DataListActivity(WhiteListType.Javascript).
+        ActionSettingItem(
+            Res.string.setting_title_whitelistJS,
+            null,
+            Res.string.setting_summary_whitelistJS,
+        ) {
+            EBToast.show(deps.context, "would open the JavaScript whitelist")
+        },
+        // On Android this opens UserScriptListActivity.
+        ActionSettingItem(
+            Res.string.setting_title_userscripts,
+            null,
+            Res.string.setting_summary_userscripts,
+        ) { EBToast.show(deps.context, "would open the userscripts list") },
+        DividerSettingItem(),
+        BooleanSettingItem(
+            Res.string.setting_title_cookie,
+            null,
+            Res.string.setting_summary_cookie,
+            config.browser::cookies
+        ),
+        // On Android this opens DataListActivity(WhiteListType.Cookie).
+        ActionSettingItem(
+            Res.string.setting_title_whitelistCookie,
+            null,
+            Res.string.setting_summary_whitelistCookie,
+        ) {
+            EBToast.show(deps.context, "would open the cookie whitelist")
+        },
+        DividerSettingItem(),
+        BooleanSettingItem(
+            Res.string.setting_title_save_data,
+            null,
+            Res.string.setting_summary_save_data,
+            config.browser::enableSaveData
+        ),
+    )
+}

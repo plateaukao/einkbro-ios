@@ -1,0 +1,686 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+    <!-- App -->
+    <string name="app_name">EinkBro</string>
+    <string name="list_empty">Current list is empty.</string>
+    <string name="bookmarks">Bookmarks</string>
+    <string name="album_title_history">History</string>
+    <string name="album_title_home">Home</string>
+    <string name="search_hint">Search</string>
+    <string name="search_settings_hint">Search settings…</string>
+
+    <!-- Menu -->
+    <string name="main_menu_new_tab">New tab in background</string>
+    <string name="main_menu_new_tabOpen">New tab</string>
+    <string name="main_omnibox_input_hint">Search or type URL</string>
+    <string name="menu_open_with">Open link with…</string>
+
+    <string name="menu_quit">Quit</string>
+    <string name="menu_openFav">Open homepage</string>
+    <string name="menu_delete">Delete</string>
+    <string name="menu_edit">Edit</string>
+    <string name="menu_closeTab">Close tab</string>
+    <string name="menu_download">Downloads</string>
+    <string name="menu_fav">Save as homepage</string>
+    <string name="menu_sc">Shortcut on home screen</string>
+
+    <string name="menu_share_link">Share link</string>
+
+    <string name="menu_save_bookmark">Save as bookmark</string>
+    <string name="menu_save_as">Save as…</string>
+    <string name="menu_save_pdf">Save as PDF</string>
+
+    <string name="menu_other_searchSite">Search on site</string>
+    <string name="audio_only_mode">Audio only</string>
+    <string name="menu_other_info">About EinkBro</string>
+
+    <!-- Dialog -->
+    <string name="dialog_title_hint">Title:</string>
+    <string name="dialog_url_hint">URL:</string>
+    <string name="dialog_extension_hint">Extension (for example: \".jpg\"):</string>
+    <string name="dialog_title_download">Do you want to download the file?</string>
+    <string name="dialog_content_resubmission">Would you like to resubmit your data?</string>
+
+    <!-- Settings -->
+
+    <!-- Browser setting -->
+    <string name="setting_title_clear_control">Data Control</string>
+    <string name="setting_title_start_control">Site Settings</string>
+
+    <string name="setting_title_search_engine">Search engine</string>
+    <string name="setting_summary_search_engine">Choose a search engine</string>
+    <string name="setting_summary_search_engine_google">Google</string>
+    <string name="setting_summary_search_engine_duckduckgo">DuckDuckGo</string>
+    <string name="setting_summary_search_engine_startpage">Startpage</string>
+    <string name="setting_summary_search_engine_startpage_de">Startpage (de)</string>
+    <string name="setting_summary_search_engine_bing">Bing</string>
+    <string name="setting_summary_search_engine_baidu">Baidu</string>
+    <string name="setting_summary_search_engine_yandex">Yandex</string>
+    <string name="setting_summary_search_engine_searx">Searx</string>
+    <string name="setting_summary_search_engine_qwant">Qwant</string>
+    <string name="setting_summary_search_engine_ecosia">Ecosia</string>
+
+
+
+    <string name="setting_title_remote">Remote content</string>
+    <string name="setting_summary_remote">Enable remote content that doesn't come directly from the website you are visiting.
+        Disabling this will increase security level, speed and will save data volume, but some content will not be displayed anymore</string>
+
+    <string name="setting_title_save_data">Request 'Save Data'</string>
+    <string name="setting_summary_save_data">Tell websites that you would prefer to save data. Supported websites will load faster</string>
+
+
+    <!-- Browser start -->
+    <string name="setting_title_images">Images</string>
+    <string name="setting_summary_images">Enable network images. Disabling could be useful for saving mobile data and loading
+        websites faster</string>
+
+    <string name="setting_title_cookie">Cookies</string>
+    <string name="setting_summary_cookie">Enable Cookies. Cookies are small text files, which are stored on your device. Websites
+        use them, for instance, to store user settings (e.g. search settings) but they could also be used to collect personal
+        user data. Third party cookies (they collect user data for advertising) are always disabled</string>
+    <string name="setting_summary_cookie_delete">If enabled, all cookies will be deleted, including cookies of trusted websites</string>
+    <string name="setting_title_whitelistCookie">Cookie whitelist</string>
+    <string name="setting_summary_whitelistCookie">If you disabled Cookies you can use this whitelist to allow sites you
+        trust to use save cookies</string>
+
+    <string name="setting_title_javascript">JavaScript</string>
+    <string name="setting_summary_javascript">Enable JavaScript. Many websites need JavaScript for their functionality (menus,
+        loading and displaying images and more) but it can also be used for attacks</string>
+    <string name="setting_title_whitelistJS">JavaScript Whitelist</string>
+    <string name="setting_summary_whitelistJS">If you disabled JavaScript you can use this whitelist to allow sites you
+        trust to use JavaScript</string>
+
+    <string name="setting_title_adblock">AdBlock</string>
+    <string name="setting_summary_adblock">Enable AdBlock to block annoying ads. Sites will load faster with it enabled</string>
+    <string name="setting_title_whitelist">AdBlock whitelist</string>
+    <string name="setting_summary_whitelist">Allow these sites to show ads. Some sites will not work if AdBlock is enabled</string>
+
+    <string name="setting_title_location">Location</string>
+    <string name="setting_summary_location">Allow websites to access your location. Some websites (like Google Maps for navigation)
+        need this enabled</string>
+
+    <string name="setting_title_history">History</string>
+    <string name="setting_summary_history">Save the history of visited websites</string>
+    <string name="save_history_mode_save_when_open">Save on tab open</string>
+    <string name="save_history_mode_save_when_close">Save on tab close</string>
+    <string name="save_history_mode_disabled">Do not save</string>
+
+
+    <!-- Browser clear -->
+    <string name="clear_title_quit">Clear on app exit</string>
+    <string name="clear_summary_quit">Every time you quit EinkBro all checked above data will be deleted</string>
+    <string name="clear_title_cache">Clear Cache</string>
+    <string name="clear_title_cookie">Clear Cookies</string>
+    <string name="clear_title_history">Clear History</string>
+    <string name="clear_title_indexedDB">Clear \"Indexed Databases\" and \"Local WebView Storage\"</string>
+
+    <string name="clear_title_deleteDatabase">Delete database</string>
+    <string name="clear_summary_deleteDatabase">Delete the whole database (start page, bookmarks, history and all whitelists)</string>
+
+
+    <!-- App setting -->
+    <string name="setting_title_ui">Appearance</string>
+
+    <string name="setting_title_data">Backup</string>
+
+
+    <string name="setting_title_searchEngine">Custom search engine</string>
+
+    <string name="setting_title_userAgent">Custom User Agent</string>
+
+    <!-- App behavior -->
+    <string name="setting_title_toolbar">Toolbar / Info bar</string>
+    <string name="setting_section_toolbar">Toolbar</string>
+    <string name="setting_section_statusbar">Info bar</string>
+    <string name="setting_section_typography">Typography</string>
+    <string name="setting_section_advanced">Advanced</string>
+    <string name="site_settings_overrides_count">%1$d override</string>
+    <string name="site_settings_overrides_count_plural">%1$d overrides</string>
+    <string name="default_value_hint">default</string>
+    <string name="setting_title_hideToolbar">Hide toolbar</string>
+    <string name="setting_summary_hide">Use the whole screen when scrolling through websites. To leave fullscreen mode press Back button</string>
+
+    <string name="setting_title_statusbar_enabled">Show info bar when toolbar is hidden</string>
+    <string name="setting_summary_statusbar_enabled">A slim bar with time, page info, battery, wifi, and pagination status</string>
+    <string name="setting_title_statusbar_position">Info bar position</string>
+    <string name="setting_title_statusbar_items">Info bar items</string>
+    <string name="setting_summary_statusbar_items">Choose which items appear and reorder them</string>
+    <string name="statusbar_position_top">Top</string>
+    <string name="statusbar_position_bottom">Bottom</string>
+    <string name="statusbar_item_battery">Battery</string>
+    <string name="statusbar_item_wifi">Wifi</string>
+    <string name="statusbar_item_volume_pagination">Volume page turn</string>
+    <string name="statusbar_config_available">Available items</string>
+    <string name="statusbar_config_available_hint">click icon to add it to the info bar</string>
+    <string name="statusbar_config_preview">Preview</string>
+    <string name="statusbar_config_preview_hint">click icon to remove; long click to drag and reorder</string>
+
+    <string name="setting_title_behavior">Behavior</string>
+
+    <string name="setting_title_toolbarShow">Toolbar first</string>
+    <string name="setting_summary_toolbarShow">Pressing Back button will make toolbar visible before going back in history</string>
+
+    <string name="setting_title_nav_pos">Floating Button position</string>
+    <string name="setting_summary_nav_pos">Decide where the \"Navigation Button\" will be placed</string>
+    <string name="setting_summary_nav_pos_right">Right</string>
+    <string name="setting_summary_nav_pos_left">Left</string>
+    <string name="setting_summary_nav_pos_center">Center</string>
+    <string name="setting_summary_nav_pos_not_show">Don't show</string>
+    <string name="setting_summary_nav_pos_custom">Custom</string>
+
+
+    <string name="setting_title_confirm_tab_close">Confirm tab close</string>
+    <string name="setting_summary_confirm_tab_close">Confirmation dialog when closing a tab</string>
+
+
+    <string name="setting_title_saveTabs">Save tabs</string>
+    <string name="setting_summary_saveTabs">Save tabs so they can be opened next time</string>
+
+    <!-- Gestures -->
+    <string name="setting_gestures">Gestures</string>
+
+    <string name="setting_gestures_use_title">Use gestures on floating button</string>
+    <string name="setting_gestures_use_summary">Swipe on \"floating button\" to execute actions</string>
+
+    <string name="setting_multitouch_use_title">Two finger swipe gestures</string>
+    <string name="setting_multitouch_use_summary">Use two finger swipe on web content to trigger actions</string>
+
+    <string name="setting_gesture_up">Swipe up</string>
+    <string name="setting_gesture_down">Swipe down</string>
+    <string name="setting_gesture_left">Swipe left</string>
+    <string name="setting_gesture_right">Swipe right</string>
+
+    <string name="nothing">Nothing</string>
+    <string name="forward_in_history">Forward in history</string>
+    <string name="back_in_history">Back in history</string>
+    <string name="scroll_to_top">Scroll to top</string>
+    <string name="scroll_to_bottom">Scroll to bottom</string>
+    <string name="switch_to_left_tab">Switch to left tab</string>
+    <string name="switch_to_right_tab">Switch to right tab</string>
+    <string name="show_overview">Show overview</string>
+    <string name="open_new_tab">Open new tab</string>
+    <string name="close_tab">Close tab</string>
+    <string name="page_up">Page Up</string>
+    <string name="page_down">Page Down</string>
+
+    <!-- Data -->
+
+
+
+    <string name="setting_title_export_appData">Export app data</string>
+    <string name="setting_summary_export_appData">Export app data (History, Bookmarks)
+        and your personal settings</string>
+    <string name="setting_title_import_appData">Import app data</string>
+    <string name="setting_summary_import_appData">Import app data by choosing a zip file with previously exported data</string>
+
+    <string name="title_appData">App data</string>
+
+    <!-- Others setting -->
+
+    <!-- Toast -->
+    <string name="toast_copy_successful">Successfully copied</string>
+
+
+    <string name="toast_input_empty">You haven't input anything</string>
+    <string name="toast_load_error">Can't load this URL</string>
+    <string name="toast_share_failed">Can't share this page</string>
+
+    <string name="toast_start_download">Starting download</string>
+    <string name="toast_error">Oops, something went wrong…</string>
+    <string name="toast_edit_successful">Successfully saved!</string>
+    <string name="toast_webview_forward">Can't load next site</string>
+    <string name="toast_restart">You must restart EinkBro to apply changes. Close now?</string>
+    <string name="toast_close_tab">Do you want to close current tab?</string>
+    <string name="toast_downloadComplete">Download complete. Open file?</string>
+
+
+    <!-- Whitelist -->
+    <string name="whitelist_add">Add</string>
+
+    <string name="setting_summary_desktop">Support desktop mode of website</string>
+    <string name="history">History</string>
+    <string name="location">Location</string>
+    <string name="media_continue">Background play</string>
+    <string name="show_touch_area_hint">Show Touch Area border</string>
+    <string name="bold_font">Bold font</string>
+    <string name="white_background">White background</string>
+    <string name="desktop_mode">Desktop mode</string>
+    <string name="setting_title_page_left_value">Page reserved height</string>
+    <string name="setting_summary_page_left_value">How much height should be reserved when turning to next page(e.g., 50, or 10%)</string>
+    <string name="setting_title_pdf_paper_size">Printed PDF paper size</string>
+    <string name="vertical_read">Vertical mode</string>
+    <string name="reader_mode">Reader mode</string>
+    <string name="reader_settings">Reader mode settings</string>
+    <string name="page_margin">Page margin</string>
+    <string name="line_spacing">Line spacing</string>
+    <string name="two_column_in_landscape">Two columns in landscape</string>
+    <string name="keep_extra_content">Keep extra content</string>
+    <string name="touch_area_setting">Touch setting</string>
+    <string name="menu_epub">EPUB</string>
+    <string name="menu_save_epub">Save EPUB</string>
+    <string name="saving_epub">Saving EPUB</string>
+    <string name="menu_open_epub">Open EPUB</string>
+    <string name="new_epub_or_from_picker">New EPUB or from picker</string>
+    <string name="new_pdf_or_from_picker">New PDF or from picker</string>
+    <string name="title">Chapter name</string>
+    <string name="title_in_toc">Table of Contents</string>
+    <string name="book_name">Book Name</string>
+    <string name="book_name_description">Input the book name</string>
+    <string name="volume_page_turn">Volume key</string>
+    <string name="volume_page_turn_summary">Use volume up/down keys to turn pages</string>
+    <string name="volume_page_turn_paused">Volume page turn paused for 5 seconds</string>
+    <string name="volume_page_turn_resumed">Volume page turn resumed</string>
+    <string name="volume_double_click_back">Double-click for back</string>
+    <string name="volume_double_click_back_summary">Double-tap a volume key to go back; a single tap turns the page after a short delay. Requires volume key page turn.</string>
+    <string name="folder_name">Bookmark folder name</string>
+    <string name="folder_name_description">Insert Bookmark folder name</string>
+    <string name="setting_title_export_bookmarks">Export bookmarks</string>
+    <string name="setting_title_import_bookmarks">Import bookmarks</string>
+    <string name="setting_title_incognito">Incognito mode</string>
+    <string name="back">Back</string>
+    <string name="setting_title_userscripts">Userscripts</string>
+    <string name="setting_summary_userscripts">Manage Tampermonkey-style userscripts</string>
+    <string name="userscript_add">Add userscript</string>
+    <string name="userscript_empty">No userscripts installed yet. Tap + to add one, or open a .user.js link.</string>
+    <string name="userscript_install_from_url">Install from URL</string>
+    <string name="userscript_fetch">Fetch</string>
+    <string name="userscript_code">Userscript code</string>
+    <string name="userscript_update">Check for update</string>
+    <string name="userscript_updated">Updated to v%1$s</string>
+    <string name="userscript_up_to_date">Already up to date</string>
+    <string name="userscript_no_update_source">No update URL for this script</string>
+    <string name="userscript_update_failed">Update check failed</string>
+    <string name="userscript_browse">Find userscripts on Greasy Fork</string>
+    <string name="refresh">Refresh</string>
+    <string name="touch_turn_page">Touch turn page</string>
+    <string name="tab_preview">Tab preview</string>
+    <string name="font_size">Font size</string>
+    <string name="settings">Settings</string>
+    <string name="toolbars">Toolbar setting</string>
+    <string name="reader_toolbar">Reader toolbar setting</string>
+    <string name="font_size_increase">Font increase</string>
+    <string name="font_size_decrease">Font decrease</string>
+    <string name="fullscreen">Fullscreen</string>
+    <string name="forward">Forward</string>
+    <string name="rotate">Rotate</string>
+    <string name="translate">Translate</string>
+    <string name="toolbar_title">Title</string>
+    <string name="setting_title_screen_awake">Keep screen awake</string>
+    <string name="setting_summary_screen_awake">Keep screen always awake</string>
+    <string name="input_url">Input URL</string>
+    <string name="setting_title_useUpDown">Use Up/Down key</string>
+    <string name="setting_summary_useUpDownKey">Use Up/Down key to turn pages. Useful for bluetooth devices</string>
+    <string name="setting_title_enable_pull_to_refresh">Pull to refresh</string>
+    <string name="setting_summary_enable_pull_to_refresh">Swipe down at the top of the page to reload</string>
+    <string name="setting_title_process_text">Custom external search URL</string>
+    <string name="split_screen">Split screen</string>
+    <string name="dark_mode">Dark mode</string>
+    <string name="setting_summary_dark_mode">Configure dark mode</string>
+    <string name="hie_touch_area_when_input">Hide when typing</string> <!-- Typo in variable name -->
+    <string name="switch_touch_area_action">Switch up/down direction</string>
+    <string name="switch_touch_area_action_short">Switch direction</string>
+    <string name="no_previous_page">No previous page!</string>
+    <string name="translation_mode">Translation mode</string>
+
+
+    <!-- Strings used for fragments for navigation -->
+    <string name="system_default">Default</string>
+    <string name="serif">Serif</string>
+    <string name="googleserif">Google Serif</string>
+    <string name="custom_font">Custom</string>
+    <string name="font_type">Font Type</string>
+    <string name="menu_quickToggle">Quick toggle</string>
+    <string name="site_settings">Site Settings</string>
+    <string name="reset_to_global">Reset All to Global</string>
+    <string name="site_custom_css">Custom CSS</string>
+    <string name="site_post_load_js">Post-Load JavaScript</string>
+    <string name="site_force_viewport_width">Force viewport width (px)</string>
+    <string name="site_force_viewport_width_hint">Use only if desktop UA alone is not enough</string>
+    <string name="setting_title_toolbar_position">Toolbar position</string>
+    <string name="toolbar_position_bottom">Bottom</string>
+    <string name="toolbar_position_top">Top</string>
+    <string name="toolbar_position_left">Left</string>
+    <string name="toolbar_position_right">Right</string>
+    <string name="setting_title_vi_binding">Vi key binding</string>
+    <string name="setting_summary_vi_binding">Enable Vi key bindings for faster keyboard navigation</string>
+    <string name="select_font_folder">Select Font Folder</string>
+    <string name="change_folder">Change Folder</string>
+    <string name="search_fonts">Search fonts…</string>
+    <string name="no_fonts_found">No fonts found in this folder</string>
+    <string name="font_preview_text">AaBbCc 123</string>
+    <string name="setting_clear_recent_bookmarks">Clear recent bookmark list</string>
+    <string name="setting_summary_clear_recent_bookmarks">Clear recently used bookmark list</string>
+    <string name="setting_title_hide_menu_items">Hide seldom used menu items</string>
+    <string name="setting_summary_hide_menu_items">Tap items to hide them from the main menu</string>
+    <string name="menu_reorder">Reorder</string>
+    <string name="menu_hide_hint_tap">Tap an item to hide it. Use the swap icon to reorder.</string>
+    <string name="menu_hide_hint_reorder">Long-press and drag within a row to reorder. Tap the check icon to finish.</string>
+    <string name="recently_used_bookmarks">Recently Used Bookmarks</string>
+    <string name="menu_send_link">Send link</string>
+    <string name="done">Close when transfer is done</string>
+    <string name="menu_receive">Receive link</string> <!-- Can other types of data be recieved with this option except link? Is they can, change this back; if not - it's better to leave this variant for overall language consistency -->
+    <string name="go_to">Click</string>
+    <string name="setting_title_background_loading">Load non-active tabs</string>
+    <string name="setting_summary_background_loading">If tab is not activated, still load its content in background</string>
+    <string name="setting_title_search">Search</string>
+    <string name="dialog_toc_title">Table of Contents</string>
+    <string name="toc_delete">Delete</string>
+    <string name="latest_release">Latest Release</string>
+    <string name="project_site">Project Site</string>
+    <string name="changelogs">What's New</string>
+    <string name="medium_articles">Medium Articles</string>
+    <string name="contributors">Contributors</string>
+    <string name="title_about">About</string>
+    <string name="setting_title_auto_fill_form">Auto fill form data</string>
+    <string name="setting_summary_auto_fill_form">Auto fill form data if enabled</string>
+    <string name="setting_title_trim_input_url">Trim input text content</string>
+    <string name="setting_summary_trim_input_url">Remove non-http prefix text in input content</string>
+    <string name="no_bookmarks">Long press Bookmarks icon to add some bookmarks</string>
+    <string name="always_enable_zoom">Always enable content zooming</string>
+    <string name="setting_summary_enable_zoom">Force some website content to be zoomable</string>
+    <string name="setting_title_debug">Debug WebView</string>
+    <string name="setting_summary_debug">Enable this option to be able to debug WebView</string>
+    <string name="setting_title_prune_query_parameter">Prune tracking query parameters in URL</string>
+    <string name="setting_summary_prune_query_parameter">Query parameters like utm_medium, utm_source, etc. will be removed from URL</string>
+    <string name="setting_title_show_tab_bar">Show tab bar</string>
+    <string name="setting_summary_show_tab_bar">Always show tab bar above toolbar</string>
+    <string name="error_download_link_invalid">Download link is not valid</string>
+    <string name="duplicate_tab">Duplicate tab</string>
+    <string name="password">Password</string>
+    <string name="user_name">Username</string>
+    <string name="authentication">Authentication</string>
+    <string name="twitter">Twitter</string>
+    <string name="setting_title_edit_homepage">Edit homepage URL</string>
+    <string name="setting_title_plus_behavior">New tab behavior</string>
+    <string name="setting_summary_plus_behavior">What should be displayed when adding a new tab</string>
+    <string name="setting_title_share_long_press">Share long press action</string>
+    <string name="setting_summary_share_long_press">Action when long pressing the share icon</string>
+    <string name="share_long_press_copy_link">Copy link</string>
+    <string name="share_long_press_last_target">Share to last app</string>
+    <string name="setting_title_translated_langs">Translation languages for Google Translate</string>
+    <string name="setting_summary_translated_langs">Customize languages for translation (e.g. en, fr, de, zh-TW, zh-CN)</string>
+    <string name="menu">Menu</string>
+    <string name="menu_tts">Read content</string>
+    <string name="read_speed">Read Speed</string>
+    <string name="setting_summary_custom_process_text_url">Configure URL prefix that will be used for searching highlighted text from another app</string>
+
+    <string name="plus_start_input_url">Start input URL</string>
+    <string name="plus_show_homepage">Show homepage</string>
+    <string name="plus_show_bookmarks">Show recent bookmarks</string>
+    <string name="dark_mode_follow_system">Follow system</string>
+    <string name="dark_mode_force_on">Force On</string>
+    <string name="dark_mode_disabled">Disabled</string>
+    <string name="title_activity_setting">SettingActivity</string>
+    <string name="setting_title_video_auto_fullscreen">Enable video play in fullscreen</string>
+    <string name="setting_summary_video_auto_fullscreen">When video starts playing, auto resize to fullscreen</string>
+    <string name="setting_title_video_autoplay">Allow video autoplay</string>
+    <string name="setting_summary_video_autoplay">Allow videos to play automatically without user interaction</string>
+    <string name="setting_title_video_pip">Show video in small window</string>
+    <string name="setting_summary_video_pip">When playing video in fullscreen and leaving, show small window to continue video playback</string>
+    <string name="empty_whitelist_hint">Please click on top right button to add a new domain</string>
+    <string name="google_full_page">Google Whole Page</string>
+    <string name="google_in_place">Google in-place</string>
+    <string name="setting_title_update_adblock">Update AdBlock content</string>
+    <string name="setting_summary_update_adblock">Trigger update AdBlock websites now</string>
+    <string name="toast_backup_successful">Backup successful!</string>
+    <string name="backup_category_all_preferences">All Preferences</string>
+    <string name="backup_category_gpt_settings">GPT Settings</string>
+    <string name="backup_category_bookmarks">Bookmarks</string>
+    <string name="backup_category_history">History</string>
+    <string name="backup_category_database_data">Database (Highlights, GPT Queries, Site Settings, etc.)</string>
+    <string name="dialog_title_backup_categories">Select data to backup</string>
+    <string name="dialog_title_restore_categories">Select data to restore</string>
+    <string name="setting_title_share_appData">Share app data</string>
+    <string name="setting_summary_share_appData">Share app data to another device over local network</string>
+    <string name="setting_title_receive_appData">Receive app data</string>
+    <string name="setting_summary_receive_appData">Receive app data from another device over local network</string>
+    <string name="share_broadcasting">Broadcasting on local network…</string>
+    <string name="share_waiting">Waiting for data from another device…</string>
+    <string name="share_receiving">Receiving data…</string>
+    <string name="setting_title_enable_ssl_error_dialog">Show SSL error dialog</string>
+    <string name="setting_summary_enable_ssl_error_dialog">When something goes wrong with SSL, show error dialog</string>
+    <string name="manual">Manual</string>
+    <string name="black_font">Black font</string>
+    <string name="eink_image_adjustment">E-ink Image Optimization</string>
+    <string name="eink_image_adjustment_summary">Adjust web images (JPEG/PNG/WebP) for better e-ink display</string>
+    <string name="eink_image_off">Off</string>
+    <string name="eink_image_10">10%</string>
+    <string name="eink_image_30">30%</string>
+    <string name="eink_image_50">50%</string>
+    <string name="eink_image_70">70%</string>
+    <string name="eink_image_100">100%</string>
+    <string name="eink_image_mode_deep">Deep (dithering)</string>
+    <string name="eink_image_mode_fast">Fast (CSS filter)</string>
+    <string name="menu_save_archive">Save for later</string>
+    <string name="menu_save_mht">Save as MHT</string>
+    <string name="toast_saved_page">Page saved. Long press this icon to view saved list.</string>
+    <string name="toast_save_page_failed">Failed to save page</string>
+    <string name="saved_pages">Saved Pages</string>
+    <string name="no_saved_pages">No saved pages yet</string>
+    <string name="settings_title_back_key_behavior">Back key behavior</string>
+    <string name="settings_summary_back_key_behavior">Close tab when it's already in the first page in history</string>
+    <string name="page_count">Page count</string>
+    <string name="setting_title_userAgent_toggle">Enable Custom User Agent</string>
+    <string name="setting_summary_userAgent">Input custom User Agent strings here</string>
+    <string name="setting_summary_userAgent_toggle">Enable custom useragent</string>
+    <string name="content_adjustment">Content Adjustment</string>
+    <string name="share_save">Share &amp; Save</string>
+    <string name="setting_title_chat_gpt">GPT Settings</string>
+    <string name="setting_title_edit_gpt_api_key">OpenAI key</string>
+    <string name="setting_summary_edit_gpt_api_key">Input key in order to use this feature</string>
+    <string name="gpt_api_key_not_set">Add OpenAI key in Settings</string>
+    <string name="gpt_scope">Scope</string>
+    <string name="gpt_scope_text_selection">Text selection</string>
+    <string name="gpt_scope_whole_page">Whole page</string>
+    <string name="dialog_touch_area_enable">Enable Pagination</string>
+    <string name="show_default_text_menu">Show default selected text menu</string>
+    <string name="setting_summary_show_default_text_menu">After selecting text, show system default action menu</string>
+    <string name="google_translate">Google Translate</string>
+    <string name="translate_by_paragraph">Translate by Paragraph</string>
+    <string name="translation_language">Translation Language</string>
+    <string name="misc">Misc</string>
+    <string name="papago">Papago</string>
+    <string name="source_language">Source Language</string>
+    <string name="inter_translate">Inter Translate</string>
+    <string name="translate_image_key">Key for image translation</string>
+    <string name="translate_image_key_summary">Input necessary key to use image translate feature</string>
+    <string name="papago_language_setting">Language Setting</string>
+    <string name="toggle_touch_turn_page">Toggle Touch turn page</string>
+    <string name="use_it_on_dict_search">Use ChatGPT in dictionary search</string>
+    <string name="setting_summary_search_in_dict">When searching in readers, use ChatGPT to search results</string>
+    <string name="hide_statusbar">Hide system status bar</string>
+    <string name="setting_summary_hide_statusbar">Always hide the system status bar</string>
+    <string name="enable_touch_area_as_arrow_key">Long click as ← → key</string>
+    <string name="setting_title_chat_stream">Reply In-Stream</string> <!-- Not sure about this one -->
+    <string name="setting_summary_chat_stream">Response will be displayed character by character, so that it's faster</string>
+    <string name="setting_dual_caption">Dual captions for YouTube</string>
+    <string name="setting_summary_dual_caption">Select language for second caption</string>
+    <string name="naver_translate">Naver Translate</string>
+    <string name="setting_title_gpt_model_name">OpenAI model name</string>
+    <string name="setting_summary_gpt_model_name">Default is gpt-4.1. Insert other model name if necessary</string>
+    <string name="papago_translate_by_screen">Papago by Screen</string>
+    <string name="split_search_settings">Split Search settings</string>
+    <string name="setting_title_split_search_setting">Split Search settings</string>
+    <string name="setting_summary_split_search_setting">Custom search and result opening in split screen</string>
+    <string name="description_split_screen_string_pattern">Custom search URL with keyword position as %s</string>
+    <string name="description_split_screen_title">Input the name to be shown as context menu title</string>
+    <string name="send_to_remote_terminate">Terminate remote text search</string>
+    <string name="receive_link_terminate">Terminate receiving link</string>
+    <string name="setting_title_search_in_same_tab">Tab for external search</string>
+    <string name="setting_summary_search_in_same_tab">Use same tab for external search</string>
+    <string name="move_to_background">Minimize</string>
+    <string name="setting_title_gpt_prompt_for_web_page">Prompt for full webpage content</string>
+    <string name="setting_summary_gpt_prompt_for_web_page">Input prompt to process web page full content (for instance: \"Summarize it in 300 words:\")</string>
+    <string name="setting_title_next_tab">Show next tab</string>
+    <string name="setting_summary_next_tab">Show next tab when current one is closed (otherwise show previous one)</string>
+    <string name="setting_title_gpt_action_list">ChatGPT action definition</string>
+    <string name="setting_summary_gpt_action_list">Define different prompts for different ChatGPT actions</string>
+    <string name="gpt_actions_title">ChatGPT Actions</string>
+    <string name="text_select">Select text</string>
+    <string name="show_context_menu_icons">Show icons on action menus</string>
+    <string name="setting_summary_show_context_menu_icons">Show/hide icons on action menus to make it simpler</string>
+    <string name="show_history_thumbnail_grid">Show history thumbnails in address bar</string>
+    <string name="setting_summary_show_history_thumbnail_grid">When opening the address bar, show one favicon per domain in a grid; suggestions resume as you type</string>
+    <string name="use_it_on_tts">Use OpenAI TTS API</string>
+    <string name="setting_summary_use_gpt_for_tts">Use OpenAI API to read web content</string>
+    <string name="highlight">Highlight</string>
+    <string name="menu_highlights">Highlights</string>
+    <string name="articles">Articles</string>
+    <string name="highlights">Highlights</string>
+    <string name="menu_invert_color">Invert colors</string>
+    <string name="setting_title_highlight_style">Highlight style</string>
+    <string name="setting_summary_highlight_style">Choose a style for text highlight</string>
+    <string name="underline">Underline</string>
+    <string name="yellow">Yellow</string>
+    <string name="green">Green</string>
+    <string name="blue">Blue</string>
+    <string name="pink">Pink</string>
+    <string name="setting_title_github_update">Update to Latest</string>
+    <string name="setting_title_github_snapshot">Update with Snapshot</string>
+    <string name="setting_title_use_custom_gpt_url">Use alternative server</string>
+    <string name="setting_summary_use_custom_gpt_url">Use other API server URL</string>
+    <string name="setting_title_custom_gpt_url">Custom host URL</string>
+    <string name="setting_summary_custom_gpt_url">Input alternative OpenAI server URL</string>
+    <string name="setting_title_enable_inplace_translate">Translate paragraphs in current tab</string>
+    <string name="setting_summary_enable_inplace_translate">Show paragraph translation in current or new tab</string>
+    <string name="setting_title_show_bookmarks_input_bar">Show Bookmarks when editing URL</string>
+    <string name="setting_summary_show_bookmarks_input_bar">Show bookmark matches when typing text in input bar</string>
+    <string name="setting_tts_locale">Text-to-Speech Locale</string>
+    <string name="setting_title_external_search_pop">Use popup for PROCESS_TEXT event</string>
+    <string name="setting_summary_external_search_pop">Search as a popup dictionary (suitable for reader apps dictionary integration)</string>
+    <string name="cannot_save_epub">Something went wrong while saving EPUB. Please try again later</string>
+    <string name="deepl_translate">DeepL</string>
+    <string name="mincho_ja">Mincho(JA)</string>
+    <string name="gamja_flower_ko">Gamja Flower(KO)</string>
+    <string name="setting_title_use_gemini">Use Google Gemini model</string>
+    <string name="setting_summary_use_gemini">Use Google Gemini model</string>
+    <string name="setting_title_gemini_key">Gemini API key</string>
+    <string name="setting_summary_gemini_key">Input Gemini API key</string>
+    <string name="setting_title_other_model_name">Alternative model name</string>
+    <string name="setting_summary_other_model_name">Input model name for alternaltive GPT server</string>
+    <string name="setting_title_gemini_model_name">Gemini model name</string>
+    <string name="setting_summary_gemini_model_name">Input Gemini model name (default: gemini-2.5-flash)</string>
+    <string name="setting_title_gpt_query_list">GPT result history</string>
+    <string name="setting_summary_gpt_query_list">Saved GPT query results</string>
+    <string name="select_sentence">Select Sentence</string>
+    <string name="select_paragraph">Select Paragraph</string>
+    <string name="setting_app_locale">App language</string>
+    <string name="setting_summary_app_locale">Change interface language</string>
+    <string name="drag_to_reorder">Drag to re-order bookmarks</string>
+    <string name="gpt_action_drag_handle">Drag to reorder ChatGPT actions</string>
+    <string name="page_ai">Page AI</string>
+    <string name="page_ai_action_title">Page AI Actions</string>
+    <string name="toolbar_time">Current time</string>
+    <string name="setting_title_disable_long_press_toucharea">Disable long press on Touch Area</string>
+    <string name="setting_summary_disable_long_press_toucharea">Do not trigger actions when long pressing touch area</string>
+    <string name="expand_space">Expand space</string>
+    <string name="open_epub">Open EPUB file</string>
+    <string name="setting_title_enable_web_cache">Enable web cache</string>
+    <string name="setting_summary_enabling_web_cache">Load web content faster by enabling web cache</string>
+    <string name="key_page_up">Send Page Up key</string>
+    <string name="key_page_down">Send Page Down key</string>
+    <string name="key_left">Send Left key</string>
+    <string name="key_right">Send Right key</string>
+    <string name="touch_aciton_settings">More Settings</string>
+    <string name="setting_title_touch_area_actions">Touch Area click actions</string>
+    <string name="setting_touch_up_click">Up click action</string>
+    <string name="setting_touch_up_long_click">Up long click action</string>
+    <string name="setting_touch_down_click">Down click action</string>
+    <string name="setting_touch_down_long_click">Down long click action</string>
+    <string name="setting_floating_button_long_click">Long click</string>
+    <string name="setting_tts_type">Text-to-Speech Engine</string>
+    <string name="setting_tts_voice">Voice</string>
+    <string name="system_settings">System Settings</string>
+    <string name="other_voices">Other Voices…</string>
+    <string name="added_to_read_list">Added to read list</string>
+    <string name="tts_type_gpt">OpenAI</string>
+    <string name="tts_type_etts">ReadAloud</string>
+    <string name="tts_type_system">Built-in</string>
+    <string name="toolbar_icons">Toolbar icons</string>
+    <string name="toolbar_icons_description">Arrange toolbar icons</string>
+    <string name="gesture_on_floating_button">Floating button gestures</string>
+    <string name="openai">OpenAI</string>
+    <string name="openai_compatible_server">OpenAI Compatible Server</string>
+    <string name="google_gemini">Google Gemini</string>
+    <string name="none">None</string>
+    <string name="dashed_border">Dashed border</string>
+    <string name="vertical_line">Vertical line</string>
+    <string name="setting_title_translation_style">Translation text block style</string>
+    <string name="setting_summary_translation_style">Choose the style you like for paragraph translation</string>
+    <string name="gray">Gray</string>
+    <string name="bold">Bold</string>
+    <string name="deepl_translate_by_paragraph">Deepl by Paragraph</string>
+    <string name="dialog_message_remove_highlight">Remove highlight?</string>
+    <string name="read_from_here">From here</string>
+    <string name="iansui_tc">iansui(TC)</string>
+    <string name="openai_translate_by_paragraph">OpenAi by Paragraph</string>
+    <string name="gemini_translate_by_paragraph">Gemini by Paragraph</string>
+    <string name="openai_in_place">OpenAI in-place</string>
+    <string name="gemini_in_place">Gemini in-place</string>
+    <string name="setting_title_gpt_prompt_for_tts">Audio output instructions</string>
+    <string name="setting_summary_gpt_prompt_for_tts">instructions when gpt-4o-mini-tts model is used.</string>
+    <string name="setting_title_gpt_audio_model_name">OpenAI TTS model name</string>
+    <string name="setting_summary_gpt_audio_model_name">Available options: tts-1 (default), tts-1-hd, gpt-4o-mini-tts</string>
+    <string name="chat_with_web">Chat With Web</string>
+    <string name="web_content_processing">Web Content Processing</string>
+    <string name="web_processing_gpt_type">AI engine for page chat</string>
+    <string name="setting_summary_web_processing_gpt_type">Choose the engine to process web content</string>
+    <string name="self_hosted">Self Hosted</string>
+    <string name="summary_gpt_type">AI engine for summary</string>
+    <string name="setting_title_default_ai_engine">Default AI engine</string>
+    <string name="setting_summary_summary_gpt_type">Choose gpt engine for content summarization</string>
+    <string name="menu_summarize">Summarize</string>
+    <string name="setting_title_remote_query">Remote Query Action</string>
+    <string name="sc_disable_adblock_short">No AdBlock</string>
+    <string name="sc_disable_adblock_long">No AdBlock</string>
+    <string name="sc_disable_adblock_disabled">No AdBlock</string>
+    <string name="menu_instapaper">Instapaper</string>
+    <string name="instapaper_username_hint">Username or Email</string>
+    <string name="instapaper_password_hint">Password</string>
+    <string name="instapaper_create_account">Create account</string>
+    <string name="url_empty">url is empty</string>
+    <string name="setting_title_enable_url_drag_to_action">1 touch to url action</string>
+    <string name="setting_summary_enable_url_drag_to_action">Long click on url and move to item to trigger it</string>
+    <string name="setting_title_search_suggestion">Search suggestions</string>
+    <string name="setting_summary_search_suggestion">"while inputting content, show search suggestions "</string>
+    <string name="custom_scale">Custom Font Scale</string>
+    <string name="custom_scale_desc">Input desired font scale (%)</string>
+    <string name="setting_title_text_wrap_reflow">Text Wrap Reflow</string>
+    <string name="setting_summary_text_wrap_reflow">Reflow text when zooming</string>
+    <string name="setting_title_zoom_in_custom_view">Zoom in Custom View</string>
+    <string name="setting_summary_zoom_in_custom_view">Enable 2-finger zoom in fullscreen mode (default: false)</string>
+
+    <!-- Gesture action catalog -->
+    <string name="action_category_tab">Tabs</string>
+    <string name="action_category_navigation">Navigation</string>
+    <string name="action_category_content">Content</string>
+    <string name="action_category_view">View</string>
+    <string name="action_category_translation">Translation</string>
+    <string name="action_category_tts">Text-to-speech</string>
+    <string name="action_category_bookmarks">Bookmarks &amp; History</string>
+    <string name="action_category_search">Search</string>
+    <string name="action_category_share">Share</string>
+    <string name="action_category_touch">Touch</string>
+    <string name="action_category_ai">AI</string>
+    <string name="action_category_file">Files</string>
+    <string name="action_category_dialog">Dialogs &amp; UI</string>
+
+    <string name="action_text_search">Text search</string>
+    <string name="action_fast_toggle">Fast toggle</string>
+    <string name="action_summarize_content">Summarize page</string>
+    <string name="action_save_web_archive">Save web archive</string>
+    <string name="action_selected_label">Selected action</string>
+
+    <!-- Task runner -->
+    <string name="task_menu_title">Tasks</string>
+    <string name="task_read_article_list">News anchor</string>
+    <string name="task_read_article_list_desc">Extract article links from this page, then open each one and read it aloud in sequence.</string>
+    <string name="task_custom">Custom task…</string>
+    <string name="task_custom_desc">Describe a multi-step task in natural language; an LLM will run it.</string>
+    <string name="task_custom_hint">e.g. open the top 3 story links and give me one-sentence summaries</string>
+    <string name="task_run">Run</string>
+    <string name="task_requires_openai">Custom tasks require OpenAI (not Gemini).</string>
+    <string name="task_unknown">Unknown task.</string>
+</resources>

@@ -1,0 +1,37 @@
+package info.plateaukao.einkbro.database
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+import info.plateaukao.einkbro.preference.FontType
+import info.plateaukao.einkbro.preference.TranslationMode
+import kotlinx.serialization.Serializable
+
+@Entity(tableName = "domain_configuration")
+data class DomainConfiguration(
+    @PrimaryKey
+    var domain: String,
+    var configuration: String,
+)
+
+@Serializable
+data class DomainConfigurationData(
+    val domain: String,
+    var shouldFixScroll: Boolean = false,
+    var shouldTranslateSite: Boolean = false,
+    var shouldUseWhiteBackground: Boolean = false,
+    var shouldInvertColor: Boolean = false,
+    // Per-site display overrides (null = use global setting)
+    var fontSize: Int? = null,
+    var fontType: FontType? = null,
+    var boldFontStyle: Boolean? = null,
+    var blackFontStyle: Boolean? = null,
+    var fontBoldness: Int? = null,
+    var desktopMode: Boolean? = null,
+    var desktopViewportWidth: Int? = null,
+    var enableJavascript: Boolean? = null,
+    var enableAdBlock: Boolean? = null,
+    var enableCookies: Boolean? = null,
+    var translationMode: TranslationMode? = null,
+    var customCss: String? = null,
+    var postLoadJavascript: String? = null,
+)
