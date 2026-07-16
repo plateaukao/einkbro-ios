@@ -30,6 +30,9 @@ interface WebViewEngine {
 
     fun evaluateJavascript(script: String, callback: ((String?) -> Unit)? = null)
 
+    /** Installs a script run on every future navigation (WKUserScript on iOS). */
+    fun installUserScript(source: String, atDocumentStart: Boolean)
+
     fun pause()
     fun resume()
     fun destroy()

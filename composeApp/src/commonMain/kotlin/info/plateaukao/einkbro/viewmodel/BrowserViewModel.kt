@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.browser.WebViewEngine
 import info.plateaukao.einkbro.browser.WebViewEngineListener
+import info.plateaukao.einkbro.browser.Assets
 import info.plateaukao.einkbro.browser.createWebViewEngine
+import info.plateaukao.einkbro.view.WebContentHelper
 import info.plateaukao.einkbro.database.HistoryRecord
 import info.plateaukao.einkbro.database.Record
 import info.plateaukao.einkbro.preference.AlbumInfo
@@ -31,11 +33,13 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     val records = mutableStateOf<List<Record>>(emptyList())
 
     private val engines = LinkedHashMap<Int, WebViewEngine>()
+    private val helpers = LinkedHashMap<Int, WebContentHelper>()
     private val config = AppServices.config
     private val historyDao = AppServices.database.historyDao()
 
     val currentAlbum: Album? get() = albums.value.getOrNull(focusIndex.value)
     val currentEngine: WebViewEngine? get() = currentAlbum?.let { engines[it.id] }
+    val currentHelper: WebContentHelper? get() = currentAlbum?.let { helpers[it.id] }
 
     init {
         viewModelScope.launch { reloadRecords() }
@@ -64,6 +68,15 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         )
         val engine = createWebViewEngine(album, this)
         engines[album.id] = engine
+        helpers[album.id] = WebContentHelper(engine, config)
+        if (Assets.isLoaded) {
+            engine.installUserScript(Assets.get("fix_scrolling.js"), atDocumentStart = false)
+            if (!config.browser.enableVideoAutoplay) {
+                engine.installUserScript(
+                    Assets.get("disable_video_autoplay.js"), atDocumentStart = true
+                )
+            }
+        }
         albums.value = albums.value + album
         if (activate) {
             focusIndex.value = albums.value.lastIndex
@@ -89,6 +102,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         val index = list.indexOfFirst { it.id == album.id }
         if (index < 0) return
         engines.remove(album.id)?.destroy()
+        helpers.remove(album.id)
         list.removeAt(index)
         albums.value = list
         if (list.isEmpty()) {
@@ -143,6 +157,8 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     override fun onPageFinished(engine: WebViewEngine, url: String, title: String) {
         engine.album.isLoaded = true
+        albums.value.firstOrNull { it.id == engine.album.id }
+            ?.let { helpers[it.id]?.onPageLoaded() }
         persistTabs()
         if (url.isBlank() || url == "about:blank") return
         if (config.isIncognitoMode) return

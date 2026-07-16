@@ -69,9 +69,13 @@ fun BrowserScreen(
     var touchPagingEnabled by remember { mutableStateOf(config.touch.enableTouchTurn) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) { browserViewModel.ensureFirstTab() }
+    LaunchedEffect(Unit) {
+        info.plateaukao.einkbro.browser.Assets.preload()
+        browserViewModel.ensureFirstTab()
+    }
 
     val engine = browserViewModel.currentEngine
+    val helper = browserViewModel.currentHelper
     val progress by browserViewModel.progress
 
     fun handleToolbarAction(action: ToolbarAction) {
@@ -81,8 +85,23 @@ fun BrowserScreen(
 
             ToolbarAction.Forward -> engine?.goForward()
             ToolbarAction.Refresh -> engine?.reload()
-            ToolbarAction.PageUp -> engine?.pageUp()
-            ToolbarAction.PageDown -> engine?.pageDown()
+            ToolbarAction.PageUp -> helper?.pageUp() ?: engine?.pageUp()
+            ToolbarAction.PageDown -> helper?.pageDown() ?: engine?.pageDown()
+            ToolbarAction.ReaderMode -> helper?.toggleReaderMode()
+            ToolbarAction.VerticalLayout -> helper?.toggleVerticalRead()
+            ToolbarAction.InvertColor -> helper?.toggleInvertColor()
+            ToolbarAction.BoldFont -> {
+                config.display.boldFontStyle = !config.display.boldFontStyle
+                helper?.updateCssStyle()
+            }
+            ToolbarAction.IncreaseFont -> {
+                config.display.fontSize = (config.display.fontSize + 20).coerceAtMost(300)
+                helper?.updateCssStyle()
+            }
+            ToolbarAction.DecreaseFont -> {
+                config.display.fontSize = (config.display.fontSize - 20).coerceAtLeast(50)
+                helper?.updateCssStyle()
+            }
             ToolbarAction.Title, ToolbarAction.InputUrl -> showUrlInput = true
             ToolbarAction.TabCount -> showOverview = !showOverview
             ToolbarAction.NewTab -> browserViewModel.newTab(BrowserViewModel.DEFAULT_HOME)
@@ -119,6 +138,22 @@ fun BrowserScreen(
             MenuItemType.QuickToggle -> showFastToggle = true
             MenuItemType.FontSize -> showFontDialog = true
             MenuItemType.TouchSetting -> showTouchAreaDialog = true
+            MenuItemType.ReaderMode -> helper?.toggleReaderMode()
+            MenuItemType.VerticalRead -> helper?.toggleVerticalRead()
+            MenuItemType.InvertColor -> helper?.toggleInvertColor()
+            MenuItemType.AudioOnly -> helper?.toggleAudioOnly()
+            MenuItemType.BoldFont -> {
+                config.display.boldFontStyle = !config.display.boldFontStyle
+                helper?.updateCssStyle()
+            }
+            MenuItemType.BlackFont -> {
+                config.display.blackFontStyle = !config.display.blackFontStyle
+                helper?.updateCssStyle()
+            }
+            MenuItemType.WhiteBknd -> {
+                config.toggleWhiteBackground(browserViewModel.currentUrl.value)
+                helper?.updateCssStyle()
+            }
             MenuItemType.SaveBookmark -> {
                 val album = browserViewModel.currentAlbum ?: return
                 val title = album.albumTitle
@@ -143,13 +178,21 @@ fun BrowserScreen(
             }
 
             if (touchPagingEnabled) {
+                // Vertical-rl reading advances leftward, so the zones flip in
+                // vertical mode (same as Android's dispatchTouchEvent handling).
                 Box(
                     Modifier.align(Alignment.CenterStart).width(48.dp).fillMaxHeight(0.6f)
-                        .clickable { engine?.pageUp() }
+                        .clickable {
+                            if (helper?.isVerticalRead == true) helper.pageDown()
+                            else helper?.pageUp() ?: engine?.pageUp()
+                        }
                 )
                 Box(
                     Modifier.align(Alignment.CenterEnd).width(48.dp).fillMaxHeight(0.6f)
-                        .clickable { engine?.pageDown() }
+                        .clickable {
+                            if (helper?.isVerticalRead == true) helper.pageUp()
+                            else helper?.pageDown() ?: engine?.pageDown()
+                        }
                 )
             }
 
@@ -276,7 +319,15 @@ fun BrowserScreen(
     }
     if (showFontDialog) {
         Dialog(onDismissRequest = { showFontDialog = false }) {
-            DialogFrame { FontDialogContent(onDismiss = { showFontDialog = false }) }
+            DialogFrame {
+                FontDialogContent(
+                    onFontTypeChanged = { helper?.updateCssStyle() },
+                    onDismiss = {
+                        showFontDialog = false
+                        helper?.updateCssStyle()
+                    },
+                )
+            }
         }
     }
     if (showFastToggle) {

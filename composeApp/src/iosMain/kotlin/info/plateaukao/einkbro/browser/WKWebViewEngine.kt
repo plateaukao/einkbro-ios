@@ -11,6 +11,8 @@ import platform.Foundation.NSURL
 import platform.Foundation.NSURLRequest
 import platform.WebKit.WKNavigation
 import platform.WebKit.WKNavigationDelegateProtocol
+import platform.WebKit.WKUserScript
+import platform.WebKit.WKUserScriptInjectionTime
 import platform.WebKit.WKWebView
 import platform.WebKit.WKWebViewConfiguration
 import platform.darwin.NSObject
@@ -86,6 +88,14 @@ class WKWebViewEngine(
     override fun jumpToBottom() {
         evaluateJavascript(
             "window.scrollTo({top: document.body.scrollHeight, left: 0, behavior: 'instant'});"
+        )
+    }
+
+    override fun installUserScript(source: String, atDocumentStart: Boolean) {
+        val time = if (atDocumentStart) WKUserScriptInjectionTime.WKUserScriptInjectionTimeAtDocumentStart
+        else WKUserScriptInjectionTime.WKUserScriptInjectionTimeAtDocumentEnd
+        webView.configuration.userContentController.addUserScript(
+            WKUserScript(source = source, injectionTime = time, forMainFrameOnly = false)
         )
     }
 
