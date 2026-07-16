@@ -7,6 +7,12 @@ struct iOSApp: App {
         WindowGroup {
             ComposeView()
                 .ignoresSafeArea()
+                .onOpenURL { url in
+                    // File opens (.webarchive) carry a percent-encoded URL; pass the
+                    // decoded filesystem path so the Kotlin side needs no decoding.
+                    let value = url.isFileURL ? "file://" + url.path : url.absoluteString
+                    MainViewControllerKt.handleExternalUrl(url: value)
+                }
         }
     }
 }

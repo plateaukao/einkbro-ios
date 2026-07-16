@@ -116,6 +116,19 @@ fun BrowserScreen(
         browserViewModel.ensureFirstTab()
     }
 
+    // URLs opened from outside the app (einkbro:// scheme, http(s) hand-off,
+    // .webarchive file open) arrive here and open in a fresh tab.
+    LaunchedEffect(Unit) {
+        info.plateaukao.einkbro.util.ExternalUrlBridge.urls.collect { url ->
+            if (url.startsWith("file://")) {
+                val path = url.removePrefix("file://")
+                browserViewModel.openSavedPage(path, path.substringAfterLast('/'))
+            } else {
+                browserViewModel.newTab(url)
+            }
+        }
+    }
+
     val engine = browserViewModel.currentEngine
     val helper = browserViewModel.currentHelper
     val progress by browserViewModel.progress
