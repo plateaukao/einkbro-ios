@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -20,6 +22,7 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.FullscreenExit
 import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
@@ -122,8 +125,17 @@ fun BrowserScreen(
     var languageConfigApi by remember { mutableStateOf<TRANSLATE_API?>(null) }
     var tocItems by remember { mutableStateOf<List<TocItem>?>(null) }
     var toolbarRefreshTick by remember { mutableStateOf(0) }
+    var isFullscreen by remember { mutableStateOf(false) }
     var touchPagingEnabled by remember { mutableStateOf(config.touch.enableTouchTurn) }
     val scope = rememberCoroutineScope()
+
+    // Host pref (parity Phase D): keep-awake applies at startup and on change.
+    LaunchedEffect(config.ui.keepAwake) {
+        info.plateaukao.einkbro.util.HostBridge.setKeepAwake(config.ui.keepAwake)
+    }
+    // Status-bar hide / fullscreen: the Compose root goes edge-to-edge under
+    // the status bar (pixel-true hiding needs a Swift VC override — deferred).
+    val statusBarSuppressed = config.ui.hideStatusbar || isFullscreen
 
     // Session-scoped services (Phase 6): reading continues after the TTS
     // dialog closes, and translate results survive reopening the popup.
@@ -316,7 +328,14 @@ fun BrowserScreen(
                 overviewShowsHistory = false
                 showOverview = !showOverview
             }
-            BrowserAction.ToggleFullscreen -> comingSoon("Fullscreen", 'D')
+            BrowserAction.ToggleFullscreen -> {
+                isFullscreen = !isFullscreen
+                EBToast.show(
+                    AppServices.context,
+                    if (isFullscreen) "Fullscreen on — tap ⤢ or long-press refresh to exit"
+                    else "Fullscreen off"
+                )
+            }
             is BrowserAction.ToggleSplitScreen -> comingSoon("Split screen", 'G')
 
             // Translation
@@ -464,7 +483,8 @@ fun BrowserScreen(
             BrowserAction.ShowMenuDialog -> showMenu = true
             BrowserAction.ShowFastToggleDialog -> showFastToggle = true
             BrowserAction.ShowTocDialog -> showToc()
-            BrowserAction.RotateScreen -> comingSoon("Rotate screen", 'D')
+            BrowserAction.RotateScreen ->
+                EBToast.show(AppServices.context, "Rotate your device — iOS controls orientation")
             BrowserAction.ToggleAudioOnlyMode -> currentHelper?.toggleAudioOnly() ?: Unit
             BrowserAction.ShowSiteSettingsDialog -> showSiteSettings = true
             BrowserAction.ShowUserScriptCommands -> showUserScripts = true
@@ -546,7 +566,12 @@ fun BrowserScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+    val rootInsets = if (statusBarSuppressed) {
+        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+    } else {
+        WindowInsets.safeDrawing
+    }
+    Column(Modifier.fillMaxSize().windowInsetsPadding(rootInsets)) {
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             if (engine != null) {
                 // Key by tab id so UIKitView re-embeds the current tab's
@@ -710,23 +735,45 @@ fun BrowserScreen(
             )
         }
 
-        ComposedToolbar(
-            showTabs = showTabStrip,
-            toolbarActionInfos = remember(toolbarRefreshTick) {
-                config.ui.toolbarActions.map { ToolbarActionInfo(it, false) }
-            },
-            title = browserViewModel.currentTitle.value
-                .ifBlank { browserViewModel.currentUrl.value },
-            tabCount = browserViewModel.albums.value.size.toString(),
-            pageInfo = "",
-            isIncognito = browserViewModel.currentAlbum?.incognito == true,
-            onIconClick = { toolbarActionHandler.handleClick(it) },
-            onIconLongClick = { toolbarActionHandler.handleLongClick(it) },
-            albumList = browserViewModel.albums,
-            albumFocusIndex = browserViewModel.focusIndex,
-            onAlbumClick = { browserViewModel.switchTab(it) },
-            onAlbumLongClick = { browserViewModel.closeTab(it) },
-        )
+        // Fullscreen (parity Phase D) hides the toolbar; a small exit chip
+        // brings it back (iOS has no back key to restore it like Android).
+        if (!isFullscreen) {
+            ComposedToolbar(
+                showTabs = showTabStrip,
+                toolbarActionInfos = remember(toolbarRefreshTick) {
+                    config.ui.toolbarActions.map { ToolbarActionInfo(it, false) }
+                },
+                title = browserViewModel.currentTitle.value
+                    .ifBlank { browserViewModel.currentUrl.value },
+                tabCount = browserViewModel.albums.value.size.toString(),
+                pageInfo = "",
+                isIncognito = browserViewModel.currentAlbum?.incognito == true,
+                onIconClick = { toolbarActionHandler.handleClick(it) },
+                onIconLongClick = { toolbarActionHandler.handleLongClick(it) },
+                albumList = browserViewModel.albums,
+                albumFocusIndex = browserViewModel.focusIndex,
+                onAlbumClick = { browserViewModel.switchTab(it) },
+                onAlbumLongClick = { browserViewModel.closeTab(it) },
+            )
+        }
+    }
+
+    if (isFullscreen) {
+        Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            Surface(
+                modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)
+                    .clickable { isFullscreen = false },
+                color = MaterialTheme.colors.onBackground.copy(alpha = 0.5f),
+                shape = androidx.compose.foundation.shape.CircleShape,
+            ) {
+                androidx.compose.material.Icon(
+                    imageVector = Icons.Outlined.FullscreenExit,
+                    contentDescription = "Exit fullscreen",
+                    tint = MaterialTheme.colors.background,
+                    modifier = Modifier.padding(10.dp),
+                )
+            }
+        }
     }
 
     if (showMenu) {

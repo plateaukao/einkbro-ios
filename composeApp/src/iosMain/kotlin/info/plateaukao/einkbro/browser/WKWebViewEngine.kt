@@ -3,8 +3,10 @@ package info.plateaukao.einkbro.browser
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitView
+import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.util.FileStore
 import info.plateaukao.einkbro.view.Album
+import kotlinx.cinterop.ObjCAction
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readValue
 import info.plateaukao.einkbro.util.toByteArray
@@ -30,6 +32,8 @@ import platform.Foundation.credentialWithUser
 import platform.Foundation.serverTrust
 import platform.Security.SecTrustEvaluateWithError
 import platform.UIKit.UIApplication
+import platform.UIKit.UIControlEventValueChanged
+import platform.UIKit.UIRefreshControl
 import platform.UIKit.UIUserInterfaceStyle
 import platform.WebKit.WKDownload
 import platform.WebKit.WKDownloadDelegateProtocol
@@ -71,10 +75,16 @@ class WKWebViewEngine(
     // Strong refs: WKUserContentController holds message handlers weakly.
     private val messageHandlers = mutableMapOf<String, ScriptMessageHandler>()
 
+    private val browserConfig = AppServices.config.browser
+    private val refreshTarget = RefreshTarget { webView.reload() }
+
     val webView: WKWebView = WKWebView(
         frame = CGRectZero.readValue(),
         configuration = WKWebViewConfiguration().apply {
-            allowsInlineMediaPlayback = true
+            // Video prefs (parity Phase D): auto-fullscreen forces non-inline
+            // playback; PiP is opt-in.
+            allowsInlineMediaPlayback = !browserConfig.enableVideoAutoFullscreen
+            allowsPictureInPictureMediaPlayback = browserConfig.enableVideoPip
             // window.open() must reach the UI delegate to open as a new tab.
             preferences.javaScriptCanOpenWindowsAutomatically = true
             // Private browsing: a non-persistent store leaves nothing on disk
@@ -87,6 +97,16 @@ class WKWebViewEngine(
         allowsBackForwardNavigationGestures = true
         // Our own long-press link menu replaces the native peek/preview.
         allowsLinkPreview = false
+        // Pull-to-refresh (parity Phase D), opt-out via enablePullToRefresh.
+        if (browserConfig.enablePullToRefresh) {
+            val refreshControl = UIRefreshControl()
+            refreshControl.addTarget(
+                refreshTarget,
+                action = platform.darwin.sel_registerName("onRefresh"),
+                forControlEvents = UIControlEventValueChanged,
+            )
+            scrollView.refreshControl = refreshControl
+        }
     }
 
     override fun loadUrl(url: String) {
@@ -246,6 +266,8 @@ class WKWebViewEngine(
     }
 
     internal fun notifyFinished() {
+        // End the pull-to-refresh spinner once the load completes.
+        webView.scrollView.refreshControl?.endRefreshing()
         listener.onProgressChanged(this, 1f)
         listener.onTitleChanged(this, webView.title ?: "")
         listener.onUrlChanged(this, webView.URL?.absoluteString ?: "")
@@ -414,6 +436,12 @@ private class NavigationDelegate(
 }
 
 private val WEB_SCHEMES = setOf("http", "https", "file", "about", "blob", "data")
+
+/** UIRefreshControl target: the ObjC action fires [onRefresh] on pull-down. */
+private class RefreshTarget(private val onRefresh: () -> Unit) : NSObject() {
+    @ObjCAction
+    fun onRefresh() = onRefresh.invoke()
+}
 
 /** Popups/new windows → host new-tab; JS alert/confirm/prompt → host dialog. */
 private class UiDelegate(
