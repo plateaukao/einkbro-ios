@@ -130,13 +130,15 @@ private class ToastBackupOps(private val context: Context) : BackupOps {
  * in-settings search, backed by AppServices.config.
  */
 @Composable
-fun SettingsScreen(onClose: () -> Unit = {}) {
+fun SettingsScreen(onClose: () -> Unit = {}, onOpenUserScripts: () -> Unit = {}) {
     val config = AppServices.config
     val dialogManager = AppServices.dialogManager
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val deps = remember { SettingScreenDeps(context, config, scope, ToastBackupOps(context)) }
+    val deps = remember {
+        SettingScreenDeps(context, config, scope, ToastBackupOps(context), onOpenUserScripts)
+    }
 
     val mainSettings = remember { buildMainSettingItems() }
     val uiSettingItems = remember { buildUiSettingItems(deps) }

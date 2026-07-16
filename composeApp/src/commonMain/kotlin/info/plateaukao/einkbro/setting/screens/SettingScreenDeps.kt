@@ -16,6 +16,8 @@ class SettingScreenDeps(
     val config: ConfigManager,
     val scope: CoroutineScope,
     val backupOps: BackupOps,
+    /** Opens the userscript manager (parity Phase H); wired by the host screen. */
+    val onOpenUserScripts: () -> Unit = {},
 )
 
 interface BackupOps {

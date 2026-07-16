@@ -63,6 +63,12 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     /** Shared native side of the paragraph-translation JS bridge (Phase 6). */
     val translationBridge = info.plateaukao.einkbro.service.TranslationBridge()
 
+    /** Native side of the userscript GM_* runtime (parity Phase H). */
+    val userScriptBridge = info.plateaukao.einkbro.userscript.UserScriptBridge(
+        AppServices.userScriptManager,
+        viewModelScope,
+    ) { url, active -> newTab(url, activate = active) }
+
     val currentAlbum: Album? get() = albums.value.getOrNull(focusIndex.value)
     val currentEngine: WebViewEngine? get() = currentAlbum?.let { engines[it.id] }
     val currentHelper: WebContentHelper? get() = currentAlbum?.let { helpers[it.id] }
@@ -80,6 +86,8 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     init {
         viewModelScope.launch { reloadRecords() }
+        // Load installed userscripts so the first page can inject matching ones.
+        viewModelScope.launch { AppServices.userScriptManager.reload() }
     }
 
     /** Restores the previous session's tabs, or opens the configured home. */
@@ -207,6 +215,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         engine.installUserScript(Assets.get("selection_change.js"), atDocumentStart = false)
         engine.installUserScript(Assets.get("link_longpress.js"), atDocumentStart = false)
         translationBridge.attach(engine)
+        userScriptBridge.attach(engine)
     }
 
     /** Highlights the active tab's selection and persists it (text-only). */
@@ -223,6 +232,17 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     fun clearSelection() {
         selectionInfo.value = null
+    }
+
+    // --- userscripts (parity Phase H) ---
+
+    /** GM_registerMenuCommand entries (caption→fnId) for the current page. */
+    val userScriptMenuCommands: List<Pair<String, String>>
+        get() = currentEngine?.let { userScriptBridge.menuCommands(it) }.orEmpty()
+
+    /** Runs a registered userscript menu command on the current page. */
+    fun invokeUserScriptMenuCommand(fnId: String) {
+        currentEngine?.let { userScriptBridge.invokeMenu(it, fnId) }
     }
 
     // --- export / offline (Phase 7) ---
@@ -498,6 +518,8 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         engine.album.isLoaded = true
         albums.value.firstOrNull { it.id == engine.album.id }
             ?.let { helpers[it.id]?.onPageLoaded() }
+        // Inject enabled userscripts that match this page (parity Phase H).
+        userScriptBridge.onPageFinished(engine)
         persistTabs()
         if (url.isBlank() || url == "about:blank") return
         // Incognito (per-tab or global) leaves no history trace.

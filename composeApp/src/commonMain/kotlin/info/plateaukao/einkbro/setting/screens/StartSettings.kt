@@ -91,12 +91,12 @@ fun buildStartSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> 
         ) {
             EBToast.show(deps.context, "would open the JavaScript whitelist")
         },
-        // On Android this opens UserScriptListActivity.
+        // Opens the userscript manager (parity Phase H).
         ActionSettingItem(
             Res.string.setting_title_userscripts,
             null,
             Res.string.setting_summary_userscripts,
-        ) { EBToast.show(deps.context, "would open the userscripts list") },
+        ) { deps.onOpenUserScripts() },
         DividerSettingItem(),
         BooleanSettingItem(
             Res.string.setting_title_cookie,

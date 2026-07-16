@@ -66,5 +66,7 @@ object Assets {
         "find_onpage.js",
         // Split-screen scroll sync (Phase G): main pane reports scrollY.
         "split_scroll_report.js",
+        // Userscripts (Phase H): GM_* runtime + per-page injection dispatcher.
+        "userscript_runtime.js",
     )
 }

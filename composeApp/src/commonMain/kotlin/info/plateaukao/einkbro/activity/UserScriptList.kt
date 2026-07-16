@@ -46,6 +46,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import info.plateaukao.einkbro.AppServices
+import info.plateaukao.einkbro.data.remote.HttpClientProvider
 import info.plateaukao.einkbro.database.UserScript
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.back
@@ -71,7 +73,8 @@ import info.plateaukao.einkbro.util.blockingString
 import info.plateaukao.einkbro.view.EBToast
 import info.plateaukao.einkbro.view.compose.ListScaffold
 import info.plateaukao.einkbro.view.compose.MyTheme
-import kotlinx.coroutines.delay
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -87,7 +90,7 @@ fun UserScriptListScreen(
     installUrl: String? = null,
     onClose: () -> Unit = {},
 ) {
-    val userScriptManager = remember { UserScriptManager() }
+    val userScriptManager = remember { AppServices.userScriptManager }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -246,21 +249,11 @@ fun UserScriptListScreen(
     }
 }
 
-/**
- * Android used OkHttp here; the catalog fakes the network with a short delay
- * and a canned userscript body so the fetch/install flows stay demonstrable.
- */
-private suspend fun fetchScript(url: String): String? {
-    delay(800)
-    return """
-        // ==UserScript==
-        // @name Fetched Script
-        // @version 1.0.0
-        // @match https://*/*
-        // ==/UserScript==
-        // fetched from: $url
-        console.log('hello from fetched script');
-    """.trimIndent()
+/** Fetches a userscript body over the network (Android used OkHttp; here Ktor). */
+private suspend fun fetchScript(url: String): String? = try {
+    HttpClientProvider.client.get(url).bodyAsText().ifBlank { null }
+} catch (e: Exception) {
+    null
 }
 
 private fun showUpdateResult(context: Context, result: UpdateResult) {

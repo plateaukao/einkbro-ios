@@ -128,6 +128,8 @@ fun BrowserScreen(
     var showToolbarConfig by remember { mutableStateOf(false) }
     var showPageAiActions by remember { mutableStateOf(false) }
     var showUserScripts by remember { mutableStateOf(false) }
+    // Userscript GM_registerMenuCommand entries for the current page (parity Phase H).
+    var userScriptCommands by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var languageConfigApi by remember { mutableStateOf<TRANSLATE_API?>(null) }
     var tocItems by remember { mutableStateOf<List<TocItem>?>(null) }
     var toolbarRefreshTick by remember { mutableStateOf(0) }
@@ -498,7 +500,13 @@ fun BrowserScreen(
                 EBToast.show(AppServices.context, "Rotate your device — iOS controls orientation")
             BrowserAction.ToggleAudioOnlyMode -> currentHelper?.toggleAudioOnly() ?: Unit
             BrowserAction.ShowSiteSettingsDialog -> showSiteSettings = true
-            BrowserAction.ShowUserScriptCommands -> showUserScripts = true
+            BrowserAction.ShowUserScriptCommands -> {
+                // Short-tap parity: list this page's registered menu commands, or
+                // fall back to the manager when the page registered none.
+                val commands = browserViewModel.userScriptMenuCommands
+                if (commands.isEmpty()) showUserScripts = true
+                else userScriptCommands = commands
+            }
 
             // iOS host additions
             BrowserAction.ToggleBoldFont -> {
@@ -955,7 +963,10 @@ fun BrowserScreen(
     }
     if (showSettings) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
-            SettingsScreen(onClose = { showSettings = false })
+            SettingsScreen(
+                onClose = { showSettings = false },
+                onOpenUserScripts = { showSettings = false; showUserScripts = true },
+            )
         }
     }
 
@@ -1148,6 +1159,30 @@ fun BrowserScreen(
     if (showUserScripts) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
             UserScriptListScreen(onClose = { showUserScripts = false })
+        }
+    }
+
+    // Userscript menu-command picker (GM_registerMenuCommand, parity Phase H).
+    if (userScriptCommands.isNotEmpty()) {
+        val commands = userScriptCommands
+        Dialog(onDismissRequest = { userScriptCommands = emptyList() }) {
+            Surface(color = MaterialTheme.colors.background) {
+                Column(Modifier.padding(vertical = 8.dp)) {
+                    commands.forEach { (caption, fnId) ->
+                        androidx.compose.material.Text(
+                            caption,
+                            color = MaterialTheme.colors.onBackground,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    browserViewModel.invokeUserScriptMenuCommand(fnId)
+                                    userScriptCommands = emptyList()
+                                }
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                        )
+                    }
+                }
+            }
         }
     }
 

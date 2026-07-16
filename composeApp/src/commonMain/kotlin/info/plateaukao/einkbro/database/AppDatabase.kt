@@ -19,6 +19,7 @@ import androidx.sqlite.execSQL
  *  v1 — bookmarks, history, favicons, domain_configuration (Phase 2).
  *  v2 — articles + highlights (Phase 5 text-selection highlights).
  *  v3 — saved_pages (Phase 7 offline archives).
+ *  v4 — user_scripts + user_script_values (parity Phase H userscripts).
  */
 @Database(
     entities = [
@@ -29,8 +30,10 @@ import androidx.sqlite.execSQL
         Article::class,
         Highlight::class,
         SavedPage::class,
+        UserScript::class,
+        UserScriptValue::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -42,6 +45,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun articleDao(): ArticleDao
     abstract fun highlightDao(): HighlightDao
     abstract fun savedPageDao(): SavedPageDao
+    abstract fun userScriptDao(): UserScriptDao
+    abstract fun userScriptValueDao(): UserScriptValueDao
 }
 
 /** Adds the articles + highlights tables without dropping existing data. */
@@ -72,6 +77,23 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
             "CREATE TABLE IF NOT EXISTS `saved_pages` (" +
                 "`title` TEXT NOT NULL, `url` TEXT NOT NULL, `filePath` TEXT NOT NULL, " +
                 "`savedAt` INTEGER NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)"
+        )
+    }
+}
+
+/** Adds userscript storage: the script rows and their GM_setValue key/value store. */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `user_scripts` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, " +
+                "`enabled` INTEGER NOT NULL, `code` TEXT NOT NULL, `sourceUrl` TEXT, " +
+                "`order` INTEGER NOT NULL)"
+        )
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `user_script_values` (" +
+                "`scriptId` INTEGER NOT NULL, `key` TEXT NOT NULL, `value` TEXT NOT NULL, " +
+                "PRIMARY KEY(`scriptId`, `key`))"
         )
     }
 }
@@ -189,6 +211,42 @@ interface SavedPageDao {
 
     @Query("DELETE FROM saved_pages")
     suspend fun deleteAll()
+}
+
+@Dao
+interface UserScriptDao {
+    @Query("SELECT * FROM user_scripts ORDER BY `order`, id")
+    suspend fun getAll(): List<UserScript>
+
+    @Query("SELECT * FROM user_scripts WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): UserScript?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(script: UserScript): Long
+
+    @Update
+    suspend fun update(script: UserScript)
+
+    @Query("DELETE FROM user_scripts WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM user_scripts")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface UserScriptValueDao {
+    @Query("SELECT * FROM user_script_values WHERE scriptId = :scriptId")
+    suspend fun getForScript(scriptId: Long): List<UserScriptValue>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun setValue(value: UserScriptValue)
+
+    @Query("DELETE FROM user_script_values WHERE scriptId = :scriptId AND key = :key")
+    suspend fun deleteValue(scriptId: Long, key: String)
+
+    @Query("DELETE FROM user_script_values WHERE scriptId = :scriptId")
+    suspend fun deleteAllForScript(scriptId: Long)
 }
 
 @Dao
