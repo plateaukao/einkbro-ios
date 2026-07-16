@@ -1,0 +1,196 @@
+package info.plateaukao.einkbro.data.remote
+
+import info.plateaukao.einkbro.AppServices
+import info.plateaukao.einkbro.preference.ChatGPTActionInfo
+import info.plateaukao.einkbro.preference.ConfigManager
+import info.plateaukao.einkbro.preference.GptActionType
+import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.preparePost
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import io.ktor.utils.io.readUTF8Line
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+
+/**
+ * Ktor port of Android's OpenAiRepository: OpenAI-compatible chat completion
+ * (blocking + SSE streaming) and Gemini generateContent. TTS-over-OpenAI and
+ * tool-calling arrive with the features that use them.
+ */
+class OpenAiRepository(
+    private val config: ConfigManager = AppServices.config,
+) {
+    private val client = HttpClientProvider.client
+    private val json = Json { ignoreUnknownKeys = true }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    private var streamJob: Job? = null
+
+    fun cancel() {
+        streamJob?.cancel()
+        streamJob = null
+    }
+
+    suspend fun chatCompletion(
+        messages: List<ChatMessage>,
+        gptActionInfo: ChatGPTActionInfo,
+    ): ChatCompletion? = try {
+        val response = client.post("${getServerUrl(gptActionInfo.actionType)}$COMPLETION_PATH") {
+            contentType(ContentType.Application.Json)
+            header("Authorization", "Bearer ${config.ai.gptApiKey}")
+            setBody(json.encodeToString(ChatRequest.serializer(), ChatRequest(gptActionInfo.model, messages)))
+        }
+        if (response.status.value != 200) null
+        else json.decodeFromString(ChatCompletion.serializer(), response.bodyAsText())
+    } catch (e: Exception) {
+        null
+    }
+
+    fun chatStream(
+        messages: List<ChatMessage>,
+        gptActionInfo: ChatGPTActionInfo,
+        appendResponseAction: (String) -> Unit,
+        doneAction: () -> Unit = {},
+        failureAction: (ApiResult.Failure) -> Unit,
+    ) {
+        if (gptActionInfo.actionType == GptActionType.Gemini) {
+            // Gemini streaming (streamGenerateContent) is line-delimited JSON, not
+            // SSE; the non-stream call is simpler and fast enough for e-ink use.
+            streamJob?.cancel()
+            streamJob = scope.launch {
+                when (val result = queryGemini(messages, gptActionInfo)) {
+                    is ApiResult.Success -> {
+                        appendResponseAction(result.value)
+                        doneAction()
+                    }
+                    is ApiResult.Failure -> failureAction(result)
+                }
+            }
+            return
+        }
+
+        if (config.ai.gptApiKey.isEmpty() && gptActionInfo.actionType == GptActionType.OpenAi) {
+            failureAction(ApiResult.Failure(ApiResult.Kind.MissingKey, "OpenAI API key not set"))
+            return
+        }
+
+        streamJob?.cancel()
+        streamJob = scope.launch {
+            try {
+                client.preparePost("${getServerUrl(gptActionInfo.actionType)}$COMPLETION_PATH") {
+                    contentType(ContentType.Application.Json)
+                    header("Authorization", "Bearer ${config.ai.gptApiKey}")
+                    setBody(
+                        json.encodeToString(
+                            ChatRequest.serializer(),
+                            ChatRequest(gptActionInfo.model, messages, stream = true),
+                        )
+                    )
+                }.execute { response ->
+                    if (response.status.value != 200) {
+                        failureAction(statusFailure(response.status.value))
+                        return@execute
+                    }
+                    val channel = response.bodyAsChannel()
+                    while (!channel.isClosedForRead) {
+                        val line = channel.readUTF8Line() ?: break
+                        if (!line.startsWith("data:")) continue
+                        val data = line.removePrefix("data:").trim()
+                        if (data == "[DONE]") {
+                            doneAction()
+                            return@execute
+                        }
+                        if (data.isEmpty()) continue
+                        try {
+                            val delta = json.decodeFromString(ChatCompletionDelta.serializer(), data)
+                            val content = delta.choices.firstOrNull()?.delta?.content
+                            if (!content.isNullOrEmpty()) appendResponseAction(content)
+                        } catch (e: Exception) {
+                            failureAction(
+                                ApiResult.Failure(ApiResult.Kind.Parse, "Could not parse AI response", cause = e)
+                            )
+                            return@execute
+                        }
+                    }
+                    doneAction()
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failureAction(
+                    ApiResult.Failure(ApiResult.Kind.Network, e.message ?: "Network error", cause = e)
+                )
+            }
+        }
+    }
+
+    suspend fun queryGemini(
+        messages: List<ChatMessage>,
+        gptActionInfo: ChatGPTActionInfo,
+    ): ApiResult<String> {
+        if (config.ai.geminiApiKey.isEmpty()) {
+            return ApiResult.Failure(ApiResult.Kind.MissingKey, "Gemini API key not set")
+        }
+        return try {
+            val model = gptActionInfo.model
+            val response = client.post("$GEMINI_API_PREFIX$model:generateContent") {
+                contentType(ContentType.Application.Json)
+                header("x-goog-api-key", config.ai.geminiApiKey)
+                setBody(
+                    json.encodeToString(
+                        GeminiRequestData.serializer(),
+                        GeminiRequestData(
+                            contents = listOf(
+                                GeminiContent(
+                                    parts = listOf(
+                                        GeminiContentPart(text = messages.joinToString(" ") { it.content })
+                                    )
+                                )
+                            ),
+                            safety_settings = listOf(
+                                GeminiSafetySetting("HARM_CATEGORY_SEXUALLY_EXPLICIT", "BLOCK_NONE"),
+                                GeminiSafetySetting("HARM_CATEGORY_HATE_SPEECH", "BLOCK_NONE"),
+                                GeminiSafetySetting("HARM_CATEGORY_HARASSMENT", "BLOCK_ONLY_HIGH"),
+                                GeminiSafetySetting("HARM_CATEGORY_DANGEROUS_CONTENT", "BLOCK_NONE"),
+                            ),
+                        ),
+                    )
+                )
+            }
+            if (response.status.value != 200) return statusFailure(response.status.value, "Gemini")
+            val body = response.bodyAsText()
+            val data = json.decodeFromString(GeminiResponseData.serializer(), body)
+            val text = data.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
+            if (text.isNullOrEmpty()) ApiResult.Failure(ApiResult.Kind.Parse, "Gemini returned no content")
+            else ApiResult.Success(text)
+        } catch (e: Exception) {
+            ApiResult.Failure(ApiResult.Kind.Network, e.message ?: "Network error", cause = e)
+        }
+    }
+
+    private fun statusFailure(code: Int, provider: String = "AI provider"): ApiResult.Failure = when {
+        code == 429 -> ApiResult.Failure(ApiResult.Kind.RateLimited, "$provider rate limit reached")
+        code == 401 || code == 403 ->
+            ApiResult.Failure(ApiResult.Kind.MissingKey, "$provider rejected the API key")
+        code in 500..599 -> ApiResult.Failure(ApiResult.Kind.ServerError, "$provider error ($code)")
+        else -> ApiResult.Failure(ApiResult.Kind.Unknown, "$provider request failed ($code)")
+    }
+
+    private fun getServerUrl(gptActionType: GptActionType): String =
+        if (gptActionType == GptActionType.SelfHosted) config.ai.gptUrl
+        else "https://api.openai.com"
+
+    companion object {
+        private const val COMPLETION_PATH = "/v1/chat/completions"
+        private const val GEMINI_API_PREFIX =
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+    }
+}

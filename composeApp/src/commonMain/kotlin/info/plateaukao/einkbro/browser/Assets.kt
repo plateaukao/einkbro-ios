@@ -53,5 +53,11 @@ object Assets {
         "selection_change.js",
         "highlight_selection.js",
         "link_longpress.js",
+        // Services (Phase 6): in-place paragraph translation + page text.
+        "android_interface_prelude.js",
+        "translate_by_paragraph.js",
+        "text_node_monitor.js",
+        "clear_translation_elements.js",
+        "get_raw_text.js",
     )
 }

@@ -38,6 +38,10 @@ kotlin {
             implementation(libs.reorderable)
             implementation(libs.room.runtime)
             implementation(libs.sqlite.bundled)
+            implementation(libs.ktor.client.core)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
         }
     }
 }

@@ -47,6 +47,9 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     private val historyDao = AppServices.database.historyDao()
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** Shared native side of the paragraph-translation JS bridge (Phase 6). */
+    val translationBridge = info.plateaukao.einkbro.service.TranslationBridge()
+
     val currentAlbum: Album? get() = albums.value.getOrNull(focusIndex.value)
     val currentEngine: WebViewEngine? get() = currentAlbum?.let { engines[it.id] }
     val currentHelper: WebContentHelper? get() = currentAlbum?.let { helpers[it.id] }
@@ -162,6 +165,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         }
         engine.installUserScript(Assets.get("selection_change.js"), atDocumentStart = false)
         engine.installUserScript(Assets.get("link_longpress.js"), atDocumentStart = false)
+        translationBridge.attach(engine)
     }
 
     /** Highlights the active tab's selection and persists it (text-only). */

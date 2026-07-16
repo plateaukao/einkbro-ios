@@ -7,6 +7,7 @@ import info.plateaukao.einkbro.preference.ConfigManager
 import info.plateaukao.einkbro.preference.EinkImageMode
 import info.plateaukao.einkbro.preference.FontType
 import info.plateaukao.einkbro.preference.HighlightStyle
+import info.plateaukao.einkbro.preference.TranslationTextStyle
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -35,6 +36,7 @@ class WebContentHelper(
         isVerticalRead = false
         verticalActivatedReaderMode = false
         verticalLineAdvanceCssPx = 0f
+        isTranslateByParagraph = false
         updateCssStyle()
     }
 
@@ -275,6 +277,62 @@ class WebContentHelper(
         )
     }
 
+    // --- translation (Phase 6) --------------------------------------------
+
+    /** Whether in-place paragraph translation is active on the current page. */
+    var isTranslateByParagraph = false
+        private set
+
+    /**
+     * Paragraph translation (Android's translateByParagraphInPlace): marks
+     * text blocks, then text_node_monitor.js requests a translation for each
+     * visible block through the einkbroGetTranslation bridge and inserts it
+     * in a styled sibling paragraph below the original.
+     */
+    fun translateByParagraph() {
+        val textBlockStyle = when (config.translation.translationTextStyle) {
+            TranslationTextStyle.NONE -> TRANSLATED_P_CSS_NONE
+            TranslationTextStyle.DASHED_BORDER -> TRANSLATED_P_CSS_DASHED_BORDER
+            TranslationTextStyle.VERTICAL_LINE -> TRANSLATED_P_CSS_VERTICAL_LINE
+            TranslationTextStyle.GRAY -> TRANSLATED_P_CSS_GRAY
+            TranslationTextStyle.BOLD -> TRANSLATED_P_CSS_BOLD
+        }
+        updateCssSlot(CSS_SLOT_TRANSLATION, textBlockStyle)
+        startParagraphTranslation(inPlace = false)
+    }
+
+    /**
+     * In-place replacement (Android's translateByParagraphInPlaceReplace):
+     * the translation overwrites each block's text nodes instead of being
+     * inserted below it.
+     */
+    fun translateInPlaceReplace() {
+        startParagraphTranslation(inPlace = true)
+    }
+
+    private fun startParagraphTranslation(inPlace: Boolean) {
+        engine.evaluateJavascript(Assets.get("android_interface_prelude.js"))
+        engine.evaluateJavascript("window._translateInPlace = $inPlace;")
+        engine.evaluateJavascript(Assets.get("translate_by_paragraph.js")) {
+            engine.evaluateJavascript(Assets.get("text_node_monitor.js"))
+        }
+        isTranslateByParagraph = true
+    }
+
+    /** Restores the original page content and stops translating. */
+    fun clearTranslationElements() {
+        engine.evaluateJavascript(Assets.get("clear_translation_elements.js"))
+        clearCssSlot(CSS_SLOT_TRANSLATION)
+        isTranslateByParagraph = false
+    }
+
+    /** Fetches the page's visible text (read-aloud, GPT summarize). */
+    fun getRawText(callback: (String) -> Unit) {
+        engine.evaluateJavascript(Assets.get("get_raw_text.js")) { result ->
+            callback(result.orEmpty())
+        }
+    }
+
     // --- audio only ------------------------------------------------------
 
     var isAudioOnlyOn = false
@@ -358,6 +416,30 @@ class WebContentHelper(
         const val CSS_SLOT_READER_SETTINGS = "readerSettings"
         const val CSS_SLOT_VERTICAL = "vertical"
         const val CSS_SLOT_HIGHLIGHT = "highlight"
+        const val CSS_SLOT_TRANSLATION = "translation"
+
+        // In-place translated block styling (Android's TRANSLATED_P_CSS_*).
+        const val TRANSLATED_P_CSS_NONE = """
+.to-translate + p:not(.translated) { display: none; }
+.translated { padding: 5px; display: inline-block; line-height: 1.5; max-width: 100vw; }
+"""
+        const val TRANSLATED_P_CSS_GRAY = """
+.to-translate + p:not(.translated) { display: none; }
+.translated { color: gray; padding: 5px; display: inline-block; max-width: 100vw; line-height: 1.5; }
+"""
+        const val TRANSLATED_P_CSS_BOLD = """
+.to-translate + p:not(.translated) { display: none; }
+.translated { font-weight: bold; padding: 5px; display: inline-block; max-width: 100vw; line-height: 1.5; }
+"""
+        const val TRANSLATED_P_CSS_DASHED_BORDER = """
+.to-translate + p:not(.translated) { display: none; }
+.translated { border: 1px dashed lightgray; padding: 5px; display: inline-block; position: relative; max-width: 100vw; line-height: 1.5; }
+"""
+        const val TRANSLATED_P_CSS_VERTICAL_LINE = """
+.to-translate + p:not(.translated) { display: none; }
+.translated { padding: 2px; margin-left: 7px; display: inline-block; position: relative; max-width: 100vw; line-height: 1.5; }
+.translated::before { content: ''; display: inline-block; width: 2px; height: 90%; background-color: black; position: absolute; left: -7px; }
+"""
         const val VIEWPORT_DEFAULT = "width=device-width"
         const val VIEWPORT_FIXED_SCALE = "width=device-width, initial-scale=1.0, minimum-scale=1.0"
 

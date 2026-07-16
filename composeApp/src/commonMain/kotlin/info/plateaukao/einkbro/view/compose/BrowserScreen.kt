@@ -19,8 +19,10 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,6 +43,7 @@ import info.plateaukao.einkbro.activity.HighlightsScreen
 import info.plateaukao.einkbro.activity.SettingsScreen
 import info.plateaukao.einkbro.browser.WebViewHost
 import info.plateaukao.einkbro.catalog.DialogFrame
+import info.plateaukao.einkbro.preference.TranslationMode
 import info.plateaukao.einkbro.preference.toggle
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.ic_highlight_color
@@ -57,9 +60,15 @@ import info.plateaukao.einkbro.view.dialog.compose.MenuDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.MenuItemType
 import info.plateaukao.einkbro.view.dialog.compose.SiteSettingsDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.TouchAreaDialogContent
+import info.plateaukao.einkbro.view.dialog.compose.TranslateDialogContent
+import info.plateaukao.einkbro.view.dialog.compose.TranslationConfigDialogContent
+import info.plateaukao.einkbro.view.dialog.compose.TtsSettingDialogContent
 import info.plateaukao.einkbro.view.toolbaricons.ToolbarAction
 import info.plateaukao.einkbro.view.toolbaricons.ToolbarActionInfo
 import info.plateaukao.einkbro.viewmodel.BrowserViewModel
+import info.plateaukao.einkbro.viewmodel.TRANSLATE_API
+import info.plateaukao.einkbro.viewmodel.TranslationViewModel
+import info.plateaukao.einkbro.viewmodel.TtsViewModel
 import kotlinx.coroutines.launch
 
 /**
@@ -84,8 +93,17 @@ fun BrowserScreen(
     var showSiteSettings by remember { mutableStateOf(false) }
     var showTouchAreaDialog by remember { mutableStateOf(false) }
     var showHighlights by remember { mutableStateOf(false) }
+    var showTtsDialog by remember { mutableStateOf(false) }
+    var showTranslateDialog by remember { mutableStateOf(false) }
+    var translateDialogWholePage by remember { mutableStateOf(false) }
+    var showTranslationConfig by remember { mutableStateOf(false) }
     var touchPagingEnabled by remember { mutableStateOf(config.touch.enableTouchTurn) }
     val scope = rememberCoroutineScope()
+
+    // Session-scoped services (Phase 6): reading continues after the TTS
+    // dialog closes, and translate results survive reopening the popup.
+    val ttsViewModel = remember { TtsViewModel() }
+    val translationViewModel = remember { TranslationViewModel() }
 
     LaunchedEffect(Unit) {
         info.plateaukao.einkbro.browser.Assets.preload()
@@ -149,6 +167,54 @@ fun BrowserScreen(
         }
     }
 
+    /** Runs the chosen translation mode on the current page (Phase 6). */
+    fun translateWithMode(mode: TranslationMode) {
+        val currentHelper = helper ?: return
+        val bridge = browserViewModel.translationBridge
+        when (mode) {
+            TranslationMode.TRANSLATE_BY_PARAGRAPH -> {
+                bridge.translateApi = TRANSLATE_API.GOOGLE
+                currentHelper.translateByParagraph()
+            }
+
+            TranslationMode.DEEPL_BY_PARAGRAPH -> {
+                bridge.translateApi = TRANSLATE_API.DEEPL
+                currentHelper.translateByParagraph()
+            }
+
+            TranslationMode.OPENAI_BY_PARAGRAPH -> {
+                bridge.translateApi = TRANSLATE_API.OPENAI
+                currentHelper.translateByParagraph()
+            }
+
+            TranslationMode.GEMINI_BY_PARAGRAPH -> {
+                bridge.translateApi = TRANSLATE_API.GEMINI
+                currentHelper.translateByParagraph()
+            }
+
+            TranslationMode.OPENAI_IN_PLACE -> {
+                bridge.translateApi = TRANSLATE_API.OPENAI
+                currentHelper.translateInPlaceReplace()
+            }
+
+            TranslationMode.GEMINI_IN_PLACE -> {
+                bridge.translateApi = TRANSLATE_API.GEMINI
+                currentHelper.translateInPlaceReplace()
+            }
+
+            TranslationMode.GOOGLE_URL -> browserViewModel.newTab(
+                "https://translate.google.com/translate?sl=auto" +
+                    "&tl=${config.translation.translationLanguage.value}" +
+                    "&u=${browserViewModel.currentUrl.value}"
+            )
+
+            // Google widget injection and Papago screen OCR: later phase.
+            TranslationMode.GOOGLE_IN_PLACE,
+            TranslationMode.PAPAGO_TRANSLATE_BY_SCREEN,
+            -> EBToast.show(AppServices.context, "${mode.name}: later phase")
+        }
+    }
+
     fun handleMenuItem(item: MenuItemType) {
         showMenu = false
         when (item) {
@@ -162,6 +228,46 @@ fun BrowserScreen(
             MenuItemType.FontSize -> showFontDialog = true
             MenuItemType.TouchSetting -> showTouchAreaDialog = true
             MenuItemType.Highlights -> showHighlights = true
+            MenuItemType.Tts -> {
+                if (ttsViewModel.isReading()) {
+                    showTtsDialog = true
+                } else {
+                    helper?.getRawText { text ->
+                        if (text.isNotBlank()) {
+                            ttsViewModel.readArticle(text, browserViewModel.currentTitle.value)
+                        }
+                    }
+                    showTtsDialog = true
+                }
+            }
+
+            MenuItemType.Translate -> {
+                if (helper?.isTranslateByParagraph == true) {
+                    helper.clearTranslationElements()
+                    EBToast.show(AppServices.context, "Translation cleared")
+                } else {
+                    showTranslationConfig = true
+                }
+            }
+
+            MenuItemType.PageAiActions -> {
+                if (!translationViewModel.hasOpenAiApiKey() &&
+                    config.ai.geminiApiKey.isBlank() && !config.ai.useCustomGptUrl
+                ) {
+                    EBToast.show(AppServices.context, "Set an AI API key in Settings first")
+                } else {
+                    helper?.getRawText { text ->
+                        if (text.isNotBlank()) {
+                            translationViewModel.url = browserViewModel.currentUrl.value
+                            translationViewModel.pageTitle = browserViewModel.currentTitle.value
+                            translationViewModel.setupTextSummary(text)
+                            translateDialogWholePage = true
+                            showTranslateDialog = true
+                        }
+                    }
+                }
+            }
+
             MenuItemType.ReaderMode -> helper?.toggleReaderMode()
             MenuItemType.VerticalRead -> helper?.toggleVerticalRead()
             MenuItemType.InvertColor -> helper?.toggleInvertColor()
@@ -242,7 +348,7 @@ fun BrowserScreen(
                 ?.takeIf { browserViewModel.contextMenuLink.value == null }
                 ?.let { selection ->
                 val menuWidthDp = 280f
-                val estMenuHeightDp = 104f
+                val estMenuHeightDp = 160f
                 val x = selection.left
                     .coerceIn(0f, (maxWidth.value - menuWidthDp).coerceAtLeast(0f))
                 val below = selection.bottom + 8f
@@ -259,6 +365,20 @@ fun BrowserScreen(
                                 drawable = Res.drawable.ic_highlight_color,
                                 action = { browserViewModel.highlightCurrentSelection() },
                             ),
+                            MenuInfo("Translate", imageVector = Icons.Outlined.Translate, action = {
+                                translationViewModel.updateInputMessage(selection.text)
+                                translationViewModel.updateMessageWithContext(selection.text)
+                                if (translationViewModel.translateMethod.value == TRANSLATE_API.LLM &&
+                                    !translationViewModel.hasOpenAiApiKey()
+                                ) {
+                                    translationViewModel.updateTranslateMethod(TRANSLATE_API.GOOGLE)
+                                }
+                                translateDialogWholePage = false
+                                showTranslateDialog = true
+                            }),
+                            MenuInfo("Read", imageVector = Icons.Outlined.RecordVoiceOver, action = {
+                                ttsViewModel.readArticle(selection.text)
+                            }),
                             MenuInfo("Search", imageVector = Icons.Outlined.Search, action = {
                                 browserViewModel.searchInNewTab(selection.text)
                             }),
@@ -483,6 +603,50 @@ fun BrowserScreen(
     if (showHighlights) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
             HighlightsScreen(onClose = { showHighlights = false })
+        }
+    }
+
+    if (showTtsDialog) {
+        Dialog(onDismissRequest = { showTtsDialog = false }) {
+            DialogFrame {
+                TtsSettingDialogContent(
+                    ttsViewModel = ttsViewModel,
+                    onDismiss = { showTtsDialog = false },
+                )
+            }
+        }
+    }
+
+    if (showTranslateDialog) {
+        Dialog(onDismissRequest = { showTranslateDialog = false }) {
+            DialogFrame {
+                TranslateDialogContent(
+                    translationViewModel = translationViewModel,
+                    isWholePageMode = translateDialogWholePage,
+                    closeAction = { showTranslateDialog = false },
+                )
+            }
+        }
+    }
+
+    if (showTranslationConfig) {
+        Dialog(onDismissRequest = { showTranslationConfig = false }) {
+            DialogFrame {
+                TranslationConfigDialogContent(
+                    url = browserViewModel.currentUrl.value,
+                    translateDirectly = true,
+                    onToggledAction = { shouldTranslate ->
+                        if (shouldTranslate) {
+                            translateWithMode(
+                                config.getTranslationMode(browserViewModel.currentUrl.value)
+                            )
+                        } else {
+                            engine?.reload()
+                        }
+                    },
+                    onDismiss = { showTranslationConfig = false },
+                )
+            }
         }
     }
 }
