@@ -20,7 +20,11 @@
         window.scrollTo({left: Math.min(Math.max(page * w, 0), maxX), top: 0, behavior: 'instant'});
         return;
     }
-    if (window.__einkbroPageScroll && window.__einkbroPageScroll(dir, __RESERVE_PCT__, __RESERVE_PX__)) return;
+    // __einkbroPageScroll returns the STRING "true"/"false" (its Android bridge
+    // contract). Only "true" means an inner scrollable handled the scroll; any
+    // other value must fall through to the document-level scroll below.
+    if (window.__einkbroPageScroll &&
+        window.__einkbroPageScroll(dir, __RESERVE_PCT__, __RESERVE_PX__) === "true") return;
     var usableH = window.innerHeight * (1 - __RESERVE_PCT__) - __RESERVE_PX__;
     window.scrollBy({top: dir * usableH, left: 0, behavior: 'instant'});
 })(__DIRECTION__);

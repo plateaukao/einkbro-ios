@@ -66,6 +66,14 @@ interface WebViewEngine {
     /** Enables/disables pinch-to-zoom on the page. */
     fun setZoomEnabled(enabled: Boolean)
 
+    /**
+     * Installs a two-finger swipe recognizer on the native web view (parity
+     * Phase F multitouch). A Compose overlay can't reliably catch two-finger
+     * gestures over the WKWebView interop, so this rides on native gesture
+     * recognizers instead. Pass null to remove the handler.
+     */
+    fun setMultitouchSwipeHandler(handler: ((MultitouchDirection) -> Unit)?)
+
     // --- export (Phase 7) ---
     /** Renders the current page to PDF bytes (null on failure). */
     fun createPdf(callback: (ByteArray?) -> Unit)
@@ -117,6 +125,9 @@ interface WebViewEngineListener {
 }
 
 enum class JsDialogType { ALERT, CONFIRM, PROMPT }
+
+/** Direction of a two-finger swipe (parity Phase F multitouch). */
+enum class MultitouchDirection { UP, DOWN, LEFT, RIGHT }
 
 /** One-shot responder for an HTTP auth challenge (user/password or null = cancel). */
 class AuthRequest(

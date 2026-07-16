@@ -6,9 +6,12 @@ import androidx.compose.ui.viewinterop.UIKitView
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.util.FileStore
 import info.plateaukao.einkbro.view.Album
+import kotlin.math.abs
 import kotlinx.cinterop.ObjCAction
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.convert
 import kotlinx.cinterop.readValue
+import kotlinx.cinterop.useContents
 import info.plateaukao.einkbro.util.toByteArray
 import platform.CoreGraphics.CGRectZero
 import platform.Foundation.NSData
@@ -33,7 +36,12 @@ import platform.Foundation.serverTrust
 import platform.Security.SecTrustEvaluateWithError
 import platform.UIKit.UIApplication
 import platform.UIKit.UIControlEventValueChanged
+import platform.UIKit.UIGestureRecognizer
+import platform.UIKit.UIGestureRecognizerDelegateProtocol
+import platform.UIKit.UIGestureRecognizerStateEnded
+import platform.UIKit.UIPanGestureRecognizer
 import platform.UIKit.UIRefreshControl
+import platform.UIKit.UIView
 import platform.UIKit.UIUserInterfaceStyle
 import platform.WebKit.WKDownload
 import platform.WebKit.WKDownloadDelegateProtocol
@@ -210,6 +218,30 @@ class WKWebViewEngine(
 
     override fun setZoomEnabled(enabled: Boolean) {
         webView.scrollView.pinchGestureRecognizer?.enabled = enabled
+    }
+
+    private var multitouchHandler: ((MultitouchDirection) -> Unit)? = null
+    private var panTarget: TwoFingerPanTarget? = null
+
+    override fun setMultitouchSwipeHandler(handler: ((MultitouchDirection) -> Unit)?) {
+        multitouchHandler = handler
+        if (handler != null && panTarget == null) {
+            // A two-finger pan recognizer (not a swipe recognizer, which is too
+            // velocity-picky) reads its net translation on end and maps it to a
+            // direction. The scrollView's own pan is capped to one finger so
+            // single-finger scrolling is untouched and two fingers are ours.
+            val target = TwoFingerPanTarget(webView) { dir -> multitouchHandler?.invoke(dir) }
+            panTarget = target
+            val pan = UIPanGestureRecognizer(
+                target = target,
+                action = platform.darwin.sel_registerName("onPan:"),
+            )
+            pan.minimumNumberOfTouches = 2.convert()
+            pan.maximumNumberOfTouches = 2.convert()
+            pan.delegate = target
+            webView.addGestureRecognizer(pan)
+            webView.scrollView.panGestureRecognizer.maximumNumberOfTouches = 1.convert()
+        }
     }
 
     override fun evaluateJavascript(script: String, callback: ((String?) -> Unit)?) {
@@ -441,6 +473,35 @@ private val WEB_SCHEMES = setOf("http", "https", "file", "about", "blob", "data"
 private class RefreshTarget(private val onRefresh: () -> Unit) : NSObject() {
     @ObjCAction
     fun onRefresh() = onRefresh.invoke()
+}
+
+/** Two-finger pan target (parity Phase F multitouch): on gesture end, the net
+ *  translation is reduced to the dominant-axis [MultitouchDirection]. */
+@OptIn(ExperimentalForeignApi::class)
+private class TwoFingerPanTarget(
+    private val view: UIView,
+    private val onSwipe: (MultitouchDirection) -> Unit,
+) : NSObject(), UIGestureRecognizerDelegateProtocol {
+    // Recognize alongside WKWebView's own recognizers rather than requiring
+    // them to fail, so a two-finger pan is seen even over web content.
+    override fun gestureRecognizer(
+        gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWithGestureRecognizer: UIGestureRecognizer,
+    ): Boolean = true
+
+    @ObjCAction
+    fun onPan(recognizer: UIPanGestureRecognizer) {
+        if (recognizer.state != UIGestureRecognizerStateEnded) return
+        val dir = recognizer.translationInView(view).useContents {
+            val threshold = 40.0
+            when {
+                abs(x) < threshold && abs(y) < threshold -> null
+                abs(x) > abs(y) -> if (x > 0) MultitouchDirection.RIGHT else MultitouchDirection.LEFT
+                else -> if (y > 0) MultitouchDirection.DOWN else MultitouchDirection.UP
+            }
+        }
+        if (dir != null) onSwipe(dir)
+    }
 }
 
 /** Popups/new windows → host new-tab; JS alert/confirm/prompt → host dialog. */

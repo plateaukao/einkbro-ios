@@ -49,6 +49,7 @@ import info.plateaukao.einkbro.activity.SettingsScreen
 import info.plateaukao.einkbro.activity.UserScriptListScreen
 import info.plateaukao.einkbro.browser.Assets
 import info.plateaukao.einkbro.browser.BrowserAction
+import info.plateaukao.einkbro.browser.MultitouchDirection
 import info.plateaukao.einkbro.browser.WebViewHost
 import info.plateaukao.einkbro.catalog.DialogFrame
 import info.plateaukao.einkbro.database.Bookmark
@@ -531,12 +532,43 @@ fun BrowserScreen(
         }
     }
 
+    // Touch/FAB gestures dispatch a bound BrowserAction. Page-turn actions flip
+    // in vertical-rl mode so the zones still advance in reading order.
+    fun runTouchGesture(action: BrowserAction) {
+        val vertical = browserViewModel.currentHelper?.isVerticalRead == true
+        val effective = if (vertical) {
+            when (action) {
+                BrowserAction.PageUp -> BrowserAction.PageDown
+                BrowserAction.PageDown -> BrowserAction.PageUp
+                else -> action
+            }
+        } else action
+        handleBrowserAction(effective)
+    }
+
     val toolbarActionHandler = ToolbarActionHandler { handleBrowserAction(it) }
     val menuActionHandler = MenuActionHandler(
         dispatch = { handleBrowserAction(it) },
         currentUrl = { browserViewModel.currentUrl.value },
         quit = onOpenCatalog,
     )
+
+    // Two-finger swipe paging (parity Phase F multitouch). Rides on the engine's
+    // native gesture recognizers — a Compose overlay can't catch two-finger
+    // gestures over the WKWebView interop. Bindings read live from config.
+    LaunchedEffect(engine) {
+        engine?.setMultitouchSwipeHandler { dir ->
+            if (config.touch.isMultitouchEnabled) {
+                val action = when (dir) {
+                    MultitouchDirection.UP -> config.touch.multitouchUp
+                    MultitouchDirection.DOWN -> config.touch.multitouchDown
+                    MultitouchDirection.LEFT -> config.touch.multitouchLeft
+                    MultitouchDirection.RIGHT -> config.touch.multitouchRight
+                }
+                if (action != BrowserAction.Noop) runTouchGesture(action)
+            }
+        }
+    }
 
     fun handleContextMenuItem(item: ContextMenuItemType, url: String) {
         when (item) {
@@ -577,7 +609,9 @@ fun BrowserScreen(
         WindowInsets.safeDrawing
     }
     Column(Modifier.fillMaxSize().windowInsetsPadding(rootInsets)) {
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+        BoxWithConstraints(
+            Modifier.weight(1f).fillMaxWidth()
+        ) {
             if (engine != null) {
                 // Key by tab id so UIKitView re-embeds the current tab's
                 // WKWebView when the active tab changes (its factory runs once).
@@ -586,23 +620,17 @@ fun BrowserScreen(
                 }
             }
 
-            if (touchPagingEnabled) {
-                // Vertical-rl reading advances leftward, so the zones flip in
-                // vertical mode (same as Android's dispatchTouchEvent handling).
-                Box(
-                    Modifier.align(Alignment.CenterStart).width(48.dp).fillMaxHeight(0.6f)
-                        .clickable {
-                            if (helper?.isVerticalRead == true) helper.pageDown()
-                            else helper?.pageUp() ?: engine?.pageUp()
-                        }
-                )
-                Box(
-                    Modifier.align(Alignment.CenterEnd).width(48.dp).fillMaxHeight(0.6f)
-                        .clickable {
-                            if (helper?.isVerticalRead == true) helper.pageUp()
-                            else helper?.pageDown() ?: engine?.pageDown()
-                        }
-                )
+            // Touch-area page-turn zones (parity Phase F). Hidden while the URL
+            // input is up when hideTouchAreaWhenInput is set.
+            if (touchPagingEnabled &&
+                !(config.touch.hideTouchAreaWhenInput && showUrlInput)
+            ) {
+                TouchAreaZones(onGesture = { runTouchGesture(it) })
+            }
+
+            // Nav-gesture FAB (parity Phase F, enableNavButtonGesture).
+            if (config.touch.enableNavButtonGesture) {
+                NavGestureFab(onGesture = { runTouchGesture(it) })
             }
 
             // Text-selection action menu, anchored just below the selection.
