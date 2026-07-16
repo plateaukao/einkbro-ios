@@ -52,6 +52,7 @@ import platform.WebKit.WKNavigationActionPolicy
 import platform.WebKit.WKNavigationDelegateProtocol
 import platform.WebKit.WKNavigationResponse
 import platform.WebKit.WKNavigationResponsePolicy
+import platform.WebKit.WKNavigationTypeLinkActivated
 import platform.WebKit.WKScriptMessage
 import platform.WebKit.WKScriptMessageHandlerProtocol
 import platform.WebKit.WKUIDelegateProtocol
@@ -330,6 +331,9 @@ class WKWebViewEngine(
         listener.onDownloadFinished(this, fileName, path)
 
     internal fun reportLoadError(description: String) = listener.onLoadError(this, description)
+
+    internal fun requestRouteLinkToSplit(url: String): Boolean =
+        listener.shouldRouteLinkToSplit(this, url)
 }
 
 // Of the same-selector-family navigation callbacks (didStart/didCommit/
@@ -370,6 +374,15 @@ private class NavigationDelegate(
             UIApplication.sharedApplication.openURL(
                 url, options = emptyMap<Any?, Any?>(), completionHandler = null,
             )
+            decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
+            return
+        }
+        // Split-screen "link here" (parity Phase G): a user tap on a link routes
+        // to the second pane instead of navigating this one.
+        if (url != null &&
+            decidePolicyForNavigationAction.navigationType == WKNavigationTypeLinkActivated &&
+            engine.requestRouteLinkToSplit(url.absoluteString ?: "")
+        ) {
             decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
             return
         }

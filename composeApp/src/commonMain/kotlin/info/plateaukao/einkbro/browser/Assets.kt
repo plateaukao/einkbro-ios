@@ -64,5 +64,7 @@ object Assets {
         "goto_toc.js",
         // Find on page (Phase E): highlight + step + clear.
         "find_onpage.js",
+        // Split-screen scroll sync (Phase G): main pane reports scrollY.
+        "split_scroll_report.js",
     )
 }

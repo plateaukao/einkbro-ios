@@ -122,6 +122,13 @@ interface WebViewEngineListener {
 
     /** Provisional navigation failed (DNS failure, connection refused, …). */
     fun onLoadError(engine: WebViewEngine, description: String) {}
+
+    /**
+     * Split-screen "link here" (parity Phase G): a user link tap in the main
+     * pane. Return true to consume it (the host loads it in the second pane and
+     * the main navigation is cancelled); false to navigate normally.
+     */
+    fun shouldRouteLinkToSplit(engine: WebViewEngine, url: String): Boolean = false
 }
 
 enum class JsDialogType { ALERT, CONFIRM, PROMPT }

@@ -2,9 +2,12 @@ package info.plateaukao.einkbro.view.compose
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.MaterialTheme
@@ -41,6 +45,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.activity.HighlightsScreen
@@ -339,7 +344,7 @@ fun BrowserScreen(
                     else "Fullscreen off"
                 )
             }
-            is BrowserAction.ToggleSplitScreen -> comingSoon("Split screen", 'G')
+            is BrowserAction.ToggleSplitScreen -> browserViewModel.toggleSplitScreen(action.url)
 
             // Translation
             BrowserAction.ShowTranslation -> {
@@ -581,7 +586,7 @@ fun BrowserScreen(
             ContextMenuItemType.SaveBookmark ->
                 handleBrowserAction(BrowserAction.SaveBookmark(url = url, title = url))
             ContextMenuItemType.GotoLink -> browserViewModel.currentEngine?.loadUrl(url)
-            ContextMenuItemType.SplitScreen -> comingSoon("Split screen", 'G')
+            ContextMenuItemType.SplitScreen -> browserViewModel.toggleSplitScreen(url)
             ContextMenuItemType.Summarize -> comingSoon("Link summarize", 'K')
             ContextMenuItemType.Tts -> comingSoon("Read link aloud", 'K')
             ContextMenuItemType.SaveAs -> browserViewModel.currentEngine?.startDownload(url)
@@ -609,9 +614,10 @@ fun BrowserScreen(
         WindowInsets.safeDrawing
     }
     Column(Modifier.fillMaxSize().windowInsetsPadding(rootInsets)) {
-        BoxWithConstraints(
-            Modifier.weight(1f).fillMaxWidth()
-        ) {
+        // The main web pane and all its overlays, rendered into whatever slot the
+        // split layout gives it (parity Phase G wraps it beside the second pane).
+        val renderMainPane: @Composable (Modifier) -> Unit = { paneModifier ->
+        BoxWithConstraints(paneModifier) {
             if (engine != null) {
                 // Key by tab id so UIKitView re-embeds the current tab's
                 // WKWebView when the active tab changes (its factory runs once).
@@ -759,6 +765,25 @@ fun BrowserScreen(
                 }
             }
         }
+        }
+        // Split screen (parity Phase G): the second pane sits beside the main one,
+        // horizontally (side-by-side) or vertically (stacked) per orientation.
+        val splitAlbumG = browserViewModel.splitAlbum.value
+        if (splitAlbumG == null) {
+            renderMainPane(Modifier.weight(1f).fillMaxWidth())
+        } else if (browserViewModel.splitOrientation.value ==
+            info.plateaukao.einkbro.view.Orientation.Vertical
+        ) {
+            Column(Modifier.weight(1f).fillMaxWidth()) {
+                renderMainPane(Modifier.weight(1f).fillMaxWidth())
+                SplitPane(Modifier.weight(1f).fillMaxWidth(), browserViewModel, statusBarSuppressed)
+            }
+        } else {
+            Row(Modifier.weight(1f).fillMaxWidth()) {
+                renderMainPane(Modifier.weight(1f).fillMaxHeight())
+                SplitPane(Modifier.weight(1f).fillMaxHeight(), browserViewModel, statusBarSuppressed)
+            }
+        }
 
         if (progress < 1f) {
             LinearProgressIndicator(
@@ -855,7 +880,9 @@ fun BrowserScreen(
                         browserViewModel.newTab(url, activate = isForeground, title = title)
                         if (isForeground) showBookmarks = false
                     },
-                    splitScreenAction = { comingSoon("Split screen", 'G') },
+                    splitScreenAction = { url ->
+                        browserViewModel.toggleSplitScreen(url); showBookmarks = false
+                    },
                     closeAction = { showBookmarks = false },
                 )
             }
@@ -1275,3 +1302,76 @@ private val tocJson = Json { ignoreUnknownKeys = true }
 
 @Serializable
 private data class TocEntry(val level: Int = 1, val text: String = "")
+
+/**
+ * Split-screen second pane (parity Phase G): the split engine's web view under a
+ * compact control bar — rotate orientation, swap panes, link-here + scroll-sync
+ * toggles (bold when on), font +/-, close.
+ */
+@Composable
+private fun SplitPane(
+    modifier: Modifier,
+    browserViewModel: BrowserViewModel,
+    statusBarSuppressed: Boolean,
+) {
+    val config = AppServices.config
+    val splitEngine = browserViewModel.splitEngine
+    val splitAlbum = browserViewModel.splitAlbum.value
+    var linkHere by remember { mutableStateOf(config.translation.twoPanelLinkHere) }
+    var scrollSync by remember { mutableStateOf(config.translation.translationScrollSync) }
+    Column(modifier.background(MaterialTheme.colors.background)) {
+        androidx.compose.foundation.layout.Row(
+            Modifier.fillMaxWidth()
+                // The main pane's WKWebView avoids the notch itself; this Compose
+                // bar must too when the shared inset drops the top (edge-to-edge).
+                .then(
+                    if (statusBarSuppressed)
+                        Modifier.windowInsetsPadding(WindowInsets.statusBars)
+                    else Modifier
+                )
+                .height(38.dp)
+                .horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SplitBarButton("Rotate") { browserViewModel.toggleSplitOrientation() }
+            SplitBarButton("Swap") { browserViewModel.swapSplitPanes() }
+            SplitBarButton("Link", active = linkHere) {
+                linkHere = !linkHere
+                config.translation.twoPanelLinkHere = linkHere
+            }
+            SplitBarButton("Sync", active = scrollSync) {
+                scrollSync = !scrollSync
+                config.translation.translationScrollSync = scrollSync
+            }
+            SplitBarButton("A-") { browserViewModel.adjustSplitFont(-20) }
+            SplitBarButton("A+") { browserViewModel.adjustSplitFont(20) }
+            SplitBarButton("Close") { browserViewModel.closeSplitScreen() }
+        }
+        androidx.compose.material.Divider(
+            color = MaterialTheme.colors.onBackground.copy(alpha = 0.3f),
+        )
+        if (splitEngine != null && splitAlbum != null) {
+            key(splitAlbum.id) {
+                WebViewHost(splitEngine, Modifier.weight(1f).fillMaxWidth())
+            }
+        }
+    }
+}
+
+@Composable
+private fun SplitBarButton(
+    label: String,
+    active: Boolean = false,
+    onClick: () -> Unit,
+) {
+    androidx.compose.material.Text(
+        label,
+        color = MaterialTheme.colors.onBackground,
+        fontSize = 13.sp,
+        fontWeight = if (active) androidx.compose.ui.text.font.FontWeight.Bold
+        else androidx.compose.ui.text.font.FontWeight.Normal,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+    )
+}

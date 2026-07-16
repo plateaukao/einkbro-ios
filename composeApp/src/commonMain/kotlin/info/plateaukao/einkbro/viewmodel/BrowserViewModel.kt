@@ -67,6 +67,17 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     val currentEngine: WebViewEngine? get() = currentAlbum?.let { engines[it.id] }
     val currentHelper: WebContentHelper? get() = currentAlbum?.let { helpers[it.id] }
 
+    // Split screen (parity Phase G): a second engine shown beside the current
+    // tab. Held OUTSIDE `albums` so it is not a tab-strip entry; its listener
+    // callbacks are naturally ignored for the main URL bar (filtered by
+    // `=== currentEngine`). Orientation/scroll-sync mirror TranslationConfig.
+    val splitAlbum = mutableStateOf<Album?>(null)
+    val splitOrientation = mutableStateOf(config.translation.translationOrientation)
+    private val splitScrollEngines = mutableSetOf<Int>()
+
+    val splitEngine: WebViewEngine? get() = splitAlbum.value?.let { engines[it.id] }
+    val splitHelper: WebContentHelper? get() = splitAlbum.value?.let { helpers[it.id] }
+
     init {
         viewModelScope.launch { reloadRecords() }
     }
@@ -353,6 +364,88 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         pendingTabClose.value?.let { closeTab(it) }
     }
 
+    // --- Split screen (parity Phase G) ---
+
+    /**
+     * Menu/link/bookmark entry. With the pane already open: a non-null [url]
+     * loads into it; a null [url] toggles it off. Closed: opens the second pane
+     * showing [url] (or the current page).
+     */
+    fun toggleSplitScreen(url: String?) {
+        if (splitAlbum.value != null) {
+            if (url != null) splitEngine?.loadUrl(url) else closeSplitScreen()
+            return
+        }
+        val target = url ?: currentUrl.value.ifBlank { config.favoriteUrl.ifBlank { DEFAULT_HOME } }
+        val album = Album(title = "Split", onShow = {}, onRemove = { closeSplitScreen() })
+        album.incognito = config.isIncognitoMode
+        val engine = createWebViewEngine(album, this, album.incognito)
+        engines[album.id] = engine
+        helpers[album.id] = WebContentHelper(engine, config)
+        if (Assets.isLoaded) {
+            engine.installUserScript(Assets.get("fix_scrolling.js"), atDocumentStart = false)
+        }
+        splitAlbum.value = album
+        applyWebConfig(engine, target)
+        engine.loadUrl(target)
+        bindSplitScrollReporter()
+    }
+
+    fun closeSplitScreen() {
+        val album = splitAlbum.value ?: return
+        engines.remove(album.id)?.destroy()
+        helpers.remove(album.id)
+        splitAlbum.value = null
+    }
+
+    /** Rotate between side-by-side (Horizontal) and stacked (Vertical). */
+    fun toggleSplitOrientation() {
+        val next = if (splitOrientation.value == info.plateaukao.einkbro.view.Orientation.Horizontal)
+            info.plateaukao.einkbro.view.Orientation.Vertical
+        else info.plateaukao.einkbro.view.Orientation.Horizontal
+        splitOrientation.value = next
+        config.translation.translationOrientation = next
+    }
+
+    /** Swap the two panes' content (long-press orientation on Android). */
+    fun swapSplitPanes() {
+        val split = splitEngine ?: return
+        val main = currentEngine ?: return
+        val mainUrl = main.currentUrl().orEmpty()
+        val splitUrl = split.currentUrl().orEmpty()
+        if (splitUrl.isNotBlank() && splitUrl != "about:blank") main.loadUrl(splitUrl)
+        if (mainUrl.isNotBlank() && mainUrl != "about:blank") split.loadUrl(mainUrl)
+    }
+
+    /** Split-pane font +/- (WKWebView has no textZoom; scale via CSS). */
+    fun adjustSplitFont(delta: Int) {
+        splitEngine?.evaluateJavascript(
+            "(function(){var e=document.documentElement;" +
+                "var c=parseInt(e.style.webkitTextSizeAdjust)||100;" +
+                "e.style.webkitTextSizeAdjust=Math.max(20,c+($delta))+'%';})();"
+        )
+    }
+
+    /** Install the main pane's scroll reporter once so scroll-sync can mirror it. */
+    private fun bindSplitScrollReporter() {
+        val engine = currentEngine ?: return
+        val id = engine.album.id
+        if (id in splitScrollEngines) return
+        splitScrollEngines += id
+        engine.addMessageHandler("einkbroSplitScroll") { payload ->
+            if (config.translation.translationScrollSync) {
+                val y = payload.toDoubleOrNull() ?: return@addMessageHandler
+                splitEngine?.evaluateJavascript("window.scrollTo(0, $y);")
+            }
+        }
+        if (Assets.isLoaded) {
+            engine.installUserScript(
+                Assets.get("split_scroll_report.js"), atDocumentStart = false
+            )
+            engine.evaluateJavascript(Assets.get("split_scroll_report.js"))
+        }
+    }
+
     /** URL bar submission: scheme/host heuristics, else search engine query. */
     fun loadUrlOrSearch(input: String) {
         var trimmed = input.trim()
@@ -474,6 +567,15 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         if (engine === currentEngine) {
             EBToast.show(AppServices.context, description)
         }
+    }
+
+    override fun shouldRouteLinkToSplit(engine: WebViewEngine, url: String): Boolean {
+        // "Link here": a main-pane link tap loads in the open second pane instead.
+        if (engine !== currentEngine) return false
+        val split = splitAlbum.value ?: return false
+        if (!config.translation.twoPanelLinkHere) return false
+        engines[split.id]?.loadUrl(url)
+        return true
     }
 
     private suspend fun reloadRecords() {
