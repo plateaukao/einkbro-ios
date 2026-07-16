@@ -65,6 +65,8 @@ fun App() {
     // touch AppServices so config/koin initialize before any screen needs them
     remember { AppServices.config }
 
+    var showCatalog by remember { mutableStateOf(false) }
+    val browserViewModel = remember { info.plateaukao.einkbro.viewmodel.BrowserViewModel() }
     var current by remember { mutableStateOf<CatalogEntry?>(null) }
 
     MyTheme {
@@ -72,10 +74,42 @@ fun App() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colors.background,
         ) {
+            if (!showCatalog) {
+                Box(Modifier.fillMaxSize()) {
+                    info.plateaukao.einkbro.view.compose.BrowserScreen(
+                        browserViewModel = browserViewModel,
+                        onOpenCatalog = { showCatalog = true },
+                    )
+                    ToastOverlay(Modifier.align(Alignment.BottomCenter))
+                    OkCancelDialogHost()
+                }
+                return@Surface
+            }
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 val entry = current
                 if (entry == null) {
-                    CatalogHome(onOpen = { current = it })
+                    Column(Modifier.fillMaxSize()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showCatalog = false }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back to browser",
+                                tint = MaterialTheme.colors.onBackground,
+                            )
+                            Text(
+                                text = "Back to browser",
+                                modifier = Modifier.padding(start = 12.dp),
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colors.onBackground,
+                            )
+                        }
+                        CatalogHome(onOpen = { current = it })
+                    }
                 } else {
                     Column(Modifier.fillMaxSize()) {
                         Row(
