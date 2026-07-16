@@ -64,6 +64,10 @@ interface WebViewEngine {
     /** Serializes the current page to a .webarchive (offline snapshot). */
     fun createWebArchive(callback: (ByteArray?) -> Unit)
 
+    // --- downloads (parity Phase B) ---
+    /** Starts an in-engine download of [url] (shares the page's cookies). */
+    fun startDownload(url: String)
+
     fun pause()
     fun resume()
     fun destroy()
@@ -74,6 +78,79 @@ interface WebViewEngineListener {
     fun onUrlChanged(engine: WebViewEngine, url: String) {}
     fun onProgressChanged(engine: WebViewEngine, progress: Float) {}
     fun onPageFinished(engine: WebViewEngine, url: String, title: String) {}
+
+    // --- delegate depth (parity Phase B) ---
+    /** window.open / target=_blank: the host should open [url] in a new tab. */
+    fun onNewWindowRequested(engine: WebViewEngine, url: String) {}
+
+    /** HTTP basic/digest auth. Implementations MUST call respond exactly once. */
+    fun onAuthChallenge(engine: WebViewEngine, request: AuthRequest) {
+        request.respond(null)
+    }
+
+    /** Untrusted TLS certificate. respond(true) proceeds anyway. */
+    fun onSslError(engine: WebViewEngine, request: SslErrorRequest) {
+        request.respond(false)
+    }
+
+    /** JS alert/confirm/prompt panel. */
+    fun onJsDialog(engine: WebViewEngine, request: JsDialogRequest) {
+        request.respond(false, null)
+    }
+
+    fun onDownloadStarted(engine: WebViewEngine, fileName: String) {}
+
+    /** [path] is null when the download failed. */
+    fun onDownloadFinished(engine: WebViewEngine, fileName: String, path: String?) {}
+
+    /** Provisional navigation failed (DNS failure, connection refused, …). */
+    fun onLoadError(engine: WebViewEngine, description: String) {}
+}
+
+enum class JsDialogType { ALERT, CONFIRM, PROMPT }
+
+/** One-shot responder for an HTTP auth challenge (user/password or null = cancel). */
+class AuthRequest(
+    val host: String,
+    private val onResult: (Pair<String, String>?) -> Unit,
+) {
+    private var done = false
+    fun respond(credentials: Pair<String, String>?) {
+        if (!done) {
+            done = true
+            onResult(credentials)
+        }
+    }
+}
+
+/** One-shot responder for a TLS trust failure (true = load anyway). */
+class SslErrorRequest(
+    val host: String,
+    private val onResult: (Boolean) -> Unit,
+) {
+    private var done = false
+    fun respond(proceed: Boolean) {
+        if (!done) {
+            done = true
+            onResult(proceed)
+        }
+    }
+}
+
+/** One-shot responder for a JS alert/confirm/prompt panel. */
+class JsDialogRequest(
+    val type: JsDialogType,
+    val message: String,
+    val defaultText: String?,
+    private val onResult: (confirmed: Boolean, promptText: String?) -> Unit,
+) {
+    private var done = false
+    fun respond(confirmed: Boolean, promptText: String? = null) {
+        if (!done) {
+            done = true
+            onResult(confirmed, promptText)
+        }
+    }
 }
 
 expect fun createWebViewEngine(

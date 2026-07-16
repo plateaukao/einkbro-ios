@@ -8,6 +8,9 @@ expect object FileStore {
     /** Writes [bytes] to Documents/[subDir]/[fileName]; returns the full path. */
     fun writeBytes(subDir: String, fileName: String, bytes: ByteArray): String?
 
+    /** Ensures Documents/[subDir] exists and returns its absolute path. */
+    fun dirPath(subDir: String): String?
+
     fun exists(path: String): Boolean
     fun delete(path: String)
 

@@ -29,12 +29,17 @@ actual object FileStore {
         return url?.path
     }
 
-    actual fun writeBytes(subDir: String, fileName: String, bytes: ByteArray): String? {
+    actual fun dirPath(subDir: String): String? {
         val documents = documentsDir() ?: return null
         val dir = "$documents/$subDir"
         NSFileManager.defaultManager.createDirectoryAtPath(
             dir, withIntermediateDirectories = true, attributes = null, error = null,
         )
+        return dir
+    }
+
+    actual fun writeBytes(subDir: String, fileName: String, bytes: ByteArray): String? {
+        val dir = dirPath(subDir) ?: return null
         val path = "$dir/$fileName"
         val data: NSData = bytes.usePinned { pinned ->
             NSData.dataWithBytes(

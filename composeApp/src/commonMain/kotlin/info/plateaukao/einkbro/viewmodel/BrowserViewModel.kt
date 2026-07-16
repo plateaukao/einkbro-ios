@@ -16,6 +16,7 @@ import info.plateaukao.einkbro.preference.AlbumInfo
 import info.plateaukao.einkbro.preference.SaveHistoryMode
 import info.plateaukao.einkbro.util.System
 import info.plateaukao.einkbro.view.Album
+import info.plateaukao.einkbro.view.EBToast
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -40,6 +41,12 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     // overlays and always reflect the active tab.
     val selectionInfo = mutableStateOf<SelectionInfo?>(null)
     val contextMenuLink = mutableStateOf<String?>(null)
+
+    // Parity Phase B: engine-delegate requests that need host UI. Each is a
+    // one-shot responder; BrowserScreen renders a dialog while non-null.
+    val pendingAuthRequest = mutableStateOf<info.plateaukao.einkbro.browser.AuthRequest?>(null)
+    val pendingSslError = mutableStateOf<info.plateaukao.einkbro.browser.SslErrorRequest?>(null)
+    val pendingJsDialog = mutableStateOf<info.plateaukao.einkbro.browser.JsDialogRequest?>(null)
 
     private val engines = LinkedHashMap<Int, WebViewEngine>()
     private val helpers = LinkedHashMap<Int, WebContentHelper>()
@@ -353,6 +360,59 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
                 )
             )
             reloadRecords()
+        }
+    }
+
+    // --- WebViewEngineListener: engine-delegate depth (parity Phase B) ---
+
+    override fun onNewWindowRequested(engine: WebViewEngine, url: String) {
+        // window.open / target=_blank / popup: open as a regular tab.
+        newTab(url)
+    }
+
+    override fun onAuthChallenge(
+        engine: WebViewEngine,
+        request: info.plateaukao.einkbro.browser.AuthRequest,
+    ) {
+        pendingAuthRequest.value = request
+    }
+
+    override fun onSslError(
+        engine: WebViewEngine,
+        request: info.plateaukao.einkbro.browser.SslErrorRequest,
+    ) {
+        if (config.browser.enableCertificateErrorDialog) {
+            pendingSslError.value = request
+        } else {
+            // Dialog disabled: fail the load like Android's silent SSL error.
+            request.respond(false)
+            EBToast.show(AppServices.context, "Blocked: untrusted certificate (${request.host})")
+        }
+    }
+
+    override fun onJsDialog(
+        engine: WebViewEngine,
+        request: info.plateaukao.einkbro.browser.JsDialogRequest,
+    ) {
+        pendingJsDialog.value = request
+    }
+
+    override fun onDownloadStarted(engine: WebViewEngine, fileName: String) {
+        EBToast.show(AppServices.context, "Downloading $fileName…")
+    }
+
+    override fun onDownloadFinished(engine: WebViewEngine, fileName: String, path: String?) {
+        if (path != null) {
+            EBToast.show(AppServices.context, "Downloaded $fileName")
+            info.plateaukao.einkbro.util.FileStore.share(path)
+        } else {
+            EBToast.show(AppServices.context, "Download failed")
+        }
+    }
+
+    override fun onLoadError(engine: WebViewEngine, description: String) {
+        if (engine === currentEngine) {
+            EBToast.show(AppServices.context, description)
         }
     }
 

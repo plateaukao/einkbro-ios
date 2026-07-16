@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -56,6 +57,7 @@ import info.plateaukao.einkbro.util.PlatformActions
 import info.plateaukao.einkbro.view.EBToast
 import info.plateaukao.einkbro.view.data.MenuInfo
 import info.plateaukao.einkbro.view.dialog.compose.ActionModeMenu
+import info.plateaukao.einkbro.view.dialog.compose.AuthenticationDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.BookmarksDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.ContextMenuDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.ContextMenuItemType
@@ -513,7 +515,7 @@ fun BrowserScreen(
             ContextMenuItemType.SplitScreen -> comingSoon("Split screen", 'G')
             ContextMenuItemType.Summarize -> comingSoon("Link summarize", 'K')
             ContextMenuItemType.Tts -> comingSoon("Read link aloud", 'K')
-            ContextMenuItemType.SaveAs -> comingSoon("Downloads", 'B')
+            ContextMenuItemType.SaveAs -> browserViewModel.currentEngine?.startDownload(url)
             ContextMenuItemType.TranslateImage -> comingSoon("Image translation", 'M')
             ContextMenuItemType.SelectText ->
                 EBToast.show(AppServices.context, "Long-press the text itself to select on iOS")
@@ -1000,6 +1002,113 @@ fun BrowserScreen(
     if (showUserScripts) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
             UserScriptListScreen(onClose = { showUserScripts = false })
+        }
+    }
+
+    // Engine-delegate requests (parity Phase B): HTTP auth, TLS trust, JS panels.
+    browserViewModel.pendingAuthRequest.value?.let { request ->
+        val finish: (Pair<String, String>?) -> Unit = {
+            request.respond(it)
+            browserViewModel.pendingAuthRequest.value = null
+        }
+        Dialog(onDismissRequest = { finish(null) }) {
+            Surface(color = MaterialTheme.colors.background) {
+                AuthenticationDialogContent(
+                    okAction = { username, password -> finish(username to password) },
+                    onDismiss = { finish(null) },
+                )
+            }
+        }
+    }
+
+    browserViewModel.pendingSslError.value?.let { request ->
+        val finish: (Boolean) -> Unit = {
+            request.respond(it)
+            browserViewModel.pendingSslError.value = null
+        }
+        Dialog(onDismissRequest = { finish(false) }) {
+            Surface(color = MaterialTheme.colors.background) {
+                SslErrorDialogContent(host = request.host, onResult = finish)
+            }
+        }
+    }
+
+    browserViewModel.pendingJsDialog.value?.let { request ->
+        val finish: (Boolean, String?) -> Unit = { confirmed, text ->
+            request.respond(confirmed, text)
+            browserViewModel.pendingJsDialog.value = null
+        }
+        Dialog(onDismissRequest = { finish(false, null) }) {
+            Surface(color = MaterialTheme.colors.background) {
+                JsPanelDialogContent(request = request, onResult = finish)
+            }
+        }
+    }
+}
+
+/** Certificate-error dialog (Android's SSL warning equivalent). */
+@Composable
+private fun SslErrorDialogContent(host: String, onResult: (Boolean) -> Unit) {
+    Column(Modifier.padding(16.dp)) {
+        androidx.compose.material.Text(
+            "Untrusted certificate",
+            style = MaterialTheme.typography.h6,
+            color = MaterialTheme.colors.onBackground,
+        )
+        androidx.compose.material.Text(
+            "The identity of $host can't be verified. Load the page anyway?",
+            modifier = Modifier.padding(vertical = 12.dp),
+            color = MaterialTheme.colors.onBackground,
+        )
+        androidx.compose.foundation.layout.Row(Modifier.align(Alignment.End)) {
+            androidx.compose.material.TextButton(onClick = { onResult(false) }) {
+                androidx.compose.material.Text(
+                    "Cancel", color = MaterialTheme.colors.onBackground,
+                )
+            }
+            androidx.compose.material.TextButton(onClick = { onResult(true) }) {
+                androidx.compose.material.Text(
+                    "Proceed", color = MaterialTheme.colors.onBackground,
+                )
+            }
+        }
+    }
+}
+
+/** JS alert/confirm/prompt panel — one dialog for all three panel types. */
+@Composable
+private fun JsPanelDialogContent(
+    request: info.plateaukao.einkbro.browser.JsDialogRequest,
+    onResult: (Boolean, String?) -> Unit,
+) {
+    var promptText by remember { mutableStateOf(request.defaultText.orEmpty()) }
+    Column(Modifier.padding(16.dp)) {
+        androidx.compose.material.Text(
+            request.message,
+            color = MaterialTheme.colors.onBackground,
+        )
+        if (request.type == info.plateaukao.einkbro.browser.JsDialogType.PROMPT) {
+            androidx.compose.material.OutlinedTextField(
+                value = promptText,
+                onValueChange = { promptText = it },
+                modifier = Modifier.padding(top = 12.dp),
+            )
+        }
+        androidx.compose.foundation.layout.Row(
+            Modifier.align(Alignment.End).padding(top = 12.dp)
+        ) {
+            if (request.type != info.plateaukao.einkbro.browser.JsDialogType.ALERT) {
+                androidx.compose.material.TextButton(onClick = { onResult(false, null) }) {
+                    androidx.compose.material.Text(
+                        "Cancel", color = MaterialTheme.colors.onBackground,
+                    )
+                }
+            }
+            androidx.compose.material.TextButton(onClick = { onResult(true, promptText) }) {
+                androidx.compose.material.Text(
+                    "OK", color = MaterialTheme.colors.onBackground,
+                )
+            }
         }
     }
 }

@@ -3,24 +3,52 @@ package info.plateaukao.einkbro.browser
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitView
+import info.plateaukao.einkbro.util.FileStore
 import info.plateaukao.einkbro.view.Album
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readValue
 import info.plateaukao.einkbro.util.toByteArray
 import platform.CoreGraphics.CGRectZero
 import platform.Foundation.NSData
+import platform.Foundation.NSError
+import platform.Foundation.NSHTTPURLResponse
 import platform.Foundation.NSURL
+import platform.Foundation.NSURLAuthenticationChallenge
+import platform.Foundation.NSURLAuthenticationMethodHTTPBasic
+import platform.Foundation.NSURLAuthenticationMethodHTTPDigest
+import platform.Foundation.NSURLAuthenticationMethodServerTrust
+import platform.Foundation.NSURLCredential
+import platform.Foundation.NSURLCredentialPersistence
 import platform.Foundation.NSURLRequest
+import platform.Foundation.NSURLResponse
+import platform.Foundation.NSURLSessionAuthChallengeCancelAuthenticationChallenge
+import platform.Foundation.NSURLSessionAuthChallengeDisposition
+import platform.Foundation.NSURLSessionAuthChallengePerformDefaultHandling
+import platform.Foundation.NSURLSessionAuthChallengeUseCredential
+import platform.Foundation.credentialForTrust
+import platform.Foundation.credentialWithUser
+import platform.Foundation.serverTrust
+import platform.Security.SecTrustEvaluateWithError
+import platform.UIKit.UIApplication
+import platform.WebKit.WKDownload
+import platform.WebKit.WKDownloadDelegateProtocol
+import platform.WebKit.WKFrameInfo
 import platform.WebKit.WKNavigation
+import platform.WebKit.WKNavigationAction
+import platform.WebKit.WKNavigationActionPolicy
 import platform.WebKit.WKNavigationDelegateProtocol
+import platform.WebKit.WKNavigationResponse
+import platform.WebKit.WKNavigationResponsePolicy
 import platform.WebKit.WKScriptMessage
 import platform.WebKit.WKScriptMessageHandlerProtocol
+import platform.WebKit.WKUIDelegateProtocol
 import platform.WebKit.WKUserContentController
 import platform.WebKit.WKUserScript
 import platform.WebKit.WKUserScriptInjectionTime
 import platform.WebKit.WKWebView
 import platform.WebKit.WKWebViewConfiguration
 import platform.WebKit.WKWebsiteDataStore
+import platform.WebKit.WKWindowFeatures
 import platform.darwin.NSObject
 
 /**
@@ -36,6 +64,8 @@ class WKWebViewEngine(
 ) : WebViewEngine {
 
     private val navigationDelegate = NavigationDelegate(this)
+    private val uiDelegate = UiDelegate(this)
+    internal val downloadDelegate = DownloadDelegate(this)
 
     // Strong refs: WKUserContentController holds message handlers weakly.
     private val messageHandlers = mutableMapOf<String, ScriptMessageHandler>()
@@ -44,12 +74,15 @@ class WKWebViewEngine(
         frame = CGRectZero.readValue(),
         configuration = WKWebViewConfiguration().apply {
             allowsInlineMediaPlayback = true
+            // window.open() must reach the UI delegate to open as a new tab.
+            preferences.javaScriptCanOpenWindowsAutomatically = true
             // Private browsing: a non-persistent store leaves nothing on disk
             // (cookies, cache, local storage all vanish when it's released).
             if (incognito) websiteDataStore = WKWebsiteDataStore.nonPersistentDataStore()
         },
     ).apply {
         navigationDelegate = this@WKWebViewEngine.navigationDelegate
+        UIDelegate = this@WKWebViewEngine.uiDelegate
         allowsBackForwardNavigationGestures = true
         // Our own long-press link menu replaces the native peek/preview.
         allowsLinkPreview = false
@@ -161,6 +194,13 @@ class WKWebViewEngine(
         }
     }
 
+    override fun startDownload(url: String) {
+        val nsUrl = NSURL.URLWithString(url) ?: return
+        webView.startDownloadUsingRequest(NSURLRequest.requestWithURL(nsUrl)) { download ->
+            download?.delegate = downloadDelegate
+        }
+    }
+
     override fun pause() {
         // WKWebView pauses rendering off-window on its own; media keeps playing,
         // which matches EinkBro's background-tab behavior.
@@ -170,6 +210,7 @@ class WKWebViewEngine(
 
     override fun destroy() {
         webView.navigationDelegate = null
+        webView.UIDelegate = null
         messageHandlers.keys.forEach {
             webView.configuration.userContentController.removeScriptMessageHandlerForName(it)
         }
@@ -202,17 +243,266 @@ class WKWebViewEngine(
     internal fun notifyFailed() {
         listener.onProgressChanged(this, 1f)
     }
+
+    internal fun reportNewWindow(url: String) = listener.onNewWindowRequested(this, url)
+
+    internal fun reportAuthChallenge(request: AuthRequest) =
+        listener.onAuthChallenge(this, request)
+
+    internal fun reportSslError(request: SslErrorRequest) = listener.onSslError(this, request)
+
+    internal fun reportJsDialog(request: JsDialogRequest) = listener.onJsDialog(this, request)
+
+    internal fun reportDownloadStarted(fileName: String) =
+        listener.onDownloadStarted(this, fileName)
+
+    internal fun reportDownloadFinished(fileName: String, path: String?) =
+        listener.onDownloadFinished(this, fileName, path)
+
+    internal fun reportLoadError(description: String) = listener.onLoadError(this, description)
 }
 
-// Only one webView(...) overload is implemented on purpose: Kotlin/Native turns
-// the delegate's same-selector-family methods into conflicting overloads.
-// didFinish is sufficient for Phase 1; the "started" signal fires in loadUrl().
+// Of the same-selector-family navigation callbacks (didStart/didCommit/
+// didFinish/didFail…, all (WKWebView, WKNavigation?)), only ONE per Kotlin
+// signature can be implemented — K/N turns the rest into conflicting
+// overloads. didFinish and didFailProvisional are each their family's pick.
+@OptIn(ExperimentalForeignApi::class)
 private class NavigationDelegate(
     private val engine: WKWebViewEngine,
 ) : NSObject(), WKNavigationDelegateProtocol {
 
     override fun webView(webView: WKWebView, didFinishNavigation: WKNavigation?) {
         engine.notifyFinished()
+    }
+
+    override fun webView(
+        webView: WKWebView,
+        didFailProvisionalNavigation: WKNavigation?,
+        withError: NSError,
+    ) {
+        engine.notifyFailed()
+        // -999 = cancelled (new load superseding), 102 = frame load interrupted
+        // (fires when a response is diverted to a download) — neither is an error.
+        if (withError.code != -999L && withError.code != 102L) {
+            engine.reportLoadError(withError.localizedDescription)
+        }
+    }
+
+    override fun webView(
+        webView: WKWebView,
+        decidePolicyForNavigationAction: WKNavigationAction,
+        decisionHandler: (WKNavigationActionPolicy) -> Unit,
+    ) {
+        val url = decidePolicyForNavigationAction.request.URL
+        val scheme = url?.scheme?.lowercase()
+        if (url != null && scheme != null && scheme !in WEB_SCHEMES) {
+            // mailto:, tel:, app store, custom app schemes → hand off to the OS.
+            UIApplication.sharedApplication.openURL(
+                url, options = emptyMap<Any?, Any?>(), completionHandler = null,
+            )
+            decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
+            return
+        }
+        decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyAllow)
+    }
+
+    override fun webView(
+        webView: WKWebView,
+        decidePolicyForNavigationResponse: WKNavigationResponse,
+        decisionHandler: (WKNavigationResponsePolicy) -> Unit,
+    ) {
+        val response = decidePolicyForNavigationResponse.response
+        val disposition = (response as? NSHTTPURLResponse)
+            ?.allHeaderFields?.get("Content-Disposition") as? String
+        val isAttachment = disposition?.startsWith("attachment", ignoreCase = true) == true
+        if (!decidePolicyForNavigationResponse.canShowMIMEType || isAttachment) {
+            decisionHandler(WKNavigationResponsePolicy.WKNavigationResponsePolicyDownload)
+        } else {
+            decisionHandler(WKNavigationResponsePolicy.WKNavigationResponsePolicyAllow)
+        }
+    }
+
+    override fun webView(
+        webView: WKWebView,
+        navigationResponse: WKNavigationResponse,
+        didBecomeDownload: WKDownload,
+    ) {
+        didBecomeDownload.delegate = engine.downloadDelegate
+    }
+
+    override fun webView(
+        webView: WKWebView,
+        navigationAction: WKNavigationAction,
+        didBecomeDownload: WKDownload,
+    ) {
+        didBecomeDownload.delegate = engine.downloadDelegate
+    }
+
+    override fun webView(
+        webView: WKWebView,
+        didReceiveAuthenticationChallenge: NSURLAuthenticationChallenge,
+        completionHandler: (NSURLSessionAuthChallengeDisposition, NSURLCredential?) -> Unit,
+    ) {
+        val space = didReceiveAuthenticationChallenge.protectionSpace
+        when (space.authenticationMethod) {
+            NSURLAuthenticationMethodServerTrust -> {
+                val trust = space.serverTrust
+                if (trust != null && SecTrustEvaluateWithError(trust, null)) {
+                    completionHandler(
+                        NSURLSessionAuthChallengePerformDefaultHandling, null,
+                    )
+                } else {
+                    engine.reportSslError(SslErrorRequest(space.host) { proceed ->
+                        if (proceed && trust != null) {
+                            completionHandler(
+                                NSURLSessionAuthChallengeUseCredential,
+                                NSURLCredential.credentialForTrust(trust),
+                            )
+                        } else {
+                            completionHandler(
+                                NSURLSessionAuthChallengeCancelAuthenticationChallenge, null,
+                            )
+                        }
+                    })
+                }
+            }
+
+            NSURLAuthenticationMethodHTTPBasic, NSURLAuthenticationMethodHTTPDigest -> {
+                if (didReceiveAuthenticationChallenge.previousFailureCount > 0) {
+                    completionHandler(
+                        NSURLSessionAuthChallengeCancelAuthenticationChallenge, null,
+                    )
+                    return
+                }
+                engine.reportAuthChallenge(AuthRequest(space.host) { credentials ->
+                    if (credentials != null) {
+                        completionHandler(
+                            NSURLSessionAuthChallengeUseCredential,
+                            NSURLCredential.credentialWithUser(
+                                credentials.first,
+                                credentials.second,
+                                NSURLCredentialPersistence.NSURLCredentialPersistenceForSession,
+                            ),
+                        )
+                    } else {
+                        completionHandler(
+                            NSURLSessionAuthChallengeCancelAuthenticationChallenge, null,
+                        )
+                    }
+                })
+            }
+
+            else -> completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, null)
+        }
+    }
+}
+
+private val WEB_SCHEMES = setOf("http", "https", "file", "about", "blob", "data")
+
+/** Popups/new windows → host new-tab; JS alert/confirm/prompt → host dialog. */
+private class UiDelegate(
+    private val engine: WKWebViewEngine,
+) : NSObject(), WKUIDelegateProtocol {
+
+    override fun webView(
+        webView: WKWebView,
+        createWebViewWithConfiguration: WKWebViewConfiguration,
+        forNavigationAction: WKNavigationAction,
+        windowFeatures: WKWindowFeatures,
+    ): WKWebView? {
+        val url = forNavigationAction.request.URL?.absoluteString
+        if (!url.isNullOrBlank()) engine.reportNewWindow(url)
+        // Returning null: the "window" opens as a regular tab instead.
+        return null
+    }
+
+    override fun webView(
+        webView: WKWebView,
+        runJavaScriptAlertPanelWithMessage: String,
+        initiatedByFrame: WKFrameInfo,
+        completionHandler: () -> Unit,
+    ) {
+        engine.reportJsDialog(
+            JsDialogRequest(JsDialogType.ALERT, runJavaScriptAlertPanelWithMessage, null) { _, _ ->
+                completionHandler()
+            }
+        )
+    }
+
+    override fun webView(
+        webView: WKWebView,
+        runJavaScriptConfirmPanelWithMessage: String,
+        initiatedByFrame: WKFrameInfo,
+        completionHandler: (Boolean) -> Unit,
+    ) {
+        engine.reportJsDialog(
+            JsDialogRequest(
+                JsDialogType.CONFIRM, runJavaScriptConfirmPanelWithMessage, null,
+            ) { confirmed, _ ->
+                completionHandler(confirmed)
+            }
+        )
+    }
+
+    override fun webView(
+        webView: WKWebView,
+        runJavaScriptTextInputPanelWithPrompt: String,
+        defaultText: String?,
+        initiatedByFrame: WKFrameInfo,
+        completionHandler: (String?) -> Unit,
+    ) {
+        engine.reportJsDialog(
+            JsDialogRequest(
+                JsDialogType.PROMPT, runJavaScriptTextInputPanelWithPrompt, defaultText,
+            ) { confirmed, text ->
+                completionHandler(if (confirmed) text.orEmpty() else null)
+            }
+        )
+    }
+}
+
+/** Saves engine downloads under Documents/downloads and reports progress. */
+internal class DownloadDelegate(
+    private val engine: WKWebViewEngine,
+) : NSObject(), WKDownloadDelegateProtocol {
+
+    // WKDownload identity → destination path (delegate callbacks share it).
+    private val paths = mutableMapOf<WKDownload, String>()
+
+    override fun download(
+        download: WKDownload,
+        decideDestinationUsingResponse: NSURLResponse,
+        suggestedFilename: String,
+        completionHandler: (NSURL?) -> Unit,
+    ) {
+        val dir = FileStore.dirPath("downloads")
+        if (dir == null) {
+            completionHandler(null)
+            return
+        }
+        var path = "$dir/$suggestedFilename"
+        var attempt = 1
+        while (FileStore.exists(path)) {
+            path = "$dir/${attempt}_$suggestedFilename"
+            attempt++
+        }
+        paths[download] = path
+        engine.reportDownloadStarted(suggestedFilename)
+        completionHandler(NSURL.fileURLWithPath(path))
+    }
+
+    override fun downloadDidFinish(download: WKDownload) {
+        val path = paths.remove(download)
+        engine.reportDownloadFinished(path?.substringAfterLast('/').orEmpty(), path)
+    }
+
+    override fun download(
+        download: WKDownload,
+        didFailWithError: NSError,
+        resumeData: NSData?,
+    ) {
+        val path = paths.remove(download)
+        engine.reportDownloadFinished(path?.substringAfterLast('/') ?: "download", null)
     }
 }
 
