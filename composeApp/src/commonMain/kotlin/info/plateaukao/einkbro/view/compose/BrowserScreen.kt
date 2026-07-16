@@ -94,6 +94,7 @@ import info.plateaukao.einkbro.viewmodel.BrowserViewModel
 import info.plateaukao.einkbro.viewmodel.TRANSLATE_API
 import info.plateaukao.einkbro.viewmodel.TranslationViewModel
 import info.plateaukao.einkbro.viewmodel.TtsViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -186,6 +187,92 @@ fun BrowserScreen(
     val helper = browserViewModel.currentHelper
     val progress by browserViewModel.progress
 
+    fun requireImageApiKey(): Boolean {
+        if (config.ai.imageApiKey.isBlank()) {
+            EBToast.show(AppServices.context, "Set an image-translate API key in Settings first")
+            return false
+        }
+        return true
+    }
+
+    /** Overlays a Papago-OCR translation on the long-pressed image (Phase M). */
+    fun translateContextImage(imageUrl: String) {
+        if (!requireImageApiKey()) return
+        val engine = browserViewModel.currentEngine ?: return
+        EBToast.show(AppServices.context, "Translating image…")
+        scope.launch {
+            val result =
+                translationViewModel.translateImage(browserViewModel.currentUrl.value, imageUrl)
+            if (result == null) {
+                EBToast.show(AppServices.context, "Failed to translate image")
+                return@launch
+            }
+            val escaped = imageUrl.replace("\\", "\\\\").replace("'", "\\'")
+            engine.evaluateJavascript(
+                Assets.get("translate_image_overlay.js")
+                    .replace("%%IMAGE_URL%%", escaped)
+                    .replace("%%BASE64_DATA%%", result.renderedImage)
+            )
+        }
+    }
+
+    /** Long-press: OCR-translate every image from the pressed one downward. */
+    fun translateAllContextImages(imageUrl: String) {
+        if (!requireImageApiKey()) return
+        val engine = browserViewModel.currentEngine ?: return
+        val escapedStart = imageUrl.replace("\\", "\\\\").replace("'", "\\'")
+        engine.evaluateJavascript(
+            Assets.get("get_remaining_images.js").replace("%%IMAGE_URL%%", escapedStart)
+        ) { result ->
+            val urls = runCatching {
+                tocJson.decodeFromString<List<String>>(result.orEmpty())
+            }.getOrNull().orEmpty()
+            if (urls.isEmpty()) {
+                EBToast.show(AppServices.context, "No images to translate")
+                return@evaluateJavascript
+            }
+            EBToast.show(AppServices.context, "Translating ${urls.size} images…")
+            scope.launch {
+                urls.forEachIndexed { index, u ->
+                    val result2 =
+                        translationViewModel.translateImage(browserViewModel.currentUrl.value, u)
+                            ?: return@forEachIndexed
+                    val escaped = u.replace("\\", "\\\\").replace("'", "\\'")
+                    engine.evaluateJavascript(
+                        Assets.get("translate_image_overlay.js")
+                            .replace("%%IMAGE_URL%%", escaped)
+                            .replace("%%BASE64_DATA%%", result2.renderedImage)
+                    )
+                    if (index < urls.lastIndex) {
+                        delay(config.ai.imageTranslateIntervalSeconds.toLong() * 1000)
+                    }
+                }
+            }
+        }
+    }
+
+    /** Papago translate-by-screen: OCR a WebView screenshot (Phase M). */
+    fun translateByScreen() {
+        if (!requireImageApiKey()) return
+        val engine = browserViewModel.currentEngine ?: return
+        EBToast.show(AppServices.context, "Translating screen…")
+        engine.captureSnapshot { bytes ->
+            if (bytes == null) {
+                EBToast.show(AppServices.context, "Failed to capture screen")
+                return@captureSnapshot
+            }
+            scope.launch {
+                val rendered = translationViewModel.translateScreenshot(bytes)
+                if (rendered == null) {
+                    EBToast.show(AppServices.context, "Failed to translate screen")
+                    return@launch
+                }
+                // Shows the translated snapshot as a page; back returns to the site.
+                engine.loadHtml(Assets.get("translated_image.html").replace("%%", rendered))
+            }
+        }
+    }
+
     /** Runs the chosen translation mode on the current page (Phase 6). */
     fun translateWithMode(mode: TranslationMode) {
         val currentHelper = helper ?: return
@@ -227,11 +314,9 @@ fun BrowserScreen(
                     "&u=${browserViewModel.currentUrl.value}"
             )
 
-            // Google widget injection (Phase M) and Papago screen OCR (Phase M).
-            TranslationMode.GOOGLE_IN_PLACE ->
-                EBToast.show(AppServices.context, "Google in-place translate: coming in Phase M")
-            TranslationMode.PAPAGO_TRANSLATE_BY_SCREEN ->
-                EBToast.show(AppServices.context, "Papago screen translate: coming in Phase M")
+            TranslationMode.GOOGLE_IN_PLACE -> currentHelper.addGoogleTranslation()
+
+            TranslationMode.PAPAGO_TRANSLATE_BY_SCREEN -> translateByScreen()
         }
     }
 
@@ -622,6 +707,22 @@ fun BrowserScreen(
         }
     }
 
+    // Auto-translate a site the user marked (parity Phase M): fires the per-site
+    // translation mode each time a page there finishes loading. GOOGLE_URL /
+    // PAPAGO_TRANSLATE_BY_SCREEN are skipped in auto mode — one opens a new tab
+    // (a redirect loop) and the other captures a screenshot, neither suited to
+    // running on every page load.
+    LaunchedEffect(browserViewModel.pageFinishedTick.value) {
+        val url = browserViewModel.lastFinishedUrl
+        if (url.isNotBlank() && config.shouldTranslateSite(url)) {
+            when (val mode = config.getTranslationMode(url)) {
+                TranslationMode.GOOGLE_URL,
+                TranslationMode.PAPAGO_TRANSLATE_BY_SCREEN -> Unit
+                else -> translateWithMode(mode)
+            }
+        }
+    }
+
     fun handleContextMenuItem(item: ContextMenuItemType, url: String) {
         when (item) {
             ContextMenuItemType.NewTabForeground -> browserViewModel.newTab(url)
@@ -669,7 +770,7 @@ fun BrowserScreen(
                 }
             }
             ContextMenuItemType.SaveAs -> browserViewModel.currentEngine?.startDownload(url)
-            ContextMenuItemType.TranslateImage -> comingSoon("Image translation", 'M')
+            ContextMenuItemType.TranslateImage -> translateContextImage(url)
             ContextMenuItemType.SelectText ->
                 EBToast.show(AppServices.context, "Long-press the text itself to select on iOS")
             else -> Unit
@@ -682,7 +783,7 @@ fun BrowserScreen(
                 PlatformActions.copyToClipboard(stripUrlQuery(url))
                 EBToast.show(AppServices.context, "Link copied")
             }
-            ContextMenuItemType.TranslateImage -> comingSoon("Image translation", 'M')
+            ContextMenuItemType.TranslateImage -> translateAllContextImages(url)
             else -> Unit
         }
     }
@@ -1068,7 +1169,7 @@ fun BrowserScreen(
                 ContextMenuDialogContent(
                     url = link,
                     shouldShowAdBlock = false,
-                    shouldShowTranslateImage = false,
+                    shouldShowTranslateImage = config.ai.imageApiKey.isNotBlank(),
                     itemClicked = { handleContextMenuItem(it, link) },
                     itemLongClicked = { handleContextMenuLongClick(it, link) },
                     onDismiss = dismiss,

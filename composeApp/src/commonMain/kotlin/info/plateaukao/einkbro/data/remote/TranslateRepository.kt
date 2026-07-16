@@ -5,7 +5,10 @@ import info.plateaukao.einkbro.preference.ConfigManager
 import info.plateaukao.einkbro.util.Crypto
 import info.plateaukao.einkbro.util.System
 import info.plateaukao.einkbro.util.TranslationLanguage
+import io.ktor.client.call.body
 import io.ktor.client.request.forms.FormDataContent
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -13,6 +16,8 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.Parameters
 import io.ktor.http.contentType
 import kotlin.io.encoding.Base64
@@ -181,7 +186,103 @@ class TranslateRepository(
         }
     }
 
+    // ── Papago image OCR (Phase M) ──────────────────────────────────────────
+    //
+    // Both long-press-image and translate-by-screen post an image to Papago's
+    // OCR endpoint, which returns a base64 JPEG with the translation rendered
+    // onto it. The request is signed HMAC-SHA1 with the user's imageApiKey.
+
+    @OptIn(ExperimentalUuidApi::class)
+    private val imageSid: String by lazy { "$P_IMAGE_API_VERSION${Uuid.random()}" }
+
+    /** OCR-translates a single image fetched from [url] (long-press image). */
+    suspend fun translateImageFromUrl(
+        referer: String,
+        url: String,
+        sourceLanguage: String,
+        targetLanguage: String,
+        langDetect: Boolean,
+    ): ImageTranslateResult? {
+        val bytes = downloadImage(url, referer) ?: return null
+        return translateImageBytes(bytes, sourceLanguage, targetLanguage, langDetect)
+    }
+
+    /** OCR-translates raw image bytes (a WebView screenshot for by-screen mode). */
+    suspend fun translateImageBytes(
+        bytes: ByteArray,
+        sourceLanguage: String,
+        targetLanguage: String,
+        langDetect: Boolean,
+    ): ImageTranslateResult? {
+        if (config.ai.imageApiKey.isBlank()) return null
+        val form = formData {
+            append("lang", "ko")
+            append("upload", "true")
+            append("sid", imageSid)
+            append("source", sourceLanguage)
+            append("target", targetLanguage)
+            append("langDetect", if (langDetect) "true" else "false")
+            append("imageId", "")
+            append("reqType", "")
+            append(
+                "image",
+                bytes,
+                Headers.build {
+                    append(HttpHeaders.ContentType, "image/jpeg")
+                    append(HttpHeaders.ContentDisposition, "filename=\"image.jpg\"")
+                },
+            )
+        }
+        return getImageTranslateResult(form)
+    }
+
+    private suspend fun downloadImage(url: String, referer: String): ByteArray? = try {
+        val response = client.get(url) {
+            header("User-Agent", IMAGE_UA)
+            header("Accept-Language", "en-US")
+            if (referer.isNotBlank()) header("Referer", referer)
+        }
+        if (response.status.value != 200) null else response.body<ByteArray>()
+    } catch (e: Exception) {
+        null
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    private suspend fun getImageTranslateResult(form: List<io.ktor.http.content.PartData>): ImageTranslateResult? {
+        val ts = System.currentTimeMillis()
+        val urlToSign = IMAGE_API_URL.take(255)
+        val signature = Base64.encode(
+            Crypto.hmacSha1(config.ai.imageApiKey.encodeToByteArray(), "$urlToSign$ts".encodeToByteArray())
+        )
+        return try {
+            val response = client.post(IMAGE_API_URL) {
+                parameter("msgpad", ts.toString())
+                parameter("md", signature)
+                setBody(MultiPartFormDataContent(form))
+            }
+            if (response.status.value != 200) return null
+            val obj = json.parseToJsonElement(response.bodyAsText()).jsonObject
+            val rendered = obj["renderedImage"]?.jsonPrimitive?.content ?: return null
+            val imageId = obj["imageId"]?.jsonPrimitive?.content.orEmpty()
+            ImageTranslateResult(imageId, rendered)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     companion object {
         private const val PAPAGO_API_URL = "https://papago.naver.com/apis/n2mt/translate"
+        private const val P_IMAGE_API_VERSION = "1.9.9"
+        private const val IMAGE_API_URL =
+            "https://apis.naver.com/papago/papago_app/ocr/detect"
+        private const val IMAGE_UA =
+            "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) " +
+                "Chrome/143.0.0.0 Mobile Safari/537.36"
     }
 }
+
+/** Papago OCR result: the translated image rendered as a base64 JPEG. */
+data class ImageTranslateResult(
+    val imageId: String,
+    val renderedImage: String,
+)

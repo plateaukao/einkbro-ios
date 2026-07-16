@@ -7,6 +7,7 @@ import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.data.remote.ApiResult
 import info.plateaukao.einkbro.data.remote.ChatMessage
 import info.plateaukao.einkbro.data.remote.ChatRole
+import info.plateaukao.einkbro.data.remote.ImageTranslateResult
 import info.plateaukao.einkbro.data.remote.OpenAiRepository
 import info.plateaukao.einkbro.data.remote.TranslateRepository
 import info.plateaukao.einkbro.data.remote.toSystemMessage
@@ -359,4 +360,29 @@ class TranslationViewModel(
             _scrollSignal.emit(isUp)
         }
     }
+
+    // --- image OCR translation (Phase M) ---------------------------------
+
+    /**
+     * OCR-translates a single image (long-press). Source is left to Papago's
+     * language detection (langDetect), matching Android; target is the
+     * configured translation language. Returns the rendered base64 JPEG.
+     */
+    suspend fun translateImage(referer: String, imageUrl: String): ImageTranslateResult? =
+        translateRepository.translateImageFromUrl(
+            referer = referer,
+            url = imageUrl,
+            sourceLanguage = config.translation.sourceLanguage.value,
+            targetLanguage = config.translation.translationLanguage.value,
+            langDetect = true,
+        )
+
+    /** OCR-translates a WebView screenshot (translate-by-screen). */
+    suspend fun translateScreenshot(jpegBytes: ByteArray): String? =
+        translateRepository.translateImageBytes(
+            bytes = jpegBytes,
+            sourceLanguage = config.translation.sourceLanguage.value,
+            targetLanguage = config.translation.translationLanguage.value,
+            langDetect = true,
+        )?.renderedImage
 }

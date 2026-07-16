@@ -88,6 +88,14 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         viewModelScope.launch { reloadRecords() }
         // Load installed userscripts so the first page can inject matching ones.
         viewModelScope.launch { AppServices.userScriptManager.reload() }
+        // Hydrate per-site configuration (translation mode, auto-translate, per-site
+        // display) from the DB so it survives relaunch (parity Phase M).
+        viewModelScope.launch {
+            val stored = AppServices.bookmarkManager.getAllDomainConfigurations()
+            if (stored.isNotEmpty()) {
+                config.domainConfigurationMap = stored.associateBy { it.domain }.toMutableMap()
+            }
+        }
     }
 
     /** Restores the previous session's tabs, or opens the configured home. */
@@ -214,6 +222,17 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         }
         engine.installUserScript(Assets.get("selection_change.js"), atDocumentStart = false)
         engine.installUserScript(Assets.get("link_longpress.js"), atDocumentStart = false)
+        // Dual YouTube captions (parity Phase M): a document-start fetch/XHR shim
+        // that merges a second-language timedtext copy in-page. The locale is
+        // baked in at engine creation; new tabs pick up a changed pref.
+        val dualCaptionLocale = config.tts.dualCaptionLocale
+        if (dualCaptionLocale.isNotBlank()) {
+            engine.installUserScript(
+                Assets.get("dual_caption_shim.js")
+                    .replace("%%DUAL_CAPTION_LOCALE%%", dualCaptionLocale),
+                atDocumentStart = true,
+            )
+        }
         translationBridge.attach(engine)
         userScriptBridge.attach(engine)
     }
@@ -290,6 +309,14 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     // --- EPUB export (parity Phase I) ---
 
     private val epubExporter = info.plateaukao.einkbro.epub.EpubExporter()
+
+    /**
+     * Bumped when a page finishes loading, carrying the finished URL, so the UI
+     * can auto-fire per-site translation (parity Phase M, shouldTranslateSite).
+     */
+    val pageFinishedTick = mutableStateOf(0)
+    var lastFinishedUrl: String = ""
+        private set
 
     /** 0..100 while an EPUB export runs; null when idle. Drives the dialog's progress. */
     val epubProgress = mutableStateOf<Int?>(null)
@@ -609,6 +636,11 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         userScriptBridge.onPageFinished(engine)
         persistTabs()
         if (url.isBlank() || url == "about:blank") return
+        // Signal the UI to auto-translate this site if the user marked it.
+        if (engine === currentEngine) {
+            lastFinishedUrl = url
+            pageFinishedTick.value += 1
+        }
         // Incognito (per-tab or global) leaves no history trace.
         if (engine.incognito || config.isIncognitoMode) return
         if (config.tab.saveHistoryMode == SaveHistoryMode.DISABLED) return

@@ -319,6 +319,23 @@ class WebContentHelper(
         isTranslateByParagraph = true
     }
 
+    /**
+     * Google website-translate widget (Android's addGoogleTranslation): loads
+     * Google's TranslateElement in auto in-place mode and hides its "Original
+     * text" balloon. `preferredTranslateLanguageString` (a comma-separated
+     * Google language-code list) narrows the target-language menu when set.
+     */
+    fun addGoogleTranslation() {
+        val languages = config.translation.preferredTranslateLanguageString.orEmpty()
+        val includedLanguages =
+            if (languages.isNotBlank()) "includedLanguages: '$languages'," else ""
+        val js = Assets.get("inject_google_translate.js")
+            .replace("%%INCLUDED_LANGUAGES%%", includedLanguages)
+        engine.evaluateJavascript(js) {
+            engine.evaluateJavascript(Assets.get("hide_google_translate_popup.js"))
+        }
+    }
+
     /** Restores the original page content and stops translating. */
     fun clearTranslationElements() {
         engine.evaluateJavascript(Assets.get("clear_translation_elements.js"))

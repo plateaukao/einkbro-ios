@@ -17,6 +17,9 @@ interface WebViewEngine {
 
     fun loadUrl(url: String)
 
+    /** Loads an in-memory HTML string (translate-by-screen result, Phase M). */
+    fun loadHtml(html: String)
+
     /** Loads a local file (grants sandbox read access to its directory). */
     fun loadFile(path: String)
 
@@ -80,6 +83,9 @@ interface WebViewEngine {
 
     /** Serializes the current page to a .webarchive (offline snapshot). */
     fun createWebArchive(callback: (ByteArray?) -> Unit)
+
+    /** Captures the visible page as JPEG bytes (translate-by-screen, Phase M). */
+    fun captureSnapshot(callback: (ByteArray?) -> Unit)
 
     // --- downloads (parity Phase B) ---
     /** Starts an in-engine download of [url] (shares the page's cookies). */

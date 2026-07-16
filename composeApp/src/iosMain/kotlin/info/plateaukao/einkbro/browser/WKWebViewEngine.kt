@@ -35,6 +35,8 @@ import platform.Foundation.credentialWithUser
 import platform.Foundation.serverTrust
 import platform.Security.SecTrustEvaluateWithError
 import platform.UIKit.UIApplication
+import platform.UIKit.UIImage
+import platform.UIKit.UIImageJPEGRepresentation
 import platform.UIKit.UIControlEventValueChanged
 import platform.UIKit.UIGestureRecognizer
 import platform.UIKit.UIGestureRecognizerDelegateProtocol
@@ -121,6 +123,11 @@ class WKWebViewEngine(
     override fun loadUrl(url: String) {
         val nsUrl = NSURL.URLWithString(url) ?: return
         webView.loadRequest(NSURLRequest.requestWithURL(nsUrl))
+        notifyStarted()
+    }
+
+    override fun loadHtml(html: String) {
+        webView.loadHTMLString(html, baseURL = null)
         notifyStarted()
     }
 
@@ -260,6 +267,14 @@ class WKWebViewEngine(
     override fun createWebArchive(callback: (ByteArray?) -> Unit) {
         webView.createWebArchiveDataWithCompletionHandler { data, _ ->
             callback((data as? NSData)?.toByteArray())
+        }
+    }
+
+    override fun captureSnapshot(callback: (ByteArray?) -> Unit) {
+        // Null config captures the visible viewport; the OCR endpoint wants JPEG.
+        webView.takeSnapshotWithConfiguration(null) { image, _ ->
+            val jpeg = (image as? UIImage)?.let { UIImageJPEGRepresentation(it, 0.9) }
+            callback(jpeg?.toByteArray())
         }
     }
 
