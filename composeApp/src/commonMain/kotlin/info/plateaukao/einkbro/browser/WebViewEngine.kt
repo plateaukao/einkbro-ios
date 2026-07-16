@@ -36,6 +36,13 @@ interface WebViewEngine {
     /** Installs a script run on every future navigation (WKUserScript on iOS). */
     fun installUserScript(source: String, atDocumentStart: Boolean)
 
+    /**
+     * Registers a JS-to-Kotlin channel: page scripts post through
+     * window.webkit.messageHandlers.<name>.postMessage(payload); [handler]
+     * receives the payload as a string (JSON when the JS posts an object).
+     */
+    fun addMessageHandler(name: String, handler: (String) -> Unit)
+
     // --- privacy & blocking (Phase 4) ---
     /** Overrides the user agent; null restores the platform default. */
     fun setUserAgent(userAgent: String?)

@@ -17,6 +17,8 @@ import info.plateaukao.einkbro.preference.SaveHistoryMode
 import info.plateaukao.einkbro.util.System
 import info.plateaukao.einkbro.view.Album
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /**
  * Tab orchestration: the common-code half of Android's TabManager.
@@ -33,10 +35,17 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     val records = mutableStateOf<List<Record>>(emptyList())
 
+    // Phase 5 interaction: current text selection (null = none) and the URL of
+    // a long-pressed link (null = no context menu). Both drive BrowserScreen
+    // overlays and always reflect the active tab.
+    val selectionInfo = mutableStateOf<SelectionInfo?>(null)
+    val contextMenuLink = mutableStateOf<String?>(null)
+
     private val engines = LinkedHashMap<Int, WebViewEngine>()
     private val helpers = LinkedHashMap<Int, WebContentHelper>()
     private val config = AppServices.config
     private val historyDao = AppServices.database.historyDao()
+    private val json = Json { ignoreUnknownKeys = true }
 
     val currentAlbum: Album? get() = albums.value.getOrNull(focusIndex.value)
     val currentEngine: WebViewEngine? get() = currentAlbum?.let { engines[it.id] }
@@ -67,6 +76,10 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         title: String = "New tab",
         incognito: Boolean = config.isIncognitoMode,
     ) {
+        // Opening/activating a tab must not carry over the previous tab's
+        // selection menu or link context menu.
+        selectionInfo.value = null
+        contextMenuLink.value = null
         val album = Album(
             title = title,
             onShow = { switchTab(it) },
@@ -83,6 +96,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
                     Assets.get("disable_video_autoplay.js"), atDocumentStart = true
                 )
             }
+            registerInteractionBridge(engine)
         }
         albums.value = albums.value + album
         if (activate) {
@@ -114,12 +128,76 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         }
     }
 
+    /**
+     * Wires the JS-to-Kotlin channels (selection reporting + link long-press)
+     * and installs the page scripts that feed them. Only the active tab's
+     * events surface in the UI state.
+     */
+    private fun registerInteractionBridge(engine: WebViewEngine) {
+        engine.addMessageHandler("einkbroSelection") { body ->
+            // Ignore the trailing selectionchange events a link long-press emits
+            // while its context menu is up.
+            if (engine !== currentEngine || contextMenuLink.value != null) {
+                return@addMessageHandler
+            }
+            val payload = runCatching {
+                json.decodeFromString<SelectionPayload>(body)
+            }.getOrNull() ?: return@addMessageHandler
+            selectionInfo.value = if (payload.text.isBlank()) null
+            else SelectionInfo(
+                payload.text, payload.left, payload.top, payload.right, payload.bottom
+            )
+        }
+        engine.addMessageHandler("einkbroLongPress") { body ->
+            if (engine !== currentEngine) return@addMessageHandler
+            val payload = runCatching {
+                json.decodeFromString<LinkPayload>(body)
+            }.getOrNull() ?: return@addMessageHandler
+            if (payload.url.isNotBlank()) {
+                // A link long-press also starts a native word selection; hide our
+                // selection menu so only the link context menu is shown.
+                selectionInfo.value = null
+                contextMenuLink.value = payload.url
+            }
+        }
+        engine.installUserScript(Assets.get("selection_change.js"), atDocumentStart = false)
+        engine.installUserScript(Assets.get("link_longpress.js"), atDocumentStart = false)
+    }
+
+    /** Highlights the active tab's selection and persists it (text-only). */
+    fun highlightCurrentSelection() {
+        val text = selectionInfo.value?.text ?: return
+        currentHelper?.highlightSelection()
+        val url = currentUrl.value
+        val title = currentAlbum?.albumTitle.orEmpty()
+        selectionInfo.value = null
+        viewModelScope.launch {
+            AppServices.bookmarkManager.saveHighlight(url, title, text)
+        }
+    }
+
+    fun clearSelection() {
+        selectionInfo.value = null
+    }
+
+    /** Opens a search for [query] in a fresh tab (selection-menu Search). */
+    fun searchInNewTab(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return
+        val template = config.browser.searchEngineUrl
+            .ifBlank { "https://www.google.com/search?q=%s" }
+        newTab(template.replace("%s", percentEncode(trimmed)))
+    }
+
     fun switchTab(album: Album) {
         val index = albums.value.indexOfFirst { it.id == album.id }
         if (index >= 0) {
             currentEngine?.pause()
             focusIndex.value = index
             currentEngine?.resume()
+            // Stale selection/menu from the previous tab must not linger.
+            selectionInfo.value = null
+            contextMenuLink.value = null
             syncCurrentState()
             persistTabs()
         }
@@ -133,6 +211,8 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         helpers.remove(album.id)
         list.removeAt(index)
         albums.value = list
+        selectionInfo.value = null
+        contextMenuLink.value = null
         if (list.isEmpty()) {
             newTab(DEFAULT_HOME)
         } else {
@@ -249,3 +329,27 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
                 "(KHTML, like Gecko) Version/17.4.1 Safari/605.1.15"
     }
 }
+
+/** Active text selection with its bounding rect in the page's CSS pixels. */
+data class SelectionInfo(
+    val text: String,
+    val left: Float,
+    val top: Float,
+    val right: Float,
+    val bottom: Float,
+)
+
+@Serializable
+private data class SelectionPayload(
+    val text: String = "",
+    val left: Float = 0f,
+    val top: Float = 0f,
+    val right: Float = 0f,
+    val bottom: Float = 0f,
+)
+
+@Serializable
+private data class LinkPayload(
+    val url: String = "",
+    val text: String = "",
+)

@@ -15,6 +15,8 @@ class BookmarkManager(private val database: AppDatabase) {
     private val bookmarkDao = database.bookmarkDao()
     private val faviconDao = database.faviconDao()
     private val domainConfigurationDao = database.domainConfigurationDao()
+    private val articleDao = database.articleDao()
+    private val highlightDao = database.highlightDao()
 
     // For the fire-and-forget calls that come from non-suspend contexts
     // (ConfigManager property setters).
@@ -75,6 +77,39 @@ class BookmarkManager(private val database: AppDatabase) {
     }
 
     suspend fun insertFavicon(faviconInfo: FaviconInfo) = faviconDao.insert(faviconInfo)
+
+    // --- highlights (Phase 5) ---
+
+    suspend fun getAllArticles(): List<Article> = articleDao.getAllArticles()
+
+    suspend fun getArticle(articleId: Int): Article? = articleDao.getArticleById(articleId)
+
+    suspend fun getHighlightsForArticle(articleId: Int): List<Highlight> =
+        highlightDao.getHighlightsForArticle(articleId)
+
+    suspend fun deleteArticle(articleId: Int) = articleDao.deleteById(articleId)
+
+    suspend fun deleteHighlight(highlight: Highlight) = highlightDao.delete(highlight)
+
+    /**
+     * Saves a highlight: upserts one [Article] per URL, then attaches the
+     * selected text as a [Highlight] (mirrors Android's ActionModeDelegate).
+     */
+    suspend fun saveHighlight(url: String, title: String, content: String) {
+        val articleId = (articleDao.getArticleByUrl(url)
+            ?: run {
+                val id = articleDao.insert(
+                    Article(
+                        title = title.ifBlank { url },
+                        url = url,
+                        date = info.plateaukao.einkbro.util.System.currentTimeMillis(),
+                        tags = "",
+                    )
+                )
+                articleDao.getArticleByUrl(url) ?: Article(title, url, 0, "").apply { this.id = id.toInt() }
+            }).id
+        highlightDao.insert(Highlight(articleId = articleId, content = content))
+    }
 
     // Favicon bitmaps are not rendered yet (decode helper arrives with the
     // favicon-capture work); UI falls back to the default globe icon.

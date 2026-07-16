@@ -49,5 +49,9 @@ object Assets {
         "engine_scroll_by_page.js",
         // Adblock content-rule list (WKContentRuleList JSON), compiled at startup.
         "adblock_rules.json",
+        // Text selection + highlight (Phase 5).
+        "selection_change.js",
+        "highlight_selection.js",
+        "link_longpress.js",
     )
 }

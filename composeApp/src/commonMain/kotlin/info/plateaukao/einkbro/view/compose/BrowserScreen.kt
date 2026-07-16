@@ -3,18 +3,24 @@ package info.plateaukao.einkbro.view.compose
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,12 +37,20 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import info.plateaukao.einkbro.AppServices
+import info.plateaukao.einkbro.activity.HighlightsScreen
 import info.plateaukao.einkbro.activity.SettingsScreen
 import info.plateaukao.einkbro.browser.WebViewHost
 import info.plateaukao.einkbro.catalog.DialogFrame
 import info.plateaukao.einkbro.preference.toggle
+import info.plateaukao.einkbro.resources.Res
+import info.plateaukao.einkbro.resources.ic_highlight_color
+import info.plateaukao.einkbro.util.PlatformActions
 import info.plateaukao.einkbro.view.EBToast
+import info.plateaukao.einkbro.view.data.MenuInfo
+import info.plateaukao.einkbro.view.dialog.compose.ActionModeMenu
 import info.plateaukao.einkbro.view.dialog.compose.BookmarksDialogContent
+import info.plateaukao.einkbro.view.dialog.compose.ContextMenuDialogContent
+import info.plateaukao.einkbro.view.dialog.compose.ContextMenuItemType
 import info.plateaukao.einkbro.view.dialog.compose.FastToggleDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.FontDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.MenuDialogContent
@@ -69,6 +83,7 @@ fun BrowserScreen(
     var showFastToggle by remember { mutableStateOf(false) }
     var showSiteSettings by remember { mutableStateOf(false) }
     var showTouchAreaDialog by remember { mutableStateOf(false) }
+    var showHighlights by remember { mutableStateOf(false) }
     var touchPagingEnabled by remember { mutableStateOf(config.touch.enableTouchTurn) }
     val scope = rememberCoroutineScope()
 
@@ -146,6 +161,7 @@ fun BrowserScreen(
             MenuItemType.SiteSettings -> showSiteSettings = true
             MenuItemType.FontSize -> showFontDialog = true
             MenuItemType.TouchSetting -> showTouchAreaDialog = true
+            MenuItemType.Highlights -> showHighlights = true
             MenuItemType.ReaderMode -> helper?.toggleReaderMode()
             MenuItemType.VerticalRead -> helper?.toggleVerticalRead()
             MenuItemType.InvertColor -> helper?.toggleInvertColor()
@@ -179,8 +195,20 @@ fun BrowserScreen(
         }
     }
 
+    fun handleContextMenuItem(item: ContextMenuItemType, url: String) {
+        when (item) {
+            ContextMenuItemType.NewTabForeground -> browserViewModel.newTab(url)
+            ContextMenuItemType.NewTabBackground ->
+                browserViewModel.newTab(url, activate = false)
+
+            ContextMenuItemType.ShareLink -> PlatformActions.share(url)
+            ContextMenuItemType.OpenWith -> PlatformActions.openUrl(url)
+            else -> EBToast.show(AppServices.context, "${item.name}: later phase")
+        }
+    }
+
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             if (engine != null) {
                 // Key by tab id so UIKitView re-embeds the current tab's
                 // WKWebView when the active tab changes (its factory runs once).
@@ -206,6 +234,47 @@ fun BrowserScreen(
                             else helper?.pageDown() ?: engine?.pageDown()
                         }
                 )
+            }
+
+            // Text-selection action menu, anchored just below the selection.
+            // Hidden while a link context menu owns the interaction.
+            browserViewModel.selectionInfo.value
+                ?.takeIf { browserViewModel.contextMenuLink.value == null }
+                ?.let { selection ->
+                val menuWidthDp = 280f
+                val estMenuHeightDp = 104f
+                val x = selection.left
+                    .coerceIn(0f, (maxWidth.value - menuWidthDp).coerceAtLeast(0f))
+                val below = selection.bottom + 8f
+                val y = if (below + estMenuHeightDp <= maxHeight.value) below
+                else (selection.top - estMenuHeightDp - 8f).coerceAtLeast(0f)
+                val selectionMenus = remember(selection.text) {
+                    mutableStateOf(
+                        listOf(
+                            MenuInfo("Copy", imageVector = Icons.Outlined.ContentCopy, action = {
+                                PlatformActions.copyToClipboard(selection.text)
+                            }),
+                            MenuInfo(
+                                "Highlight",
+                                drawable = Res.drawable.ic_highlight_color,
+                                action = { browserViewModel.highlightCurrentSelection() },
+                            ),
+                            MenuInfo("Search", imageVector = Icons.Outlined.Search, action = {
+                                browserViewModel.searchInNewTab(selection.text)
+                            }),
+                            MenuInfo("Share", imageVector = Icons.Outlined.Share, action = {
+                                PlatformActions.share(selection.text)
+                            }),
+                        )
+                    )
+                }
+                Box(Modifier.align(Alignment.TopStart).offset(x.dp, y.dp)) {
+                    ActionModeMenu(
+                        menus = selectionMenus,
+                        showIcons = true,
+                        onClicked = { browserViewModel.clearSelection() },
+                    )
+                }
             }
 
             if (showOverview) {
@@ -387,6 +456,33 @@ fun BrowserScreen(
     if (showSettings) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
             SettingsScreen(onClose = { showSettings = false })
+        }
+    }
+
+    // Long-press-a-link context menu.
+    browserViewModel.contextMenuLink.value?.let { link ->
+        // Dismissing also drops the native word selection the long-press made,
+        // so its menu doesn't resurface underneath.
+        val dismiss = {
+            browserViewModel.contextMenuLink.value = null
+            browserViewModel.clearSelection()
+        }
+        Dialog(onDismissRequest = dismiss) {
+            Surface(color = MaterialTheme.colors.background) {
+                ContextMenuDialogContent(
+                    url = link,
+                    shouldShowAdBlock = false,
+                    shouldShowTranslateImage = false,
+                    itemClicked = { handleContextMenuItem(it, link) },
+                    onDismiss = dismiss,
+                )
+            }
+        }
+    }
+
+    if (showHighlights) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            HighlightsScreen(onClose = { showHighlights = false })
         }
     }
 }

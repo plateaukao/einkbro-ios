@@ -6,6 +6,7 @@ import info.plateaukao.einkbro.browser.WebViewEngine
 import info.plateaukao.einkbro.preference.ConfigManager
 import info.plateaukao.einkbro.preference.EinkImageMode
 import info.plateaukao.einkbro.preference.FontType
+import info.plateaukao.einkbro.preference.HighlightStyle
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -252,6 +253,28 @@ class WebContentHelper(
                 "saturate(${formatThreeDecimals(1.0 + 0.8 * t)}) !important; }"
     }
 
+    // --- text highlight (Phase 5) ----------------------------------------
+
+    /**
+     * Wraps the current text selection in a styled highlight span. The style
+     * (color/underline) comes from the shared preference, matching Android's
+     * WebViewJsBridge.highlightTextSelection. highlight.css lives in its own
+     * slot so it survives the reader/main style churn.
+     */
+    fun highlightSelection() {
+        val className = when (config.display.highlightStyle) {
+            HighlightStyle.UNDERLINE -> "highlight_underline"
+            HighlightStyle.BACKGROUND_YELLOW -> "highlight_yellow"
+            HighlightStyle.BACKGROUND_GREEN -> "highlight_green"
+            HighlightStyle.BACKGROUND_BLUE -> "highlight_blue"
+            HighlightStyle.BACKGROUND_PINK -> "highlight_pink"
+        }
+        updateCssSlot(CSS_SLOT_HIGHLIGHT, Assets.get("highlight.css"))
+        engine.evaluateJavascript(
+            Assets.get("highlight_selection.js").replace("__HIGHLIGHT_CLASS__", className)
+        )
+    }
+
     // --- audio only ------------------------------------------------------
 
     var isAudioOnlyOn = false
@@ -334,6 +357,7 @@ class WebContentHelper(
         const val CSS_SLOT_READER = "reader"
         const val CSS_SLOT_READER_SETTINGS = "readerSettings"
         const val CSS_SLOT_VERTICAL = "vertical"
+        const val CSS_SLOT_HIGHLIGHT = "highlight"
         const val VIEWPORT_DEFAULT = "width=device-width"
         const val VIEWPORT_FIXED_SCALE = "width=device-width, initial-scale=1.0, minimum-scale=1.0"
 

@@ -10,11 +10,14 @@ import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.RoomDatabaseConstructor
 import androidx.room.Update
+import androidx.room.migration.Migration
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.execSQL
 
 /**
- * Phase-2 schema: the tables the browser needs today. Same shapes as the
- * Android app; further tables (highlights, saved pages, userscripts, ...)
- * join the schema with their features in later phases.
+ * Schema history:
+ *  v1 — bookmarks, history, favicons, domain_configuration (Phase 2).
+ *  v2 — articles + highlights (Phase 5 text-selection highlights).
  */
 @Database(
     entities = [
@@ -22,8 +25,10 @@ import androidx.room.Update
         HistoryRecord::class,
         FaviconInfo::class,
         DomainConfiguration::class,
+        Article::class,
+        Highlight::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -32,6 +37,29 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao
     abstract fun faviconDao(): FaviconDao
     abstract fun domainConfigurationDao(): DomainConfigurationDao
+    abstract fun articleDao(): ArticleDao
+    abstract fun highlightDao(): HighlightDao
+}
+
+/** Adds the articles + highlights tables without dropping existing data. */
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `articles` (" +
+                "`title` TEXT NOT NULL, `url` TEXT NOT NULL, `date` INTEGER NOT NULL, " +
+                "`tags` TEXT NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)"
+        )
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `highlights` (" +
+                "`articleId` INTEGER NOT NULL, `content` TEXT NOT NULL, " +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "FOREIGN KEY(`articleId`) REFERENCES `articles`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)"
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_highlights_articleId` ON `highlights` (`articleId`)"
+        )
+    }
 }
 
 @Suppress("KotlinNoActualForExpect", "NO_ACTUAL_FOR_EXPECT")
@@ -111,4 +139,43 @@ interface DomainConfigurationDao {
 
     @Query("DELETE FROM domain_configuration WHERE domain = :domain")
     suspend fun deleteByDomain(domain: String)
+}
+
+@Dao
+interface ArticleDao {
+    @Query("SELECT * FROM articles ORDER BY date DESC")
+    suspend fun getAllArticles(): List<Article>
+
+    @Query("SELECT * FROM articles WHERE url = :url LIMIT 1")
+    suspend fun getArticleByUrl(url: String): Article?
+
+    @Query("SELECT * FROM articles WHERE id = :id LIMIT 1")
+    suspend fun getArticleById(id: Int): Article?
+
+    @Insert
+    suspend fun insert(article: Article): Long
+
+    @Query("DELETE FROM articles WHERE id = :id")
+    suspend fun deleteById(id: Int)
+
+    @Query("DELETE FROM articles")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface HighlightDao {
+    @Query("SELECT * FROM highlights")
+    suspend fun getAllHighlights(): List<Highlight>
+
+    @Query("SELECT * FROM highlights WHERE articleId = :articleId")
+    suspend fun getHighlightsForArticle(articleId: Int): List<Highlight>
+
+    @Insert
+    suspend fun insert(highlight: Highlight)
+
+    @Delete
+    suspend fun delete(highlight: Highlight)
+
+    @Query("DELETE FROM highlights")
+    suspend fun deleteAll()
 }

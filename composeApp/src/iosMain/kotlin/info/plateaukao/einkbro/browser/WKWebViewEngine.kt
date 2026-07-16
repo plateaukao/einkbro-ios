@@ -11,6 +11,9 @@ import platform.Foundation.NSURL
 import platform.Foundation.NSURLRequest
 import platform.WebKit.WKNavigation
 import platform.WebKit.WKNavigationDelegateProtocol
+import platform.WebKit.WKScriptMessage
+import platform.WebKit.WKScriptMessageHandlerProtocol
+import platform.WebKit.WKUserContentController
 import platform.WebKit.WKUserScript
 import platform.WebKit.WKUserScriptInjectionTime
 import platform.WebKit.WKWebView
@@ -32,6 +35,9 @@ class WKWebViewEngine(
 
     private val navigationDelegate = NavigationDelegate(this)
 
+    // Strong refs: WKUserContentController holds message handlers weakly.
+    private val messageHandlers = mutableMapOf<String, ScriptMessageHandler>()
+
     val webView: WKWebView = WKWebView(
         frame = CGRectZero.readValue(),
         configuration = WKWebViewConfiguration().apply {
@@ -43,6 +49,8 @@ class WKWebViewEngine(
     ).apply {
         navigationDelegate = this@WKWebViewEngine.navigationDelegate
         allowsBackForwardNavigationGestures = true
+        // Our own long-press link menu replaces the native peek/preview.
+        allowsLinkPreview = false
     }
 
     override fun loadUrl(url: String) {
@@ -98,6 +106,16 @@ class WKWebViewEngine(
         )
     }
 
+    override fun addMessageHandler(name: String, handler: (String) -> Unit) {
+        // Re-registering the same name would raise; drop the previous one first.
+        if (messageHandlers.containsKey(name)) {
+            webView.configuration.userContentController.removeScriptMessageHandlerForName(name)
+        }
+        val messageHandler = ScriptMessageHandler(handler)
+        messageHandlers[name] = messageHandler
+        webView.configuration.userContentController.addScriptMessageHandler(messageHandler, name)
+    }
+
     override fun setUserAgent(userAgent: String?) {
         webView.customUserAgent = userAgent
     }
@@ -130,6 +148,10 @@ class WKWebViewEngine(
 
     override fun destroy() {
         webView.navigationDelegate = null
+        messageHandlers.keys.forEach {
+            webView.configuration.userContentController.removeScriptMessageHandlerForName(it)
+        }
+        messageHandlers.clear()
         webView.stopLoading()
         webView.removeFromSuperview()
     }
@@ -169,6 +191,20 @@ private class NavigationDelegate(
 
     override fun webView(webView: WKWebView, didFinishNavigation: WKNavigation?) {
         engine.notifyFinished()
+    }
+}
+
+// Routes window.webkit.messageHandlers.<name>.postMessage(payload) to Kotlin.
+// The body is an NSString for JSON payloads; toString() yields the raw JSON.
+private class ScriptMessageHandler(
+    private val callback: (String) -> Unit,
+) : NSObject(), WKScriptMessageHandlerProtocol {
+
+    override fun userContentController(
+        userContentController: WKUserContentController,
+        didReceiveScriptMessage: WKScriptMessage,
+    ) {
+        callback(didReceiveScriptMessage.body?.toString() ?: "")
     }
 }
 
