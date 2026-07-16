@@ -110,4 +110,18 @@ sealed class BrowserAction {
     object ToggleAudioOnlyMode : BrowserAction()
     object ShowSiteSettingsDialog : BrowserAction()
     object ShowUserScriptCommands : BrowserAction()
+
+    // iOS host additions. Android applies these via activity intents or
+    // SharedPreferences listeners; here they run through the one dispatcher so
+    // the CSS/engine re-apply lives in a single place.
+    object ToggleBoldFont : BrowserAction()
+    object ToggleBlackFont : BrowserAction()
+    object ToggleWhiteBackground : BrowserAction()
+    object ToggleDesktopMode : BrowserAction()
+    object ToggleIncognitoMode : BrowserAction()
+    object ShowToolbarConfigDialog : BrowserAction()
+    object ShowTtsSettingsDialog : BrowserAction()
+    object OpenSettings : BrowserAction()
+    object ShowHighlights : BrowserAction()
+    object OpenUserScriptManager : BrowserAction()
 }

@@ -42,10 +42,14 @@ import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.activity.HighlightsScreen
 import info.plateaukao.einkbro.activity.SavedPagesScreen
 import info.plateaukao.einkbro.activity.SettingsScreen
+import info.plateaukao.einkbro.activity.UserScriptListScreen
+import info.plateaukao.einkbro.browser.Assets
+import info.plateaukao.einkbro.browser.BrowserAction
 import info.plateaukao.einkbro.browser.WebViewHost
 import info.plateaukao.einkbro.catalog.DialogFrame
+import info.plateaukao.einkbro.database.Bookmark
+import info.plateaukao.einkbro.preference.ShareLongPressAction
 import info.plateaukao.einkbro.preference.TranslationMode
-import info.plateaukao.einkbro.preference.toggle
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.ic_highlight_color
 import info.plateaukao.einkbro.util.PlatformActions
@@ -56,21 +60,30 @@ import info.plateaukao.einkbro.view.dialog.compose.BookmarksDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.ContextMenuDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.ContextMenuItemType
 import info.plateaukao.einkbro.view.dialog.compose.FastToggleDialogContent
+import info.plateaukao.einkbro.view.dialog.compose.FontBoldnessContent
 import info.plateaukao.einkbro.view.dialog.compose.FontDialogContent
+import info.plateaukao.einkbro.view.dialog.compose.LanguageSettingDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.MenuDialogContent
-import info.plateaukao.einkbro.view.dialog.compose.MenuItemType
+import info.plateaukao.einkbro.view.dialog.compose.PageAiActionDialogContent
+import info.plateaukao.einkbro.view.dialog.compose.ReaderSettingsDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.SiteSettingsDialogContent
+import info.plateaukao.einkbro.view.dialog.compose.TocDialogContent
+import info.plateaukao.einkbro.view.dialog.compose.TocItem
+import info.plateaukao.einkbro.view.dialog.compose.ToolbarConfigDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.TouchAreaDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.TranslateDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.TranslationConfigDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.TtsSettingDialogContent
-import info.plateaukao.einkbro.view.toolbaricons.ToolbarAction
+import info.plateaukao.einkbro.view.handlers.MenuActionHandler
+import info.plateaukao.einkbro.view.handlers.ToolbarActionHandler
 import info.plateaukao.einkbro.view.toolbaricons.ToolbarActionInfo
 import info.plateaukao.einkbro.viewmodel.BrowserViewModel
 import info.plateaukao.einkbro.viewmodel.TRANSLATE_API
 import info.plateaukao.einkbro.viewmodel.TranslationViewModel
 import info.plateaukao.einkbro.viewmodel.TtsViewModel
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /**
  * Phase-1 browser: real WKWebView behind the ported EinkBro chrome.
@@ -82,7 +95,7 @@ fun BrowserScreen(
     onOpenCatalog: () -> Unit = {},
 ) {
     val config = AppServices.config
-    var showTabStrip by remember { mutableStateOf(false) }
+    var showTabStrip by remember { mutableStateOf(config.tab.shouldShowTabBar) }
     var showOverview by remember { mutableStateOf(false) }
     var overviewShowsHistory by remember { mutableStateOf(false) }
     var showUrlInput by remember { mutableStateOf(false) }
@@ -99,6 +112,14 @@ fun BrowserScreen(
     var showTranslateDialog by remember { mutableStateOf(false) }
     var translateDialogWholePage by remember { mutableStateOf(false) }
     var showTranslationConfig by remember { mutableStateOf(false) }
+    var showBoldnessDialog by remember { mutableStateOf(false) }
+    var showReaderSettings by remember { mutableStateOf(false) }
+    var showToolbarConfig by remember { mutableStateOf(false) }
+    var showPageAiActions by remember { mutableStateOf(false) }
+    var showUserScripts by remember { mutableStateOf(false) }
+    var languageConfigApi by remember { mutableStateOf<TRANSLATE_API?>(null) }
+    var tocItems by remember { mutableStateOf<List<TocItem>?>(null) }
+    var toolbarRefreshTick by remember { mutableStateOf(0) }
     var touchPagingEnabled by remember { mutableStateOf(config.touch.enableTouchTurn) }
     val scope = rememberCoroutineScope()
 
@@ -132,55 +153,6 @@ fun BrowserScreen(
     val engine = browserViewModel.currentEngine
     val helper = browserViewModel.currentHelper
     val progress by browserViewModel.progress
-
-    fun handleToolbarAction(action: ToolbarAction) {
-        when (action) {
-            ToolbarAction.Back -> if (engine?.canGoBack() == true) engine.goBack()
-            else browserViewModel.currentAlbum?.let { browserViewModel.closeTab(it) }
-
-            ToolbarAction.Forward -> engine?.goForward()
-            ToolbarAction.Refresh -> engine?.reload()
-            ToolbarAction.PageUp -> helper?.pageUp() ?: engine?.pageUp()
-            ToolbarAction.PageDown -> helper?.pageDown() ?: engine?.pageDown()
-            ToolbarAction.ReaderMode -> helper?.toggleReaderMode()
-            ToolbarAction.VerticalLayout -> helper?.toggleVerticalRead()
-            ToolbarAction.InvertColor -> helper?.toggleInvertColor()
-            ToolbarAction.BoldFont -> {
-                config.display.boldFontStyle = !config.display.boldFontStyle
-                helper?.updateCssStyle()
-            }
-            ToolbarAction.IncreaseFont -> {
-                config.display.fontSize = (config.display.fontSize + 20).coerceAtMost(300)
-                helper?.updateCssStyle()
-            }
-            ToolbarAction.DecreaseFont -> {
-                config.display.fontSize = (config.display.fontSize - 20).coerceAtLeast(50)
-                helper?.updateCssStyle()
-            }
-            ToolbarAction.Title, ToolbarAction.InputUrl -> showUrlInput = true
-            ToolbarAction.TabCount -> showOverview = !showOverview
-            ToolbarAction.NewTab -> browserViewModel.newTab(BrowserViewModel.DEFAULT_HOME)
-            ToolbarAction.CloseTab ->
-                browserViewModel.currentAlbum?.let { browserViewModel.closeTab(it) }
-
-            ToolbarAction.Bookmark -> showBookmarks = true
-            ToolbarAction.Settings -> showMenu = true
-            ToolbarAction.Font -> showFontDialog = true
-            ToolbarAction.Touch -> {
-                config.touch.enableTouchTurn = !touchPagingEnabled
-                touchPagingEnabled = !touchPagingEnabled
-                EBToast.show(
-                    AppServices.context,
-                    if (touchPagingEnabled) "Touch paging on" else "Touch paging off"
-                )
-            }
-
-            ToolbarAction.DuplicateTab ->
-                browserViewModel.newTab(browserViewModel.currentUrl.value)
-
-            else -> EBToast.show(AppServices.context, "${action.name}: later phase")
-        }
-    }
 
     /** Runs the chosen translation mode on the current page (Phase 6). */
     fun translateWithMode(mode: TranslationMode) {
@@ -223,55 +195,213 @@ fun BrowserScreen(
                     "&u=${browserViewModel.currentUrl.value}"
             )
 
-            // Google widget injection and Papago screen OCR: later phase.
-            TranslationMode.GOOGLE_IN_PLACE,
-            TranslationMode.PAPAGO_TRANSLATE_BY_SCREEN,
-            -> EBToast.show(AppServices.context, "${mode.name}: later phase")
+            // Google widget injection (Phase M) and Papago screen OCR (Phase M).
+            TranslationMode.GOOGLE_IN_PLACE ->
+                EBToast.show(AppServices.context, "Google in-place translate: coming in Phase M")
+            TranslationMode.PAPAGO_TRANSLATE_BY_SCREEN ->
+                EBToast.show(AppServices.context, "Papago screen translate: coming in Phase M")
         }
     }
 
-    fun handleMenuItem(item: MenuItemType) {
-        showMenu = false
-        when (item) {
-            MenuItemType.CloseTab ->
-                browserViewModel.currentAlbum?.let { browserViewModel.closeTab(it) }
+    fun comingSoon(feature: String, phase: Char) =
+        EBToast.show(AppServices.context, "$feature: coming in Phase $phase")
 
-            MenuItemType.OpenHome -> engine?.loadUrl(BrowserViewModel.DEFAULT_HOME)
-            MenuItemType.Settings -> showSettings = true
-            MenuItemType.QuickToggle -> showFastToggle = true
-            MenuItemType.SiteSettings -> showSiteSettings = true
-            MenuItemType.FontSize -> showFontDialog = true
-            MenuItemType.TouchSetting -> showTouchAreaDialog = true
-            MenuItemType.Highlights -> showHighlights = true
-            MenuItemType.Tts -> {
-                if (ttsViewModel.isReading()) {
-                    showTtsDialog = true
-                } else {
-                    helper?.getRawText { text ->
-                        if (text.isNotBlank()) {
-                            ttsViewModel.readArticle(text, browserViewModel.currentTitle.value)
-                        }
-                    }
-                    showTtsDialog = true
+    /** Paragraph-translate with an explicit provider (language-config dialog). */
+    fun translateByParagraphWith(api: TRANSLATE_API) {
+        browserViewModel.translationBridge.translateApi = api
+        browserViewModel.currentHelper?.translateByParagraph()
+    }
+
+    /** Extracts page headings and opens the TOC dialog (empty page → toast). */
+    fun showToc() {
+        val currentEngine = browserViewModel.currentEngine ?: return
+        currentEngine.evaluateJavascript(Assets.get("get_toc.js")) { result ->
+            val entries = result?.let {
+                runCatching { tocJson.decodeFromString<List<TocEntry>>(it) }.getOrNull()
+            }.orEmpty()
+            if (entries.isEmpty()) {
+                EBToast.show(AppServices.context, "No headings found on this page")
+            } else {
+                tocItems = entries.mapIndexed { index, entry ->
+                    TocItem(
+                        title = "    ".repeat((entry.level - 1).coerceIn(0, 3)) + entry.text,
+                        originalIndex = index,
+                    )
                 }
             }
+        }
+    }
 
-            MenuItemType.Translate -> {
-                if (helper?.isTranslateByParagraph == true) {
-                    helper.clearTranslationElements()
+    /**
+     * The single [BrowserAction] dispatcher — every input surface (toolbar
+     * click/long-press, menu, context menus, later gestures) funnels here.
+     * Mirrors Android's BrowserActivity.dispatch().
+     */
+    fun handleBrowserAction(action: BrowserAction) {
+        val currentEngine = browserViewModel.currentEngine
+        val currentHelper = browserViewModel.currentHelper
+        when (action) {
+            BrowserAction.Noop -> Unit
+
+            // Tab management
+            BrowserAction.NewATab ->
+                browserViewModel.newTab(config.favoriteUrl.ifBlank { BrowserViewModel.DEFAULT_HOME })
+            BrowserAction.DuplicateTab ->
+                browserViewModel.newTab(browserViewModel.currentUrl.value)
+            BrowserAction.RemoveAlbum ->
+                browserViewModel.currentAlbum?.let { browserViewModel.closeTab(it) } ?: Unit
+            BrowserAction.GotoLeftTab -> browserViewModel.gotoLeftTab()
+            BrowserAction.GotoRightTab -> browserViewModel.gotoRightTab()
+            is BrowserAction.AddNewTab -> browserViewModel.newTab(action.url)
+            is BrowserAction.UpdateAlbum ->
+                action.url?.takeIf { it.isNotBlank() }?.let { currentEngine?.loadUrl(it) } ?: Unit
+
+            // Navigation
+            BrowserAction.GoForward ->
+                if (currentEngine?.canGoForward() == true) currentEngine.goForward()
+                else EBToast.show(AppServices.context, "Can't go forward")
+            BrowserAction.HandleBackKey -> when {
+                showOverview -> showOverview = false
+                currentEngine?.canGoBack() == true -> currentEngine.goBack()
+                config.tab.closeTabWhenNoMoreBackHistory ->
+                    browserViewModel.currentAlbum?.let { browserViewModel.closeTab(it) } ?: Unit
+                else -> EBToast.show(AppServices.context, "No previous page")
+            }
+            BrowserAction.RefreshAction ->
+                if (browserViewModel.progress.value < 1f) currentEngine?.stopLoading()
+                else currentEngine?.reload()
+            BrowserAction.JumpToTop -> currentHelper?.jumpToTop() ?: currentEngine?.jumpToTop()
+            BrowserAction.JumpToBottom ->
+                currentHelper?.jumpToBottom() ?: currentEngine?.jumpToBottom()
+            BrowserAction.PageUp -> currentHelper?.pageUp() ?: currentEngine?.pageUp()
+            BrowserAction.PageDown -> currentHelper?.pageDown() ?: currentEngine?.pageDown()
+            BrowserAction.SendPageUpKey -> currentHelper?.pageUp() ?: currentEngine?.pageUp()
+            BrowserAction.SendPageDownKey ->
+                currentHelper?.pageDown() ?: currentEngine?.pageDown()
+            BrowserAction.SendLeftKey -> comingSoon("Arrow-key paging", 'F')
+            BrowserAction.SendRightKey -> comingSoon("Arrow-key paging", 'F')
+
+            // Content
+            BrowserAction.ToggleReaderMode -> currentHelper?.toggleReaderMode() ?: Unit
+            BrowserAction.ToggleVerticalRead -> currentHelper?.toggleVerticalRead() ?: Unit
+            BrowserAction.IncreaseFontSize -> {
+                config.display.fontSize = (config.display.fontSize + 20).coerceAtMost(300)
+                currentHelper?.updateCssStyle()
+            }
+            BrowserAction.DecreaseFontSize -> {
+                config.display.fontSize = (config.display.fontSize - 20).coerceAtLeast(50)
+                currentHelper?.updateCssStyle()
+            }
+            BrowserAction.ShowFontSizeChangeDialog -> showFontDialog = true
+            BrowserAction.ShowFontBoldnessDialog -> showBoldnessDialog = true
+            BrowserAction.ShowReaderSettingsDialog -> showReaderSettings = true
+            BrowserAction.InvertColors -> currentHelper?.toggleInvertColor() ?: Unit
+
+            // View state
+            BrowserAction.ShowOverview -> {
+                overviewShowsHistory = false
+                showOverview = !showOverview
+            }
+            BrowserAction.ToggleFullscreen -> comingSoon("Fullscreen", 'D')
+            is BrowserAction.ToggleSplitScreen -> comingSoon("Split screen", 'G')
+
+            // Translation
+            BrowserAction.ShowTranslation -> {
+                if (currentHelper?.isTranslateByParagraph == true) {
+                    currentHelper.clearTranslationElements()
                     EBToast.show(AppServices.context, "Translation cleared")
                 } else {
                     showTranslationConfig = true
                 }
             }
+            is BrowserAction.ShowTranslationConfigDialog -> showTranslationConfig = true
+            is BrowserAction.Translate -> translateWithMode(action.mode)
+            is BrowserAction.ConfigureTranslationLanguage -> languageConfigApi = action.api
 
-            MenuItemType.PageAiActions -> {
+            // TTS
+            BrowserAction.HandleTtsButton -> {
+                if (!ttsViewModel.isReading()) {
+                    currentHelper?.getRawText { text ->
+                        if (text.isNotBlank()) {
+                            ttsViewModel.readArticle(text, browserViewModel.currentTitle.value)
+                        }
+                    }
+                }
+                showTtsDialog = true
+            }
+            BrowserAction.ShowTtsSettingsDialog -> showTtsDialog = true
+
+            // Bookmarks / History
+            BrowserAction.OpenBookmarkPage -> showBookmarks = true
+            is BrowserAction.OpenHistoryPage -> {
+                overviewShowsHistory = true
+                showOverview = true
+            }
+            is BrowserAction.SaveBookmark -> {
+                val url = action.url ?: browserViewModel.currentUrl.value
+                val title = (action.title ?: browserViewModel.currentTitle.value).ifBlank { url }
+                if (url.isNotBlank()) {
+                    scope.launch {
+                        AppServices.bookmarkManager.insert(Bookmark(title = title, url = url))
+                        EBToast.show(AppServices.context, "Bookmark saved")
+                    }
+                }
+                Unit
+            }
+
+            // Search / remote (Phases E and J)
+            BrowserAction.ShowSearchPanel -> comingSoon("Find on page", 'E')
+            BrowserAction.ToggleTextSearch -> comingSoon("Remote text search", 'J')
+            BrowserAction.ToggleReceiveTextSearch -> comingSoon("Remote text search", 'J')
+
+            // Share
+            BrowserAction.CreateShortcut ->
+                EBToast.show(AppServices.context, "iOS apps can't add home-screen shortcuts")
+            BrowserAction.ShareLink -> PlatformActions.share(browserViewModel.currentUrl.value)
+            BrowserAction.ShareLinkToLastTarget ->
+                EBToast.show(AppServices.context, "iOS share sheet has no last-target shortcut")
+            BrowserAction.ShareLinkLongPress -> when (config.browser.shareLongPressAction) {
+                ShareLongPressAction.COPY_LINK -> {
+                    PlatformActions.copyToClipboard(
+                        stripUrlQuery(browserViewModel.currentUrl.value)
+                    )
+                    EBToast.show(AppServices.context, "Link copied")
+                }
+                ShareLongPressAction.LAST_SHARE_TARGET ->
+                    EBToast.show(AppServices.context, "iOS share sheet has no last-target shortcut")
+            }
+            is BrowserAction.SendToRemote -> comingSoon("LAN link sharing", 'J')
+            BrowserAction.AddToInstapaper -> comingSoon("Instapaper", 'J')
+            BrowserAction.ConfigureInstapaper -> comingSoon("Instapaper", 'J')
+            BrowserAction.ToggleReceiveLink -> comingSoon("LAN link sharing", 'J')
+
+            // Touch config
+            BrowserAction.ToggleTouchTurnPage, BrowserAction.ToggleTouchPagination -> {
+                config.touch.enableTouchTurn = !touchPagingEnabled
+                touchPagingEnabled = !touchPagingEnabled
+                EBToast.show(
+                    AppServices.context,
+                    if (touchPagingEnabled) "Touch paging on" else "Touch paging off"
+                )
+            }
+            BrowserAction.ToggleSwitchTouchAreaAction -> {
+                config.touch.switchTouchAreaAction = !config.touch.switchTouchAreaAction
+                EBToast.show(
+                    AppServices.context,
+                    if (config.touch.switchTouchAreaAction) "Touch areas switched"
+                    else "Touch areas restored"
+                )
+            }
+            BrowserAction.ShowTouchAreaDialog -> showTouchAreaDialog = true
+
+            // AI
+            BrowserAction.SummarizeContent -> {
                 if (!translationViewModel.hasOpenAiApiKey() &&
                     config.ai.geminiApiKey.isBlank() && !config.ai.useCustomGptUrl
                 ) {
                     EBToast.show(AppServices.context, "Set an AI API key in Settings first")
                 } else {
-                    helper?.getRawText { text ->
+                    currentHelper?.getRawText { text ->
                         if (text.isNotBlank()) {
                             translationViewModel.url = browserViewModel.currentUrl.value
                             translationViewModel.pageTitle = browserViewModel.currentTitle.value
@@ -279,46 +409,26 @@ fun BrowserScreen(
                             translateDialogWholePage = true
                             showTranslateDialog = true
                         }
-                    }
+                    } ?: Unit
                 }
             }
-
-            MenuItemType.ReaderMode -> helper?.toggleReaderMode()
-            MenuItemType.VerticalRead -> helper?.toggleVerticalRead()
-            MenuItemType.InvertColor -> helper?.toggleInvertColor()
-            MenuItemType.AudioOnly -> helper?.toggleAudioOnly()
-            MenuItemType.BoldFont -> {
-                config.display.boldFontStyle = !config.display.boldFontStyle
-                helper?.updateCssStyle()
-            }
-            MenuItemType.BlackFont -> {
-                config.display.blackFontStyle = !config.display.blackFontStyle
-                helper?.updateCssStyle()
-            }
-            MenuItemType.WhiteBknd -> {
-                config.toggleWhiteBackground(browserViewModel.currentUrl.value)
-                helper?.updateCssStyle()
-            }
-            MenuItemType.SaveBookmark -> {
-                val album = browserViewModel.currentAlbum ?: return
-                val title = album.albumTitle
-                val url = browserViewModel.currentUrl.value
-                scope.launch {
-                    AppServices.bookmarkManager.insert(
-                        info.plateaukao.einkbro.database.Bookmark(title = title, url = url)
-                    )
-                    EBToast.show(AppServices.context, "Bookmark saved")
+            is BrowserAction.ChatWithWeb -> comingSoon("Chat with web", 'K')
+            BrowserAction.ShowPageAiActionMenu -> {
+                if (!translationViewModel.hasOpenAiApiKey() &&
+                    config.ai.geminiApiKey.isBlank() && !config.ai.useCustomGptUrl
+                ) {
+                    EBToast.show(AppServices.context, "Set an AI API key in Settings first")
+                } else {
+                    showPageAiActions = true
                 }
             }
+            BrowserAction.ShowTaskMenu -> comingSoon("Task runner", 'K')
+            is BrowserAction.RunTask -> comingSoon("Task runner", 'K')
+            is BrowserAction.RunCustomTask -> comingSoon("Task runner", 'K')
 
-            MenuItemType.SavePdf -> {
-                EBToast.show(AppServices.context, "Saving PDF…")
-                browserViewModel.saveAsPdf { ok ->
-                    if (!ok) EBToast.show(AppServices.context, "Couldn't save PDF")
-                }
-            }
-
-            MenuItemType.SaveArchive, MenuItemType.SaveMht -> {
+            // File
+            BrowserAction.ShowEpubDialog -> comingSoon("EPUB export", 'I')
+            BrowserAction.SavePageForLater, BrowserAction.SaveWebArchive -> {
                 EBToast.show(AppServices.context, "Saving page…")
                 browserViewModel.saveWebArchive { ok ->
                     EBToast.show(
@@ -327,13 +437,67 @@ fun BrowserScreen(
                     )
                 }
             }
+            BrowserAction.ShowSavedPages -> showSavedPages = true
+            BrowserAction.SavePdf -> {
+                EBToast.show(AppServices.context, "Saving PDF…")
+                browserViewModel.saveAsPdf { ok ->
+                    if (!ok) EBToast.show(AppServices.context, "Couldn't save PDF")
+                }
+            }
 
-            MenuItemType.Download -> showSavedPages = true
+            // Dialog / UI
+            BrowserAction.FocusOnInput -> showUrlInput = true
+            BrowserAction.ShowMenuDialog -> showMenu = true
+            BrowserAction.ShowFastToggleDialog -> showFastToggle = true
+            BrowserAction.ShowTocDialog -> showToc()
+            BrowserAction.RotateScreen -> comingSoon("Rotate screen", 'D')
+            BrowserAction.ToggleAudioOnlyMode -> currentHelper?.toggleAudioOnly() ?: Unit
+            BrowserAction.ShowSiteSettingsDialog -> showSiteSettings = true
+            BrowserAction.ShowUserScriptCommands -> showUserScripts = true
 
-            MenuItemType.Quit -> onOpenCatalog()
-            else -> EBToast.show(AppServices.context, "${item.name}: later phase")
+            // iOS host additions
+            BrowserAction.ToggleBoldFont -> {
+                config.display.boldFontStyle = !config.display.boldFontStyle
+                currentHelper?.updateCssStyle()
+            }
+            BrowserAction.ToggleBlackFont -> {
+                config.display.blackFontStyle = !config.display.blackFontStyle
+                currentHelper?.updateCssStyle()
+            }
+            BrowserAction.ToggleWhiteBackground -> {
+                config.toggleWhiteBackground(browserViewModel.currentUrl.value)
+                currentHelper?.updateCssStyle()
+            }
+            BrowserAction.ToggleDesktopMode -> {
+                config.browser.desktop = !config.browser.desktop
+                browserViewModel.reapplyWebConfig()
+                currentEngine?.reload()
+                EBToast.show(
+                    AppServices.context,
+                    if (config.browser.desktop) "Desktop mode on" else "Desktop mode off"
+                )
+            }
+            BrowserAction.ToggleIncognitoMode -> {
+                config.isIncognitoMode = !config.isIncognitoMode
+                EBToast.show(
+                    AppServices.context,
+                    if (config.isIncognitoMode) "Incognito on for new tabs"
+                    else "Incognito off"
+                )
+            }
+            BrowserAction.ShowToolbarConfigDialog -> showToolbarConfig = true
+            BrowserAction.OpenSettings -> showSettings = true
+            BrowserAction.ShowHighlights -> showHighlights = true
+            BrowserAction.OpenUserScriptManager -> showUserScripts = true
         }
     }
+
+    val toolbarActionHandler = ToolbarActionHandler { handleBrowserAction(it) }
+    val menuActionHandler = MenuActionHandler(
+        dispatch = { handleBrowserAction(it) },
+        currentUrl = { browserViewModel.currentUrl.value },
+        quit = onOpenCatalog,
+    )
 
     fun handleContextMenuItem(item: ContextMenuItemType, url: String) {
         when (item) {
@@ -343,7 +507,28 @@ fun BrowserScreen(
 
             ContextMenuItemType.ShareLink -> PlatformActions.share(url)
             ContextMenuItemType.OpenWith -> PlatformActions.openUrl(url)
-            else -> EBToast.show(AppServices.context, "${item.name}: later phase")
+            ContextMenuItemType.SaveBookmark ->
+                handleBrowserAction(BrowserAction.SaveBookmark(url = url, title = url))
+            ContextMenuItemType.GotoLink -> browserViewModel.currentEngine?.loadUrl(url)
+            ContextMenuItemType.SplitScreen -> comingSoon("Split screen", 'G')
+            ContextMenuItemType.Summarize -> comingSoon("Link summarize", 'K')
+            ContextMenuItemType.Tts -> comingSoon("Read link aloud", 'K')
+            ContextMenuItemType.SaveAs -> comingSoon("Downloads", 'B')
+            ContextMenuItemType.TranslateImage -> comingSoon("Image translation", 'M')
+            ContextMenuItemType.SelectText ->
+                EBToast.show(AppServices.context, "Long-press the text itself to select on iOS")
+            else -> Unit
+        }
+    }
+
+    fun handleContextMenuLongClick(item: ContextMenuItemType, url: String) {
+        when (item) {
+            ContextMenuItemType.ShareLink -> {
+                PlatformActions.copyToClipboard(stripUrlQuery(url))
+                EBToast.show(AppServices.context, "Link copied")
+            }
+            ContextMenuItemType.TranslateImage -> comingSoon("Image translation", 'M')
+            else -> Unit
         }
     }
 
@@ -509,20 +694,16 @@ fun BrowserScreen(
 
         ComposedToolbar(
             showTabs = showTabStrip,
-            toolbarActionInfos = config.ui.toolbarActions.map { ToolbarActionInfo(it, false) },
+            toolbarActionInfos = remember(toolbarRefreshTick) {
+                config.ui.toolbarActions.map { ToolbarActionInfo(it, false) }
+            },
             title = browserViewModel.currentTitle.value
                 .ifBlank { browserViewModel.currentUrl.value },
             tabCount = browserViewModel.albums.value.size.toString(),
             pageInfo = "",
             isIncognito = browserViewModel.currentAlbum?.incognito == true,
-            onIconClick = { handleToolbarAction(it) },
-            onIconLongClick = {
-                when (it) {
-                    ToolbarAction.Touch -> showTouchAreaDialog = true
-                    ToolbarAction.TabCount -> showTabStrip = !showTabStrip
-                    else -> {}
-                }
-            },
+            onIconClick = { toolbarActionHandler.handleClick(it) },
+            onIconLongClick = { toolbarActionHandler.handleLongClick(it) },
             albumList = browserViewModel.albums,
             albumFocusIndex = browserViewModel.focusIndex,
             onAlbumClick = { browserViewModel.switchTab(it) },
@@ -535,7 +716,8 @@ fun BrowserScreen(
             Surface(color = MaterialTheme.colors.background) {
                 MenuDialogContent(
                     url = browserViewModel.currentUrl.value,
-                    itemClicked = { handleMenuItem(it) },
+                    itemClicked = { menuActionHandler.handle(it) },
+                    itemLongClicked = { menuActionHandler.handleLongClick(it) },
                     onDismiss = { showMenu = false },
                 )
             }
@@ -548,6 +730,11 @@ fun BrowserScreen(
                     gotoUrlAction = {
                         browserViewModel.loadUrlOrSearch(it); showBookmarks = false
                     },
+                    bookmarkIconClickAction = { title, url, isForeground ->
+                        browserViewModel.newTab(url, activate = isForeground, title = title)
+                        if (isForeground) showBookmarks = false
+                    },
+                    splitScreenAction = { comingSoon("Split screen", 'G') },
                     closeAction = { showBookmarks = false },
                 )
             }
@@ -555,7 +742,10 @@ fun BrowserScreen(
     }
     if (showFontDialog) {
         Dialog(onDismissRequest = { showFontDialog = false }) {
-            DialogFrame {
+            DialogFrame(onDismiss = {
+                showFontDialog = false
+                helper?.updateCssStyle()
+            }) {
                 FontDialogContent(
                     onFontTypeChanged = { helper?.updateCssStyle() },
                     onDismiss = {
@@ -567,11 +757,13 @@ fun BrowserScreen(
         }
     }
     if (showFastToggle) {
-        Dialog(onDismissRequest = {
+        val dismissFastToggle: () -> Unit = {
             showFastToggle = false
+            // Adblock/JS/cookie/incognito toggles take effect on live tabs.
             browserViewModel.reapplyWebConfig()
-        }) {
-            DialogFrame {
+        }
+        Dialog(onDismissRequest = dismissFastToggle) {
+            DialogFrame(onDismiss = dismissFastToggle) {
                 FastToggleDialogContent(onDismiss = {
                     showFastToggle = false
                     // Adblock/JS/cookie/incognito toggles take effect on live tabs.
@@ -581,11 +773,13 @@ fun BrowserScreen(
         }
     }
     if (showSiteSettings) {
-        Dialog(onDismissRequest = {
+        val dismissSiteSettings: () -> Unit = {
             showSiteSettings = false
+            // Per-site JS/adblock/UA overrides apply to future loads.
             browserViewModel.reapplyWebConfig()
-        }) {
-            DialogFrame {
+        }
+        Dialog(onDismissRequest = dismissSiteSettings) {
+            DialogFrame(onDismiss = dismissSiteSettings) {
                 SiteSettingsDialogContent(
                     url = browserViewModel.currentUrl.value,
                     onDismiss = {
@@ -598,8 +792,12 @@ fun BrowserScreen(
         }
     }
     if (showTouchAreaDialog) {
-        Dialog(onDismissRequest = { showTouchAreaDialog = false }) {
-            DialogFrame {
+        val dismissTouchArea: () -> Unit = {
+            showTouchAreaDialog = false
+            touchPagingEnabled = config.touch.enableTouchTurn
+        }
+        Dialog(onDismissRequest = dismissTouchArea) {
+            DialogFrame(onDismiss = dismissTouchArea) {
                 TouchAreaDialogContent(onDismiss = {
                     showTouchAreaDialog = false
                     touchPagingEnabled = config.touch.enableTouchTurn
@@ -628,6 +826,7 @@ fun BrowserScreen(
                     shouldShowAdBlock = false,
                     shouldShowTranslateImage = false,
                     itemClicked = { handleContextMenuItem(it, link) },
+                    itemLongClicked = { handleContextMenuLongClick(it, link) },
                     onDismiss = dismiss,
                 )
             }
@@ -654,7 +853,7 @@ fun BrowserScreen(
 
     if (showTtsDialog) {
         Dialog(onDismissRequest = { showTtsDialog = false }) {
-            DialogFrame {
+            DialogFrame(onDismiss = { showTtsDialog = false }) {
                 TtsSettingDialogContent(
                     ttsViewModel = ttsViewModel,
                     onDismiss = { showTtsDialog = false },
@@ -665,7 +864,7 @@ fun BrowserScreen(
 
     if (showTranslateDialog) {
         Dialog(onDismissRequest = { showTranslateDialog = false }) {
-            DialogFrame {
+            DialogFrame(onDismiss = { showTranslateDialog = false }) {
                 TranslateDialogContent(
                     translationViewModel = translationViewModel,
                     isWholePageMode = translateDialogWholePage,
@@ -677,7 +876,7 @@ fun BrowserScreen(
 
     if (showTranslationConfig) {
         Dialog(onDismissRequest = { showTranslationConfig = false }) {
-            DialogFrame {
+            DialogFrame(onDismiss = { showTranslationConfig = false }) {
                 TranslationConfigDialogContent(
                     url = browserViewModel.currentUrl.value,
                     translateDirectly = true,
@@ -695,4 +894,121 @@ fun BrowserScreen(
             }
         }
     }
+
+    if (showBoldnessDialog) {
+        Dialog(onDismissRequest = { showBoldnessDialog = false }) {
+            Surface(color = MaterialTheme.colors.background) {
+                FontBoldnessContent(
+                    fontBoldness = config.display.fontBoldness,
+                    onFontBoldnessChanged = {
+                        config.display.fontBoldness = it
+                        helper?.updateCssStyle()
+                    },
+                )
+            }
+        }
+    }
+
+    if (showReaderSettings) {
+        Dialog(onDismissRequest = { showReaderSettings = false }) {
+            Surface(color = MaterialTheme.colors.background) {
+                ReaderSettingsDialogContent(
+                    onSettingChanged = { helper?.updateReaderSettingsStyle() },
+                    onKeepExtraContentChanged = { /* applies on next reader-mode entry */ },
+                    onFontConfigClick = { showFontDialog = true },
+                    onDismiss = { showReaderSettings = false },
+                )
+            }
+        }
+    }
+
+    if (showToolbarConfig) {
+        val dismissToolbarConfig: () -> Unit = {
+            showToolbarConfig = false
+            // toolbarActions isn't observable state; poke the toolbar to re-read it.
+            toolbarRefreshTick += 1
+        }
+        Dialog(onDismissRequest = dismissToolbarConfig) {
+            Surface(color = MaterialTheme.colors.background) {
+                ToolbarConfigDialogContent(onDismiss = dismissToolbarConfig)
+            }
+        }
+    }
+
+    if (showPageAiActions) {
+        Dialog(onDismissRequest = { showPageAiActions = false }) {
+            Surface(color = MaterialTheme.colors.background) {
+                PageAiActionDialogContent(
+                    actions = config.ai.gptActionList,
+                    onActionClicked = { gptAction ->
+                        showPageAiActions = false
+                        helper?.getRawText { text ->
+                            if (text.isNotBlank()) {
+                                translationViewModel.url = browserViewModel.currentUrl.value
+                                translationViewModel.pageTitle =
+                                    browserViewModel.currentTitle.value
+                                translationViewModel.updateInputMessage(text)
+                                translationViewModel.setupGptAction(gptAction)
+                                translateDialogWholePage = true
+                                showTranslateDialog = true
+                            }
+                        }
+                    },
+                    onChatWithWebClicked = { comingSoon("Chat with web", 'K') },
+                    onChatWithWebLongClicked = { comingSoon("Chat with web", 'K') },
+                    onTaskRunnerClicked = { comingSoon("Task runner", 'K') },
+                    onDismiss = { showPageAiActions = false },
+                )
+            }
+        }
+    }
+
+    languageConfigApi?.let { api ->
+        Dialog(onDismissRequest = { languageConfigApi = null }) {
+            Surface(color = MaterialTheme.colors.background) {
+                LanguageSettingDialogContent(
+                    translateApi = api,
+                    translationViewModel = translationViewModel,
+                    translate = {
+                        languageConfigApi = null
+                        translateByParagraphWith(api)
+                    },
+                    onDismiss = { languageConfigApi = null },
+                )
+            }
+        }
+    }
+
+    tocItems?.let { chapters ->
+        Dialog(onDismissRequest = { tocItems = null }) {
+            Surface(color = MaterialTheme.colors.background) {
+                TocDialogContent(
+                    chapters = chapters,
+                    isEditable = false,
+                    onNavigate = { index ->
+                        browserViewModel.currentEngine?.evaluateJavascript(
+                            Assets.get("goto_toc.js").replace("__INDEX__", index.toString())
+                        )
+                        tocItems = null
+                    },
+                    onDismiss = { tocItems = null },
+                )
+            }
+        }
+    }
+
+    if (showUserScripts) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            UserScriptListScreen(onClose = { showUserScripts = false })
+        }
+    }
 }
+
+/** Drops the query string and fragment (Android BrowserUnit.stripUrlQuery). */
+private fun stripUrlQuery(url: String): String =
+    url.substringBefore('?').substringBefore('#')
+
+private val tocJson = Json { ignoreUnknownKeys = true }
+
+@Serializable
+private data class TocEntry(val level: Int = 1, val text: String = "")

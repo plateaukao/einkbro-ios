@@ -1,6 +1,8 @@
 package info.plateaukao.einkbro.catalog
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -11,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -38,8 +41,20 @@ import info.plateaukao.einkbro.view.dialog.compose.TtsSettingDialogContent
  * inset, rounded corner, thin border (background_with_border_margin.xml).
  */
 @Composable
-fun DialogFrame(content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+fun DialogFrame(onDismiss: (() -> Unit)? = null, content: @Composable () -> Unit) {
+    // The Box fills the dialog window, so taps "outside" the card land here,
+    // not on the window scrim; forward them to [onDismiss]. Taps on the card
+    // itself are blocked by the Surface's own pointer handling.
+    val dismissModifier = if (onDismiss != null) {
+        Modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+        ) { onDismiss() }
+    } else Modifier
+    Box(
+        Modifier.fillMaxSize().then(dismissModifier).padding(16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
         Surface(
             modifier = Modifier
                 .wrapContentSize()

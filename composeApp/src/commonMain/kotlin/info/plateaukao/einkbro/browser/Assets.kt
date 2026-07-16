@@ -59,5 +59,8 @@ object Assets {
         "text_node_monitor.js",
         "clear_translation_elements.js",
         "get_raw_text.js",
+        // Table of contents (Phase A): heading extraction + jump.
+        "get_toc.js",
+        "goto_toc.js",
     )
 }

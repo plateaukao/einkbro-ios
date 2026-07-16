@@ -255,6 +255,22 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         }
     }
 
+    /** Cycles to the previous tab (wraps, like Android's gotoLeftTab). */
+    fun gotoLeftTab() {
+        val list = albums.value
+        if (list.size < 2) return
+        val i = focusIndex.value - 1
+        switchTab(list[if (i < 0) list.lastIndex else i])
+    }
+
+    /** Cycles to the next tab (wraps). */
+    fun gotoRightTab() {
+        val list = albums.value
+        if (list.size < 2) return
+        val i = focusIndex.value + 1
+        switchTab(list[if (i > list.lastIndex) 0 else i])
+    }
+
     fun closeTab(album: Album) {
         val list = albums.value.toMutableList()
         val index = list.indexOfFirst { it.id == album.id }
