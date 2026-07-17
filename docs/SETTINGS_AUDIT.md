@@ -15,6 +15,9 @@ after the same-day fix round. Use this as the work-list for closing the rest.
 | Show history thumbnail grid (Appearance) | pref now passed to AutoCompleteTextField |
 | Save-Data header (Start) | header sent on main-document requests |
 | Show tab bar (Toolbar) | live pref listener (earlier same day) |
+| `saveHistoryMode` SAVE_WHEN_CLOSE | history record deferred until tab close (BrowserViewModel) |
+| Live UI pref reaction | listener now recomposes on toolbar/statusbar/FAB/hide-statusbar key changes |
+| Selection-menu GPT actions | gptActionList items appended to the text-selection menu (Android ActionModeMenuViewModel parity) |
 | Shortcut menu item | removed (§7 impossible) |
 | Quit menu item + UI catalog entry | removed (§7); catalog unreachable |
 
@@ -22,10 +25,10 @@ after the same-day fix round. Use this as the work-list for closing the rest.
 
 - **`enableSearchSuggestion`** — no network suggestion pipeline; autocomplete is
   local-only. Port SearchSuggestionViewModel's engine-suggestion fetch.
-- **`saveHistoryMode` SAVE_WHEN_CLOSE** — iOS saves on page-finish for both
-  open/close modes; defer-until-tab-close not implemented (BrowserViewModel:654).
-- **`remoteQueryActionName`** — selection-menu remote query should pick the GPT
-  action by this name (Android ActionModeDelegate:204); iOS ignores it.
+- **`remoteQueryActionName`** — Android uses it to pick which GPT action the
+  dedicated remote-query gesture runs (ActionModeDelegate:204); iOS now lists
+  all GPT actions in the selection menu but has no dedicated remote-query
+  entry point (tied to the unported dict/split-search flow).
 - **App locale picker (`uiLocaleLanguage`)** — toast stub; no iOS read-site.
 - **Hide menu items editor** — prefs are honored by MenuDialog but the editor
   screen isn't built (toast).
@@ -46,12 +49,10 @@ after the same-day fix round. Use this as the work-list for closing the rest.
 - **PDF paper size**, **Dual caption** (Misc) — toast stubs (Phases I/L-M).
 - **`externalSearchWithGpt`**, **`externalSearchWithPopUp`**, **`processTextUrl`**,
   **`isExternalSearchInSameTab`** — Android dict/PROCESS_TEXT flows not ported.
-- **Live reaction** — Android's BrowserActivity pref-listener block reacts live
-  to ~15 keys; iOS only to `K_SHOW_TAB_BAR`. Others apply on recomposition or
-  next navigation (`reapplyWebConfig` runs per-nav and from fast-toggle only).
-  Candidates for the listener: statusbar enabled/position/items, hideStatusbar,
-  toolbarPosition, videoAutoplay (reload), pullToRefresh (re-wire control),
-  custom UA (reload), darkMode.
+- **Live reaction (web keys)** — layout keys are now live (see fixed table);
+  still applying only on next navigation instead of an immediate reload like
+  Android: videoAutoplay, custom UA, darkMode. pullToRefresh needs re-wiring
+  the UIRefreshControl on existing engines.
 
 ## N/A on iOS (documented, PARITY_PLAN §7)
 

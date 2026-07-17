@@ -44,6 +44,9 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     // Parity Phase B: engine-delegate requests that need host UI. Each is a
     // one-shot responder; BrowserScreen renders a dialog while non-null.
+    // SAVE_WHEN_CLOSE history mode: album id → (title, url) of its last page.
+    private val pendingCloseHistory = mutableMapOf<Int, Pair<String, String>>()
+
     val pendingAuthRequest = mutableStateOf<info.plateaukao.einkbro.browser.AuthRequest?>(null)
     val pendingSslError = mutableStateOf<info.plateaukao.einkbro.browser.SslErrorRequest?>(null)
     val pendingJsDialog = mutableStateOf<info.plateaukao.einkbro.browser.JsDialogRequest?>(null)
@@ -483,6 +486,16 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         val list = albums.value.toMutableList()
         val index = list.indexOfFirst { it.id == album.id }
         if (index < 0) return
+        // SAVE_WHEN_CLOSE: the deferred history record is written now.
+        pendingCloseHistory.remove(album.id)?.let { (title, url) ->
+            viewModelScope.launch {
+                historyDao.deleteByUrl(url)
+                historyDao.insert(
+                    HistoryRecord(TITLE = title, URL = url, TIME = System.currentTimeMillis())
+                )
+                reloadRecords()
+            }
+        }
         engines.remove(album.id)?.destroy()
         helpers.remove(album.id)
         pendingLoads.remove(album.id)
@@ -652,6 +665,12 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         // Incognito (per-tab or global) leaves no history trace.
         if (engine.incognito || config.isIncognitoMode) return
         if (config.tab.saveHistoryMode == SaveHistoryMode.DISABLED) return
+        if (config.tab.saveHistoryMode == SaveHistoryMode.SAVE_WHEN_CLOSE) {
+            // Android TabManager defers the record until the tab closes; only
+            // the tab's final page is kept.
+            pendingCloseHistory[engine.album.id] = (title.ifBlank { url }) to url
+            return
+        }
         viewModelScope.launch {
             historyDao.deleteByUrl(url)
             historyDao.insert(

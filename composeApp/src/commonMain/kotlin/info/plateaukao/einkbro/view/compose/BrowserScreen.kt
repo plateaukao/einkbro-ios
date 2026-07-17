@@ -65,6 +65,7 @@ import info.plateaukao.einkbro.database.Bookmark
 import info.plateaukao.einkbro.preference.ShareLongPressAction
 import info.plateaukao.einkbro.preference.TranslationMode
 import info.plateaukao.einkbro.resources.Res
+import info.plateaukao.einkbro.resources.ic_chat_gpt
 import info.plateaukao.einkbro.resources.ic_highlight_color
 import info.plateaukao.einkbro.util.PlatformActions
 import info.plateaukao.einkbro.view.EBToast
@@ -111,17 +112,6 @@ fun BrowserScreen(
 ) {
     val config = AppServices.config
     var showTabStrip by remember { mutableStateOf(config.tab.shouldShowTabBar) }
-    // Android reacts to K_SHOW_TAB_BAR in BrowserActivity's pref listener; the
-    // Compose port needs the same so the Toolbar-settings toggle applies live.
-    DisposableEffect(Unit) {
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == info.plateaukao.einkbro.preference.TabConfig.K_SHOW_TAB_BAR) {
-                showTabStrip = config.tab.shouldShowTabBar
-            }
-        }
-        config.registerOnSharedPreferenceChangeListener(listener)
-        onDispose { config.unregisterOnSharedPreferenceChangeListener(listener) }
-    }
     var showOverview by remember { mutableStateOf(false) }
     var overviewShowsHistory by remember { mutableStateOf(false) }
     var showUrlInput by remember { mutableStateOf(false) }
@@ -165,6 +155,34 @@ fun BrowserScreen(
     var languageConfigApi by remember { mutableStateOf<TRANSLATE_API?>(null) }
     var tocItems by remember { mutableStateOf<List<TocItem>?>(null) }
     var toolbarRefreshTick by remember { mutableStateOf(0) }
+
+    // Mirror of Android BrowserActivity's onSharedPreferenceChanged block: UI
+    // prefs apply live. Layout prefs bump the tick, which recomposes the screen
+    // so composition-time config reads (statusbar, toolbar position/icons, FAB)
+    // refresh without a restart.
+    DisposableEffect(Unit) {
+        val uiKeys = setOf(
+            info.plateaukao.einkbro.preference.UiConfig.K_TOOLBAR_POSITION,
+            info.plateaukao.einkbro.preference.UiConfig.K_TOOLBAR_TOP,
+            info.plateaukao.einkbro.preference.UiConfig.K_HIDE_STATUSBAR,
+            info.plateaukao.einkbro.preference.UiConfig.K_STATUSBAR_ENABLED,
+            info.plateaukao.einkbro.preference.UiConfig.K_STATUSBAR_POSITION,
+            info.plateaukao.einkbro.preference.UiConfig.K_STATUSBAR_ITEMS,
+            info.plateaukao.einkbro.preference.UiConfig.K_TOOLBAR_ICONS,
+            info.plateaukao.einkbro.preference.UiConfig.K_FAB_POSITION,
+            info.plateaukao.einkbro.preference.UiConfig.K_NAV_POSITION,
+        )
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            when (key) {
+                info.plateaukao.einkbro.preference.TabConfig.K_SHOW_TAB_BAR ->
+                    showTabStrip = config.tab.shouldShowTabBar
+                in uiKeys -> toolbarRefreshTick += 1
+                else -> Unit
+            }
+        }
+        config.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { config.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     var isFullscreen by remember { mutableStateOf(false) }
     var showSearchBar by remember { mutableStateOf(false) }
     var searchResultInfo by remember { mutableStateOf("") }
@@ -917,7 +935,23 @@ fun BrowserScreen(
                             MenuInfo("Share", imageVector = Icons.Outlined.Share, action = {
                                 PlatformActions.share(selection.text)
                             }),
-                        )
+                        ) + config.ai.gptActionList.map { gptAction ->
+                            // Android's ActionModeMenuViewModel appends the GPT
+                            // actions to the selection menu.
+                            MenuInfo(
+                                gptAction.name,
+                                drawable = Res.drawable.ic_chat_gpt,
+                                action = {
+                                    translationViewModel.url =
+                                        browserViewModel.currentUrl.value
+                                    translationViewModel.updateInputMessage(selection.text)
+                                    translationViewModel.updateMessageWithContext(selection.text)
+                                    translationViewModel.setupGptAction(gptAction)
+                                    translateDialogWholePage = false
+                                    showTranslateDialog = true
+                                },
+                            )
+                        }
                     )
                 }
                 Box(Modifier.align(Alignment.TopStart).offset(x.dp, y.dp)) {
