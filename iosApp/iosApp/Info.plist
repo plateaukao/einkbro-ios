@@ -50,6 +50,8 @@
     </array>
     <key>LSSupportsOpeningDocumentsInPlace</key>
     <true/>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>EinkBro shares links and app data with other EinkBro devices on your local network.</string>
     <key>UILaunchScreen</key>
     <dict/>
     <key>UISupportedInterfaceOrientations</key>

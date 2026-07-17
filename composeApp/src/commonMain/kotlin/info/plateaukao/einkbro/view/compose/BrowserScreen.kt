@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.activity.HighlightsScreen
 import info.plateaukao.einkbro.activity.SavedPagesScreen
@@ -76,13 +78,13 @@ import info.plateaukao.einkbro.view.dialog.compose.FastToggleDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.FontBoldnessContent
 import info.plateaukao.einkbro.view.dialog.compose.FontDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.LanguageSettingDialogContent
+import info.plateaukao.einkbro.view.dialog.compose.AnchoredDialogFrame
 import info.plateaukao.einkbro.view.dialog.compose.MenuDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.PageAiActionDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.ReaderSettingsDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.SiteSettingsDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.TocDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.TocItem
-import info.plateaukao.einkbro.view.dialog.compose.ToolbarConfigDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.TouchAreaDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.TranslateDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.TranslationConfigDialogContent
@@ -106,16 +108,31 @@ import kotlinx.serialization.json.Json
 @Composable
 fun BrowserScreen(
     browserViewModel: BrowserViewModel,
-    onOpenCatalog: () -> Unit = {},
 ) {
     val config = AppServices.config
     var showTabStrip by remember { mutableStateOf(config.tab.shouldShowTabBar) }
+    // Android reacts to K_SHOW_TAB_BAR in BrowserActivity's pref listener; the
+    // Compose port needs the same so the Toolbar-settings toggle applies live.
+    DisposableEffect(Unit) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == info.plateaukao.einkbro.preference.TabConfig.K_SHOW_TAB_BAR) {
+                showTabStrip = config.tab.shouldShowTabBar
+            }
+        }
+        config.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { config.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     var showOverview by remember { mutableStateOf(false) }
     var overviewShowsHistory by remember { mutableStateOf(false) }
     var showUrlInput by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showBookmarks by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    // Sub-screen the settings open on; Gesture when entered from the touch-area
+    // dialog's "Touch action settings" row (Android: IntentUnit.gotoSettings).
+    var settingsInitialRoute by remember {
+        mutableStateOf(info.plateaukao.einkbro.activity.SettingRoute.Main)
+    }
     var showFontDialog by remember { mutableStateOf(false) }
     var showFastToggle by remember { mutableStateOf(false) }
     var showSiteSettings by remember { mutableStateOf(false) }
@@ -505,8 +522,6 @@ fun BrowserScreen(
             BrowserAction.ToggleReceiveTextSearch -> comingSoon("Remote text search", 'J')
 
             // Share
-            BrowserAction.CreateShortcut ->
-                EBToast.show(AppServices.context, "iOS apps can't add home-screen shortcuts")
             BrowserAction.ShareLink -> PlatformActions.share(browserViewModel.currentUrl.value)
             BrowserAction.ShareLinkToLastTarget ->
                 EBToast.show(AppServices.context, "iOS share sheet has no last-target shortcut")
@@ -520,18 +535,42 @@ fun BrowserScreen(
                 ShareLongPressAction.LAST_SHARE_TARGET ->
                     EBToast.show(AppServices.context, "iOS share sheet has no last-target shortcut")
             }
-            is BrowserAction.SendToRemote -> EBToast.show(
-                AppServices.context,
-                "LAN link sharing needs the multicast entitlement (Apple account required)",
-            )
+            is BrowserAction.SendToRemote -> {
+                info.plateaukao.einkbro.util.LanShare.startBroadcast(
+                    action.text, times = 10,
+                    onError = { EBToast.show(AppServices.context, it) },
+                )
+                AppServices.dialogManager.showOkCancelDialog(
+                    title = "Send link",
+                    message = "Broadcasting the link on the local network…",
+                    okAction = { info.plateaukao.einkbro.util.LanShare.stop() },
+                    showNegativeButton = false,
+                )
+            }
             BrowserAction.AddToInstapaper ->
                 if (browserViewModel.hasInstapaperCredentials()) browserViewModel.addToInstapaper()
                 else showInstapaperConfig = true
             BrowserAction.ConfigureInstapaper -> showInstapaperConfig = true
-            BrowserAction.ToggleReceiveLink -> EBToast.show(
-                AppServices.context,
-                "LAN link sharing needs the multicast entitlement (Apple account required)",
-            )
+            BrowserAction.ToggleReceiveLink -> {
+                info.plateaukao.einkbro.util.LanShare.startReceiving(
+                    onError = { EBToast.show(AppServices.context, it) },
+                    onMessage = { message ->
+                        if (message.startsWith("http")) {
+                            info.plateaukao.einkbro.util.LanShare.stop()
+                            // Close the "waiting" dialog before opening the link.
+                            info.plateaukao.einkbro.view.dialog.DialogManager.pendingOkCancel.value =
+                                null
+                            browserViewModel.newTab(message, activate = true)
+                        }
+                    },
+                )
+                AppServices.dialogManager.showOkCancelDialog(
+                    title = "Receive link",
+                    message = "Waiting for a link from the local network…",
+                    okAction = { info.plateaukao.einkbro.util.LanShare.stop() },
+                    showNegativeButton = false,
+                )
+            }
 
             // Touch config
             BrowserAction.ToggleTouchTurnPage, BrowserAction.ToggleTouchPagination -> {
@@ -674,7 +713,10 @@ fun BrowserScreen(
                 )
             }
             BrowserAction.ShowToolbarConfigDialog -> showToolbarConfig = true
-            BrowserAction.OpenSettings -> showSettings = true
+            BrowserAction.OpenSettings -> {
+                settingsInitialRoute = info.plateaukao.einkbro.activity.SettingRoute.Main
+                showSettings = true
+            }
             BrowserAction.ShowHighlights -> showHighlights = true
             BrowserAction.OpenUserScriptManager -> showUserScripts = true
         }
@@ -698,7 +740,6 @@ fun BrowserScreen(
     val menuActionHandler = MenuActionHandler(
         dispatch = { handleBrowserAction(it) },
         currentUrl = { browserViewModel.currentUrl.value },
-        quit = onOpenCatalog,
     )
 
     // Two-finger swipe paging (parity Phase F multitouch). Rides on the engine's
@@ -799,10 +840,13 @@ fun BrowserScreen(
         }
     }
 
-    val rootInsets = if (statusBarSuppressed) {
-        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
-    } else {
-        WindowInsets.safeDrawing
+    val rootInsets = when {
+        // Fullscreen: use the whole panel — content runs under the status bar
+        // AND the home indicator to the physical bottom edge.
+        isFullscreen -> WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
+        statusBarSuppressed ->
+            WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+        else -> WindowInsets.safeDrawing
     }
     Column(Modifier.fillMaxSize().windowInsetsPadding(rootInsets)) {
         // The main web pane and all its overlays, rendered into whatever slot the
@@ -888,7 +932,11 @@ fun BrowserScreen(
             if (showOverview) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
                     HistoryAndTabs(
+                        bookmarkManager = AppServices.bookmarkManager,
                         isHistoryOpen = overviewShowsHistory,
+                        // Anchor the panel at the toolbar's edge, like Android's
+                        // OverviewDialogController (bar at bottom unless on top).
+                        shouldReverseHistory = !config.ui.isToolbarOnTop,
                         albumList = browserViewModel.albums,
                         albumFocusIndex = browserViewModel.focusIndex,
                         onTabIconClick = { overviewShowsHistory = false },
@@ -941,6 +989,7 @@ fun BrowserScreen(
                         // input bar's suggestion list.
                         bookmarkManager = if (config.browser.showBookmarksInInputBar)
                             AppServices.bookmarkManager else null,
+                        showHistoryThumbnailGrid = config.ui.showHistoryThumbnailGrid,
                         text = text,
                         recordList = recordsState,
                         onTextSubmit = {
@@ -1079,8 +1128,11 @@ fun BrowserScreen(
     }
 
     if (showMenu) {
-        Dialog(onDismissRequest = { showMenu = false }) {
-            Surface(color = MaterialTheme.colors.background) {
+        Dialog(
+            onDismissRequest = { showMenu = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            AnchoredDialogFrame(onDismiss = { showMenu = false }, scrollable = false) {
                 MenuDialogContent(
                     url = browserViewModel.currentUrl.value,
                     itemClicked = { menuActionHandler.handle(it) },
@@ -1091,8 +1143,11 @@ fun BrowserScreen(
         }
     }
     if (showBookmarks) {
-        Dialog(onDismissRequest = { showBookmarks = false }) {
-            Surface(color = MaterialTheme.colors.background) {
+        Dialog(
+            onDismissRequest = { showBookmarks = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            AnchoredDialogFrame(onDismiss = { showBookmarks = false }, scrollable = false) {
                 BookmarksDialogContent(
                     gotoUrlAction = {
                         browserViewModel.loadUrlOrSearch(it); showBookmarks = false
@@ -1110,8 +1165,11 @@ fun BrowserScreen(
         }
     }
     if (showFontDialog) {
-        Dialog(onDismissRequest = { showFontDialog = false }) {
-            DialogFrame(onDismiss = {
+        Dialog(
+            onDismissRequest = { showFontDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            AnchoredDialogFrame(onDismiss = {
                 showFontDialog = false
                 helper?.updateCssStyle()
             }) {
@@ -1131,8 +1189,11 @@ fun BrowserScreen(
             // Adblock/JS/cookie/incognito toggles take effect on live tabs.
             browserViewModel.reapplyWebConfig()
         }
-        Dialog(onDismissRequest = dismissFastToggle) {
-            DialogFrame(onDismiss = dismissFastToggle) {
+        Dialog(
+            onDismissRequest = dismissFastToggle,
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            AnchoredDialogFrame(onDismiss = dismissFastToggle) {
                 FastToggleDialogContent(onDismiss = {
                     showFastToggle = false
                     // Adblock/JS/cookie/incognito toggles take effect on live tabs.
@@ -1165,18 +1226,29 @@ fun BrowserScreen(
             showTouchAreaDialog = false
             touchPagingEnabled = config.touch.enableTouchTurn
         }
-        Dialog(onDismissRequest = dismissTouchArea) {
-            DialogFrame(onDismiss = dismissTouchArea) {
-                TouchAreaDialogContent(onDismiss = {
-                    showTouchAreaDialog = false
-                    touchPagingEnabled = config.touch.enableTouchTurn
-                })
+        Dialog(
+            onDismissRequest = dismissTouchArea,
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            AnchoredDialogFrame(onDismiss = dismissTouchArea) {
+                TouchAreaDialogContent(
+                    onConfigActionsClick = {
+                        dismissTouchArea()
+                        settingsInitialRoute = info.plateaukao.einkbro.activity.SettingRoute.Gesture
+                        showSettings = true
+                    },
+                    onDismiss = {
+                        showTouchAreaDialog = false
+                        touchPagingEnabled = config.touch.enableTouchTurn
+                    },
+                )
             }
         }
     }
     if (showSettings) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
             SettingsScreen(
+                initialRoute = settingsInitialRoute,
                 onClose = { showSettings = false },
                 onOpenUserScripts = { showSettings = false; showUserScripts = true },
                 onOpenGptActions = { showSettings = false; showGptActions = true },
@@ -1267,10 +1339,22 @@ fun BrowserScreen(
     }
 
     if (showTtsDialog) {
-        Dialog(onDismissRequest = { showTtsDialog = false }) {
-            DialogFrame(onDismiss = { showTtsDialog = false }) {
+        Dialog(
+            onDismissRequest = { showTtsDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            AnchoredDialogFrame(onDismiss = { showTtsDialog = false }) {
                 TtsSettingDialogContent(
                     ttsViewModel = ttsViewModel,
+                    readCurrentArticleAction = {
+                        helper?.getRawText { text ->
+                            if (text.isNotBlank()) {
+                                ttsViewModel.readArticle(
+                                    text, browserViewModel.currentTitle.value
+                                )
+                            }
+                        }
+                    },
                     onDismiss = { showTtsDialog = false },
                 )
             }
@@ -1290,8 +1374,11 @@ fun BrowserScreen(
     }
 
     if (showTranslationConfig) {
-        Dialog(onDismissRequest = { showTranslationConfig = false }) {
-            DialogFrame(onDismiss = { showTranslationConfig = false }) {
+        Dialog(
+            onDismissRequest = { showTranslationConfig = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            AnchoredDialogFrame(onDismiss = { showTranslationConfig = false }) {
                 TranslationConfigDialogContent(
                     url = browserViewModel.currentUrl.value,
                     translateDirectly = true,
@@ -1311,8 +1398,11 @@ fun BrowserScreen(
     }
 
     if (showBoldnessDialog) {
-        Dialog(onDismissRequest = { showBoldnessDialog = false }) {
-            Surface(color = MaterialTheme.colors.background) {
+        Dialog(
+            onDismissRequest = { showBoldnessDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            AnchoredDialogFrame(onDismiss = { showBoldnessDialog = false }) {
                 FontBoldnessContent(
                     fontBoldness = config.display.fontBoldness,
                     onFontBoldnessChanged = {
@@ -1325,8 +1415,11 @@ fun BrowserScreen(
     }
 
     if (showReaderSettings) {
-        Dialog(onDismissRequest = { showReaderSettings = false }) {
-            Surface(color = MaterialTheme.colors.background) {
+        Dialog(
+            onDismissRequest = { showReaderSettings = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            AnchoredDialogFrame(onDismiss = { showReaderSettings = false }) {
                 ReaderSettingsDialogContent(
                     onSettingChanged = { helper?.updateReaderSettingsStyle() },
                     onKeepExtraContentChanged = { /* applies on next reader-mode entry */ },
@@ -1343,16 +1436,19 @@ fun BrowserScreen(
             // toolbarActions isn't observable state; poke the toolbar to re-read it.
             toolbarRefreshTick += 1
         }
-        Dialog(onDismissRequest = dismissToolbarConfig) {
-            Surface(color = MaterialTheme.colors.background) {
-                ToolbarConfigDialogContent(onDismiss = dismissToolbarConfig)
-            }
+        // Full-screen arrangement screen (Android's ToolbarConfigActivity):
+        // available-actions grid on top, live reorderable toolbar preview below.
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            info.plateaukao.einkbro.activity.ToolbarConfigScreen(onClose = dismissToolbarConfig)
         }
     }
 
     if (showPageAiActions) {
-        Dialog(onDismissRequest = { showPageAiActions = false }) {
-            Surface(color = MaterialTheme.colors.background) {
+        Dialog(
+            onDismissRequest = { showPageAiActions = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            AnchoredDialogFrame(onDismiss = { showPageAiActions = false }, scrollable = false) {
                 PageAiActionDialogContent(
                     actions = config.ai.gptActionList,
                     onActionClicked = { gptAction ->
@@ -1472,11 +1568,25 @@ fun BrowserScreen(
         }
     }
 
+    // A *.user.js navigation was intercepted: open the manager in install mode
+    // (Android launches UserScriptListActivity with the script URL).
+    browserViewModel.pendingUserScriptInstall.value?.let { installUrl ->
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            UserScriptListScreen(
+                installUrl = installUrl,
+                onClose = { browserViewModel.pendingUserScriptInstall.value = null },
+            )
+        }
+    }
+
     // Userscript menu-command picker (GM_registerMenuCommand, parity Phase H).
     if (userScriptCommands.isNotEmpty()) {
         val commands = userScriptCommands
-        Dialog(onDismissRequest = { userScriptCommands = emptyList() }) {
-            Surface(color = MaterialTheme.colors.background) {
+        Dialog(
+            onDismissRequest = { userScriptCommands = emptyList() },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            AnchoredDialogFrame(onDismiss = { userScriptCommands = emptyList() }) {
                 Column(Modifier.padding(vertical = 8.dp)) {
                     commands.forEach { (caption, fnId) ->
                         androidx.compose.material.Text(

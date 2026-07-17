@@ -11,8 +11,11 @@ import info.plateaukao.einkbro.view.EBToast
  */
 
 object IntentUnit {
+    // Android launches BrowserActivity with the URL; here the running
+    // BrowserScreen collects the bridge and opens it in a new tab (file://
+    // URLs route to the saved-page loader).
     fun launchUrl(context: Context, url: String) {
-        EBToast.show(context, "open: $url")
+        info.plateaukao.einkbro.util.ExternalUrlBridge.submit(url)
     }
 
     fun showFile(context: Context, uri: Uri) {

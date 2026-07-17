@@ -94,11 +94,6 @@ val coreDialogsSection = CatalogSection(
                 info.plateaukao.einkbro.view.dialog.compose.TouchAreaDialogContent(onDismiss = onClose)
             }
         },
-        CatalogEntry("Toolbar actions config", "Choose visible toolbar icons") { onClose ->
-            DialogFrame {
-                info.plateaukao.einkbro.view.dialog.compose.ToolbarConfigDialogContent(onDismiss = onClose)
-            }
-        },
         CatalogEntry("Link context menu", "Long-press link menu") { onClose ->
             DialogFrame {
                 info.plateaukao.einkbro.view.dialog.compose.ContextMenuDialogContent(onDismiss = onClose)

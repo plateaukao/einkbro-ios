@@ -144,6 +144,13 @@ interface WebViewEngineListener {
      * the main navigation is cancelled); false to navigate normally.
      */
     fun shouldRouteLinkToSplit(engine: WebViewEngine, url: String): Boolean = false
+
+    /**
+     * Navigation to a *.user.js URL (Android NinjaWebViewClient.handleUri):
+     * the navigation is cancelled and the host should offer to install the
+     * script (UserScriptListScreen with installUrl).
+     */
+    fun onUserScriptInstallRequested(engine: WebViewEngine, url: String) {}
 }
 
 enum class JsDialogType { ALERT, CONFIRM, PROMPT }

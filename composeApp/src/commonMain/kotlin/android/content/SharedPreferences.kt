@@ -12,7 +12,9 @@ class SharedPreferences(
     private val store: PrefsStore = createPrefsStore(),
 ) {
 
-    interface OnSharedPreferenceChangeListener {
+    // fun interface: Android's Java SAM interface converts from lambdas, so the
+    // Kotlin shim must too.
+    fun interface OnSharedPreferenceChangeListener {
         fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String?)
     }
 

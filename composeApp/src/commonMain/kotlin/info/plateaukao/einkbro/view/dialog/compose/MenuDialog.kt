@@ -127,9 +127,13 @@ fun MenuDialogContent(
 
 
 enum class MenuItemType {
-    Tts, QuickToggle, OpenHome, CloseTab, Quit,
+    // Android also has Quit; dropped on iOS — apps cannot self-terminate
+    // (PARITY_PLAN §7).
+    Tts, QuickToggle, OpenHome, CloseTab,
     SplitScreen, Translate, VerticalRead, ReaderMode, TouchSetting, ToolbarSetting,
-    ReceiveData, SendLink, ShareLink, OpenWith, Shortcut,
+    // Android also has Shortcut (add-to-home-screen); dropped on iOS — no API
+    // for per-site home icons (PARITY_PLAN §7).
+    ReceiveData, SendLink, ShareLink, OpenWith,
     SetHome, SaveBookmark, Epub, SavePdf,
     FontSize, WhiteBknd, BoldFont, Search, Download, Settings, BlackFont,
     SaveArchive, SaveMht, Highlights, InvertColor, PageAiActions, Instapaper, AudioOnly,
@@ -155,10 +159,10 @@ sealed class MenuEntry {
 private val defaultSectionItems: Map<MenuSection, List<MenuItemType>> = mapOf(
     MenuSection.Top to listOf(
         MenuItemType.Highlights, MenuItemType.SetHome, MenuItemType.OpenHome,
-        MenuItemType.CloseTab, MenuItemType.Quit,
+        MenuItemType.CloseTab,
     ),
     MenuSection.Share to listOf(
-        MenuItemType.ReceiveData, MenuItemType.SaveBookmark, MenuItemType.Shortcut,
+        MenuItemType.ReceiveData, MenuItemType.SaveBookmark,
         MenuItemType.OpenWith, MenuItemType.ShareLink,
         MenuItemType.SendLink, MenuItemType.Instapaper, MenuItemType.SaveArchive,
         MenuItemType.SaveMht, MenuItemType.Epub, MenuItemType.SavePdf,
@@ -387,10 +391,8 @@ fun MenuItemForType(
         MenuItemType.SetHome -> HideableMenuItem(type, Res.string.menu_fav, Icons.Outlined.AddHome)
         MenuItemType.OpenHome -> HideableMenuItem(type, Res.string.menu_openFav, Icons.Outlined.Home)
         MenuItemType.CloseTab -> HideableMenuItem(type, Res.string.menu_closeTab, Icons.Outlined.CancelPresentation)
-        MenuItemType.Quit -> HideableMenuItem(type, Res.string.menu_quit, Icons.AutoMirrored.Outlined.Logout)
         MenuItemType.ReceiveData -> HideableMenuItem(type, Res.string.menu_receive, Icons.Outlined.InstallMobile, supportsLongClick = true)
         MenuItemType.SaveBookmark -> HideableMenuItem(type, Res.string.menu_save_bookmark, Icons.Outlined.BookmarkAdd)
-        MenuItemType.Shortcut -> HideableMenuItem(type, Res.string.menu_sc, Icons.Outlined.AddLink)
         MenuItemType.OpenWith -> HideableMenuItem(type, Res.string.menu_open_with, Icons.Outlined.Apps)
         MenuItemType.ShareLink -> HideableMenuItem(type, Res.string.menu_share_link, Icons.Outlined.Share, supportsLongClick = true)
         MenuItemType.SendLink -> HideableMenuItem(type, Res.string.menu_send_link, Icons.AutoMirrored.Outlined.SendToMobile, supportsLongClick = true)

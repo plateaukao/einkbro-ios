@@ -30,14 +30,22 @@ class TtsConfig(private val sp: SharedPreferences) {
         get() = TtsType.entries[sp.getInt("K_TTS_TYPE", 0)]
         set(value) {
             sp.edit { putInt("K_TTS_TYPE", value.ordinal) }
-            useOpenAiTts = value == TtsType.GPT
         }
 
     var ttsShowCurrentText by BooleanPreference(sp, "K_TTS_SHOW_CURRENT_TEXT", false)
 
     var ttsShowTextTranslation by BooleanPreference(sp, "K_TTS_SHOW_TEXT_TRANSLATION", false)
 
-    var useOpenAiTts by BooleanPreference(sp, K_USE_OPENAI_TTS, true)
+    // "Use it on TTS" (GPT settings screen). On Android this bool is what the
+    // TTS engine gate reads; on iOS the engine is keyed off ttsType, so expose
+    // it as a two-way facade over ttsType instead of dead storage.
+    var useOpenAiTts: Boolean
+        get() = ttsType == TtsType.GPT
+        set(value) {
+            if (value != (ttsType == TtsType.GPT)) {
+                ttsType = if (value) TtsType.GPT else TtsType.SYSTEM
+            }
+        }
 
     private val K_RECENT_USED_TTS_VOICES = "sp_recent_used_tts_voices"
     var recentUsedTtsVoices: MutableList<VoiceItem>

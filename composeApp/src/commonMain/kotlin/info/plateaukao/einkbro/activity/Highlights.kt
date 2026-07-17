@@ -7,9 +7,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.Divider
 import androidx.compose.material.Icon
@@ -76,6 +79,8 @@ fun HighlightsScreen(onClose: () -> Unit = {}) {
         )
 
         Scaffold(
+            // Keep the top bar clear of the iOS status bar so back is tappable.
+            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
             topBar = {
                 HighlightsBar(
                     currentScreen = currentScreen,

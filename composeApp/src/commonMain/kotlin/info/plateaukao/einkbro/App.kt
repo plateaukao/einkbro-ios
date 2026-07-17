@@ -1,6 +1,7 @@
 package info.plateaukao.einkbro
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -81,9 +81,10 @@ fun App() {
         ) {
             if (!showCatalog) {
                 Box(Modifier.fillMaxSize()) {
+                    // The porting-era UI catalog (showCatalog) is no longer
+                    // reachable from the app UI; its code stays for previews.
                     info.plateaukao.einkbro.view.compose.BrowserScreen(
                         browserViewModel = browserViewModel,
-                        onOpenCatalog = { showCatalog = true },
                     )
                     ToastOverlay(Modifier.align(Alignment.BottomCenter))
                     OkCancelDialogHost()
@@ -213,16 +214,18 @@ private fun ToastOverlay(modifier: Modifier = Modifier) {
             delay(2200)
             EBToast.current.value = null
         }
+        // E-ink style, matching the app's dialogs: pure white/black surface
+        // (follows dark mode via colors.background) with a solid border.
         Box(
             modifier = modifier
                 .padding(24.dp)
-                .alpha(0.92f)
-                .background(MaterialTheme.colors.onBackground),
+                .background(MaterialTheme.colors.background)
+                .border(1.dp, MaterialTheme.colors.onBackground),
         ) {
             Text(
                 text = message.orEmpty(),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                color = MaterialTheme.colors.background,
+                color = MaterialTheme.colors.onBackground,
                 fontSize = 14.sp,
             )
         }

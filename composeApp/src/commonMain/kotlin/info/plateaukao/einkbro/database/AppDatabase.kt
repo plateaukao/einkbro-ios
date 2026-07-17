@@ -173,6 +173,9 @@ interface FaviconDao {
     @Query("SELECT * FROM favicons WHERE domain = :domain LIMIT 1")
     suspend fun findBy(domain: String): FaviconInfo?
 
+    @Query("SELECT * FROM favicons")
+    suspend fun getAllFavicons(): List<FaviconInfo>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(faviconInfo: FaviconInfo)
 

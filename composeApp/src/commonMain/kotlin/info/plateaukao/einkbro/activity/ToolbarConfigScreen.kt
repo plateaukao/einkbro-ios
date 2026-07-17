@@ -8,7 +8,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -109,12 +112,16 @@ fun ToolbarConfigScreen(
                 },
             )
         }
-        ToolbarConfigPanel(
-            list = list,
-            isVerticalPreview = config.ui.isVerticalToolbar,
-            isPreviewOnRight = config.ui.toolbarPosition == ToolbarPosition.Right,
-            topBar = topBar,
-        )
+        // Keep the top bar clear of the iOS status bar so its buttons are tappable
+        // (the Android activity hides the status bar instead).
+        Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            ToolbarConfigPanel(
+                list = list,
+                isVerticalPreview = config.ui.isVerticalToolbar,
+                isPreviewOnRight = config.ui.toolbarPosition == ToolbarPosition.Right,
+                topBar = topBar,
+            )
+        }
     }
 }
 

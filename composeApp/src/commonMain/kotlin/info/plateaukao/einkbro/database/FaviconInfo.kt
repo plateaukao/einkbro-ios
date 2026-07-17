@@ -9,6 +9,11 @@ import androidx.room.PrimaryKey
 data class FaviconInfo(
    @PrimaryKey
    val domain: String,
-   
+
    var icon: ByteArray?
-)
+) {
+   fun getBitmap(): androidx.compose.ui.graphics.ImageBitmap? {
+      val icon = icon ?: return null
+      return info.plateaukao.einkbro.util.decodeImageBitmap(icon)
+   }
+}

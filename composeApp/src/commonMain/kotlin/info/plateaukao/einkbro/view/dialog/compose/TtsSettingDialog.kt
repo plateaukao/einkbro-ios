@@ -65,6 +65,10 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun TtsSettingDialogContent(
     ttsViewModel: TtsViewModel = remember { TtsViewModel() },
+    // Android routes the play button through IntentUnit.readCurrentArticle
+    // (an intent back to BrowserActivity); here the host supplies the action
+    // that extracts the page text and queues it on the view model.
+    readCurrentArticleAction: () -> Unit = {},
     onDismiss: () -> Unit = {},
 ) {
     val config = AppServices.config
@@ -142,7 +146,7 @@ fun TtsSettingDialogContent(
             stopAction = ttsViewModel::reset,
             pauseOrResumeAction = ttsViewModel::pauseOrResume,
             addToReadListAction = {
-                IntentUnit.readCurrentArticle(context)
+                readCurrentArticleAction()
                 EBToast.show(context, context.getString(Res.string.added_to_read_list))
             },
             dismissAction = onDismiss,

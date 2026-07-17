@@ -3,7 +3,10 @@ package info.plateaukao.einkbro.view.compose
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
@@ -34,6 +37,9 @@ fun ListScaffold(
 ) {
     MyTheme {
         Scaffold(
+            // Keep the top bar clear of the iOS status bar (and content clear of
+            // the home indicator); otherwise the back button can't be tapped.
+            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
             topBar = {
                 TopAppBar(
                     title = { Text(title, color = MaterialTheme.colors.onPrimary) },

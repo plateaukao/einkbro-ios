@@ -12,9 +12,16 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.readValue
 import kotlinx.cinterop.useContents
+import info.plateaukao.einkbro.database.FaviconInfo
+import info.plateaukao.einkbro.util.Uri
+import info.plateaukao.einkbro.util.decodeImageBitmap
 import info.plateaukao.einkbro.util.toByteArray
 import platform.CoreGraphics.CGRectZero
 import platform.Foundation.NSData
+import platform.Foundation.NSURLSession
+import platform.Foundation.dataTaskWithURL
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 import platform.Foundation.NSError
 import platform.Foundation.NSHTTPURLResponse
 import platform.Foundation.NSURL
@@ -24,8 +31,10 @@ import platform.Foundation.NSURLAuthenticationMethodHTTPDigest
 import platform.Foundation.NSURLAuthenticationMethodServerTrust
 import platform.Foundation.NSURLCredential
 import platform.Foundation.NSURLCredentialPersistence
+import platform.Foundation.NSMutableURLRequest
 import platform.Foundation.NSURLRequest
 import platform.Foundation.NSURLRequestReturnCacheDataElseLoad
+import platform.Foundation.setValue
 import platform.Foundation.NSURLResponse
 import platform.Foundation.NSURLSessionAuthChallengeCancelAuthenticationChallenge
 import platform.Foundation.NSURLSessionAuthChallengeDisposition
@@ -125,9 +134,14 @@ class WKWebViewEngine(
         val nsUrl = NSURL.URLWithString(url) ?: return
         // webLoadCacheFirst: serve from cache when available, else hit the network.
         val request = if (AppServices.config.browser.webLoadCacheFirst) {
-            NSURLRequest.requestWithURL(nsUrl, NSURLRequestReturnCacheDataElseLoad, 60.0)
+            NSMutableURLRequest.requestWithURL(nsUrl, NSURLRequestReturnCacheDataElseLoad, 60.0)
         } else {
-            NSURLRequest.requestWithURL(nsUrl)
+            NSMutableURLRequest.requestWithURL(nsUrl)
+        }
+        // Save-Data request header (Android EBWebView does the same; like there,
+        // it applies to the main document request only).
+        if (AppServices.config.browser.enableSaveData) {
+            request.setValue("on", forHTTPHeaderField = "Save-Data")
         }
         webView.loadRequest(request)
         notifyStarted()
@@ -350,6 +364,36 @@ class WKWebViewEngine(
             webView.URL?.absoluteString ?: "",
             webView.title ?: "",
         )
+        fetchFavicon()
+    }
+
+    // Android gets favicons pushed via WebChromeClient.onReceivedIcon and routes
+    // them through setAlbumCoverAndSyncDb (album cover + favicons table).
+    // WKWebView never pushes icons, so resolve the page's icon URL via JS,
+    // fetch it, and feed the same two sinks.
+    private fun fetchFavicon() {
+        val pageUrl = webView.URL?.absoluteString ?: return
+        if (!pageUrl.startsWith("http")) return
+        val host = Uri.parse(pageUrl).host ?: return
+        evaluateJavascript(FAVICON_URL_JS) { result ->
+            val iconUrl = result?.trim('"')?.takeIf { it.startsWith("http") }
+                ?: return@evaluateJavascript
+            val nsUrl = NSURL.URLWithString(iconUrl) ?: return@evaluateJavascript
+            NSURLSession.sharedSession.dataTaskWithURL(nsUrl) { data, _, _ ->
+                val bytes = data?.toByteArray() ?: return@dataTaskWithURL
+                val bitmap = decodeImageBitmap(bytes) ?: return@dataTaskWithURL
+                dispatch_async(dispatch_get_main_queue()) {
+                    album.setAlbumCover(bitmap)
+                    // Divergence from Android (which always persists): incognito
+                    // promises nothing on disk, so skip the favicons table there.
+                    if (!incognito) {
+                        AppServices.bookmarkManager.insertFaviconAsync(
+                            FaviconInfo(domain = host, icon = bytes)
+                        )
+                    }
+                }
+            }.resume()
+        }
     }
 
     internal fun notifyFailed() {
@@ -375,6 +419,9 @@ class WKWebViewEngine(
 
     internal fun requestRouteLinkToSplit(url: String): Boolean =
         listener.shouldRouteLinkToSplit(this, url)
+
+    internal fun reportUserScriptInstall(url: String) =
+        listener.onUserScriptInstallRequested(this, url)
 }
 
 // Of the same-selector-family navigation callbacks (didStart/didCommit/
@@ -415,6 +462,13 @@ private class NavigationDelegate(
             UIApplication.sharedApplication.openURL(
                 url, options = emptyMap<Any?, Any?>(), completionHandler = null,
             )
+            decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
+            return
+        }
+        // *.user.js → offer to install as a userscript instead of navigating
+        // (Android NinjaWebViewClient.isUserScriptUrl/offerUserScriptInstall).
+        if (url != null && url.path?.lowercase()?.endsWith(".user.js") == true) {
+            engine.reportUserScriptInstall(url.absoluteString ?: "")
             decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
             return
         }
@@ -522,6 +576,17 @@ private class NavigationDelegate(
 }
 
 private val WEB_SCHEMES = setOf("http", "https", "file", "about", "blob", "data")
+
+// Last matching link wins, same as Android WebView's icon pick; absolute href
+// courtesy of the DOM. Falls back to the conventional /favicon.ico.
+private val FAVICON_URL_JS = """
+    (function() {
+      var links = document.querySelectorAll(
+        "link[rel~='icon'], link[rel='shortcut icon'], link[rel='apple-touch-icon']");
+      if (links.length > 0) return links[links.length - 1].href;
+      return location.origin + '/favicon.ico';
+    })()
+""".trimIndent()
 
 /** UIRefreshControl target: the ObjC action fires [onRefresh] on pull-down. */
 private class RefreshTarget(private val onRefresh: () -> Unit) : NSObject() {

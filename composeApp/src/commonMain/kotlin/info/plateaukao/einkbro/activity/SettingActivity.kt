@@ -80,6 +80,7 @@ import info.plateaukao.einkbro.setting.screens.buildUserAgentSettingItems
 import info.plateaukao.einkbro.unit.IntentUnit
 import info.plateaukao.einkbro.util.LocalContext
 import info.plateaukao.einkbro.view.EBToast
+import info.plateaukao.einkbro.view.dialog.DialogManager
 import info.plateaukao.einkbro.view.compose.MyTheme
 import android.content.Context
 import org.jetbrains.compose.resources.StringResource
@@ -139,11 +140,45 @@ private class RealBackupOps(
         }
     }
 
-    override fun shareAppData() =
-        EBToast.show(context, "LAN app-data share needs the multicast entitlement (Apple account)")
+    override fun shareAppData() {
+        scope.launch {
+            val bytes = info.plateaukao.einkbro.backup.BackupManager.exportBackupZip()
+            info.plateaukao.einkbro.util.LanShare.serveBytes(bytes) { err ->
+                EBToast.show(context, err)
+            }
+            info.plateaukao.einkbro.AppServices.dialogManager.showOkCancelDialog(
+                title = "Share app data",
+                message = "Broadcasting on the local network — start Receive on the other device, then tap OK when done.",
+                okAction = { info.plateaukao.einkbro.util.LanShare.stop() },
+                showNegativeButton = false,
+            )
+        }
+    }
 
-    override fun receiveAppData() =
-        EBToast.show(context, "LAN app-data receive needs the multicast entitlement (Apple account)")
+    override fun receiveAppData() {
+        info.plateaukao.einkbro.util.LanShare.receiveBytes(
+            onError = { EBToast.show(context, it) },
+            onConnected = { EBToast.show(context, "Receiving app data…") },
+            onReceived = { bytes ->
+                scope.launch {
+                    val ok = info.plateaukao.einkbro.backup.BackupManager.importBackupZip(bytes)
+                    // Close the "waiting" dialog now that the transfer finished.
+                    DialogManager.pendingOkCancel.value = null
+                    EBToast.show(
+                        context,
+                        if (ok) "Backup restored — relaunch to apply all settings"
+                        else "Received data is not a valid EinkBro backup",
+                    )
+                }
+            },
+        )
+        info.plateaukao.einkbro.AppServices.dialogManager.showOkCancelDialog(
+            title = "Receive app data",
+            message = "Waiting for a device sharing app data on the local network…",
+            okAction = { info.plateaukao.einkbro.util.LanShare.stop() },
+            showNegativeButton = false,
+        )
+    }
 
     override fun exportBookmarks() {
         scope.launch {
@@ -180,6 +215,9 @@ fun SettingsScreen(
     onOpenStatusbarConfig: () -> Unit = {},
     onOpenAdBlockSettings: () -> Unit = {},
     onOpenWhitelist: (WhiteListType) -> Unit = {},
+    // Android's SettingActivity accepts a route extra (IntentUnit.gotoSettings)
+    // so callers like the touch-area dialog can land directly on a sub-screen.
+    initialRoute: SettingRoute = Main,
 ) {
     val config = AppServices.config
     val dialogManager = AppServices.dialogManager
@@ -242,7 +280,7 @@ fun SettingsScreen(
     MyTheme {
         val backStackEntry = navController.currentBackStackEntryAsState()
         val currentScreen =
-            SettingRoute.valueOf(backStackEntry.value?.destination?.route ?: Main.name)
+            SettingRoute.valueOf(backStackEntry.value?.destination?.route ?: initialRoute.name)
         var isSearching by rememberSaveable { mutableStateOf(false) }
         var searchQuery by rememberSaveable { mutableStateOf("") }
 
@@ -281,7 +319,7 @@ fun SettingsScreen(
                 )
             } else NavHost(
                 navController = navController,
-                startDestination = Main.name,
+                startDestination = initialRoute.name,
                 modifier = Modifier.padding(innerPadding),
                 enterTransition = { fadeIn(animationSpec = tween(1)) },
                 exitTransition = { fadeOut(animationSpec = tween(1)) },

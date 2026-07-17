@@ -47,6 +47,8 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     val pendingAuthRequest = mutableStateOf<info.plateaukao.einkbro.browser.AuthRequest?>(null)
     val pendingSslError = mutableStateOf<info.plateaukao.einkbro.browser.SslErrorRequest?>(null)
     val pendingJsDialog = mutableStateOf<info.plateaukao.einkbro.browser.JsDialogRequest?>(null)
+    // .user.js navigation: URL to offer as a userscript install.
+    val pendingUserScriptInstall = mutableStateOf<String?>(null)
 
     // Parity Phase C: a tab awaiting close confirmation (confirmTabClose pref).
     val pendingTabClose = mutableStateOf<Album?>(null)
@@ -714,6 +716,10 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         if (engine === currentEngine) {
             EBToast.show(AppServices.context, description)
         }
+    }
+
+    override fun onUserScriptInstallRequested(engine: WebViewEngine, url: String) {
+        pendingUserScriptInstall.value = url
     }
 
     override fun shouldRouteLinkToSplit(engine: WebViewEngine, url: String): Boolean {

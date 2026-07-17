@@ -65,7 +65,7 @@ fun buildSearchSettingItems(deps: SettingScreenDeps): List<SettingItemInterface>
             null,
             Res.string.setting_summary_split_search_setting
         ) {
-            EBToast.show(deps.context, "would open the split search settings list")
+            deps.onOpenWhitelist(info.plateaukao.einkbro.activity.WhiteListType.SplitSearch)
         },
         BooleanSettingItem(
             Res.string.setting_title_search_in_same_tab,

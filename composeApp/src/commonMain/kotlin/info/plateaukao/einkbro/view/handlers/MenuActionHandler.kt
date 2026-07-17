@@ -8,13 +8,12 @@ import info.plateaukao.einkbro.view.dialog.compose.MenuItemType
 
 /**
  * Maps main-menu taps and long-presses to [BrowserAction]s. Port of Android's
- * MenuActionHandler. [quit] routes to the UI catalog (iOS apps can't
- * self-terminate, PARITY_PLAN §7).
+ * MenuActionHandler. (Android's Quit item is dropped on iOS — apps cannot
+ * self-terminate, PARITY_PLAN §7.)
  */
 class MenuActionHandler(
     private val dispatch: (BrowserAction) -> Unit,
     private val currentUrl: () -> String,
-    private val quit: () -> Unit = {},
 ) {
     private val config = AppServices.config
 
@@ -38,7 +37,6 @@ class MenuActionHandler(
         MenuItemType.QuickToggle -> dispatch(BrowserAction.ShowFastToggleDialog)
         MenuItemType.OpenHome -> dispatch(BrowserAction.UpdateAlbum(config.favoriteUrl))
         MenuItemType.CloseTab -> dispatch(BrowserAction.RemoveAlbum)
-        MenuItemType.Quit -> quit()
 
         MenuItemType.SplitScreen -> dispatch(BrowserAction.ToggleSplitScreen())
         MenuItemType.Translate -> dispatch(BrowserAction.ShowTranslation)
@@ -52,9 +50,6 @@ class MenuActionHandler(
 
         MenuItemType.ShareLink -> dispatch(BrowserAction.ShareLink)
         MenuItemType.OpenWith -> PlatformActions.openUrl(currentUrl())
-        MenuItemType.Shortcut ->
-            EBToast.show(AppServices.context, "iOS apps can't add home-screen shortcuts")
-
         MenuItemType.Highlights -> dispatch(BrowserAction.ShowHighlights)
         MenuItemType.SetHome -> {
             config.favoriteUrl = currentUrl()

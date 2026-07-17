@@ -11,6 +11,8 @@ import info.plateaukao.einkbro.service.TtsManager
 import info.plateaukao.einkbro.service.processedTextToChunks
 import info.plateaukao.einkbro.tts.ETts
 import info.plateaukao.einkbro.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -35,7 +37,11 @@ class TtsViewModel(
     // True while a network engine (GPT/ETTS) drives the AudioPlayer, so the
     // transport controls route to it instead of the system synthesizer.
     private var activeNetwork = false
-    private var skipArticle = false
+
+    // Fetch-ahead pipeline (Android's readByEngine): the fetch job pushes
+    // sentence audio through this channel while the play loop consumes it, so
+    // the next sentence is already downloaded when the current one ends.
+    private var byteArrayChannel: Channel<ChannelData>? = null
 
     private val articlesToBeRead: MutableList<String> = mutableListOf()
 
@@ -63,12 +69,15 @@ class TtsViewModel(
             while (articlesToBeRead.isNotEmpty()) {
                 val article = articlesToBeRead.removeAt(0)
                 if (article.isEmpty()) continue
-                _readingState.value = TtsReadingState.PLAYING
                 when (config.tts.ttsType) {
-                    TtsType.SYSTEM -> ttsManager.readText(article) { index, total, currentContent ->
-                        updateReadProgress(index, total, currentContent)
+                    TtsType.SYSTEM -> {
+                        _readingState.value = TtsReadingState.PLAYING
+                        ttsManager.readText(article) { index, total, currentContent ->
+                            updateReadProgress(index, total, currentContent)
+                        }
                     }
 
+                    // Stays PREPARING until the first sentence's audio arrives.
                     TtsType.GPT, TtsType.ETTS -> readArticleOverNetwork(article)
                 }
             }
@@ -79,27 +88,54 @@ class TtsViewModel(
     }
 
     /**
-     * GPT / Edge-TTS: fetch the mp3 for each chunk and play it through the
-     * AudioPlayer, awaiting each before the next. Speed is baked into the
-     * request (OpenAI `speed`, Edge SSML rate) so the player runs at 1x.
+     * GPT / Edge-TTS: mirror of Android's readByEngine. A fetch job downloads
+     * sentence mp3s ahead of playback and hands them over via [byteArrayChannel];
+     * the play loop below consumes them back-to-back, so there is no network
+     * gap between sentences. Speed is baked into the request (OpenAI `speed`,
+     * Edge SSML rate) so the player runs at 1x.
      */
     private suspend fun readArticleOverNetwork(article: String) {
+        byteArrayChannel?.cancel()
+        val channel = Channel<ChannelData>(1)
+        byteArrayChannel = channel
         val chunks = processedTextToChunks(article)
-        skipArticle = false
-        for ((index, chunk) in chunks.withIndex()) {
-            if (skipArticle || _readingState.value == TtsReadingState.IDLE) break
-            updateReadProgress(index + 1, chunks.size, chunk)
-            val bytes = when (config.tts.ttsType) {
-                TtsType.GPT -> openAiRepository.tts(chunk)
-                TtsType.ETTS -> eTts.tts(config.tts.ettsVoice, config.tts.ttsSpeedValue, chunk)
-                else -> null
+
+        // Android uses Dispatchers.IO; that alias is JVM-only, and the fetches
+        // are suspending Ktor calls anyway, so Default serves the same purpose.
+        val fetchJob = viewModelScope.launch(Dispatchers.Default) {
+            for ((index, chunk) in chunks.withIndex()) {
+                if (byteArrayChannel != channel) return@launch
+                val bytes = when (config.tts.ttsType) {
+                    TtsType.GPT -> openAiRepository.tts(chunk)
+                    TtsType.ETTS -> eTts.tts(config.tts.ettsVoice, config.tts.ttsSpeedValue, chunk)
+                    else -> null
+                }
+                if (byteArrayChannel != channel) return@launch
+                // send suspends until the play loop takes the previous chunk;
+                // throws (ending the job) once the channel is cancelled.
+                runCatching { channel.send(ChannelData(bytes, chunk, index)) }
+                    .onFailure { return@launch }
             }
-            if (skipArticle || _readingState.value == TtsReadingState.IDLE) break
-            if (bytes != null && bytes.isNotEmpty()) {
+        }
+
+        while (byteArrayChannel == channel) {
+            val data = runCatching { channel.receive() }.getOrNull() ?: break
+            updateReadProgress(data.chunkIndex + 1, chunks.size, data.text)
+            if (data.byteArray != null && data.byteArray.isNotEmpty()) {
+                if (_readingState.value == TtsReadingState.PREPARING) {
+                    _readingState.value = TtsReadingState.PLAYING
+                }
                 activeNetwork = true
-                audioPlayer.play(bytes)
+                audioPlayer.play(data.byteArray)
                 activeNetwork = false
             }
+            if (data.chunkIndex == chunks.size - 1) break
+        }
+
+        fetchJob.cancel()
+        if (byteArrayChannel == channel) {
+            channel.cancel()
+            byteArrayChannel = null
         }
     }
 
@@ -151,18 +187,24 @@ class TtsViewModel(
     /** Skips the article being read; the read loop proceeds with the queue. */
     fun nextArticle() {
         if (!isReading()) return
-        skipArticle = true
-        if (activeNetwork) audioPlayer.stop() else ttsManager.stopReading()
+        stopCurrentEngine()
     }
 
     fun reset() {
         articlesToBeRead.clear()
-        skipArticle = true
-        audioPlayer.stop()
-        ttsManager.stopReading()
+        stopCurrentEngine()
         _currentReadingContent.value = ""
         _readProgress.value = ReadProgress(0, 0, 0)
         _readingState.value = TtsReadingState.IDLE
+    }
+
+    // Android's stop(): tear down the fetch/play pipeline and silence whichever
+    // engine is active; the read loop then moves on (or ends).
+    private fun stopCurrentEngine() {
+        byteArrayChannel?.cancel()
+        byteArrayChannel = null
+        audioPlayer.stop()
+        ttsManager.stopReading()
     }
 
     fun stop() = reset()
@@ -195,3 +237,5 @@ class TtsViewModel(
         private const val TRANSLATION_SEPARATOR = "\n---\n"
     }
 }
+
+private class ChannelData(val byteArray: ByteArray?, val text: String, val chunkIndex: Int)

@@ -64,8 +64,7 @@ sealed class BrowserAction {
     object ToggleTextSearch : BrowserAction()
     object ToggleReceiveTextSearch : BrowserAction()
 
-    // Share
-    object CreateShortcut : BrowserAction()
+    // Share (Android also has CreateShortcut; dropped on iOS, PARITY_PLAN §7)
     object ShareLink : BrowserAction()
     object ShareLinkToLastTarget : BrowserAction()
     object ShareLinkLongPress : BrowserAction()

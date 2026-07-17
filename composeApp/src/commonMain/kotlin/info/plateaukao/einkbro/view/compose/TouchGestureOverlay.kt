@@ -4,6 +4,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import info.plateaukao.einkbro.preference.FabPosition
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -119,14 +121,29 @@ private fun ZoneBox(
 @Composable
 fun BoxScope.NavGestureFab(onGesture: (BrowserAction) -> Unit) {
     val touch = AppServices.config.touch
+    // Android FabImageViewController honors fabPosition; NotShow suppresses the
+    // button even with the gesture pref on.
+    val fabPosition = AppServices.config.ui.fabPosition
+    if (fabPosition == FabPosition.NotShow) return
+    val anchor = when (fabPosition) {
+        FabPosition.Left -> Alignment.BottomStart
+        FabPosition.Center -> Alignment.BottomCenter
+        else -> Alignment.BottomEnd
+    }
     var offsetX by remember { mutableStateOf(0f) }
     var offsetY by remember { mutableStateOf(0f) }
     Surface(
         modifier = Modifier
-            .align(Alignment.BottomEnd)
+            .align(anchor)
             .padding(24.dp)
             .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
             .size(52.dp)
+            .pointerInput(Unit) {
+                detectTapGestures(onLongPress = {
+                    val action = touch.navButtonLongClickGesture
+                    if (action != BrowserAction.Noop) onGesture(action)
+                })
+            }
             .pointerInput(Unit) {
                 var startX = 0f
                 var startY = 0f

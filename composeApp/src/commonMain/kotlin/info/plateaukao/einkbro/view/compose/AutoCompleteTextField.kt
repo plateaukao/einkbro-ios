@@ -7,6 +7,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.DrawableResource
@@ -78,7 +80,11 @@ fun AutoCompleteTextField(
     Column(
         Modifier
             .background(Color.Transparent)
-            .clickable { closeAction() },
+            // Tap on the empty area dismisses. Deliberately not Modifier.clickable:
+            // clickable also fires for key events bubbling up from the focused URL
+            // field (the iOS keyboard synthesizes them), so pressing Space would
+            // "click" this Column and dismiss the input bar mid-typing.
+            .pointerInput(Unit) { detectTapGestures { closeAction() } },
         verticalArrangement = if (shouldReverse) Arrangement.Bottom else Arrangement.Top
     ) {
         if (!shouldReverse) {

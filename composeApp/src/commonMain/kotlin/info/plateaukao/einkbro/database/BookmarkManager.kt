@@ -26,6 +26,15 @@ class BookmarkManager(private val database: AppDatabase) {
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
+    // Mirrors Android BookmarkManager: favicons are kept in memory so lookups
+    // from composition (remember { getFavicon(...) }) stay synchronous.
+    private val faviconInfos: MutableList<FaviconInfo> = mutableListOf()
+    private val faviconBitmapCache = mutableMapOf<String, androidx.compose.ui.graphics.ImageBitmap>()
+
+    init {
+        ioScope.launch { faviconInfos.addAll(faviconDao.getAllFavicons()) }
+    }
+
     suspend fun getAllBookmarks(): List<Bookmark> = bookmarkDao.getAllBookmarks()
 
     suspend fun getBookmarksByParent(parent: Int): List<Bookmark> =
@@ -84,7 +93,17 @@ class BookmarkManager(private val database: AppDatabase) {
         return faviconDao.findBy(host)
     }
 
-    suspend fun insertFavicon(faviconInfo: FaviconInfo) = faviconDao.insert(faviconInfo)
+    suspend fun insertFavicon(faviconInfo: FaviconInfo) {
+        faviconDao.insert(faviconInfo)
+        faviconInfos.removeAll { it.domain == faviconInfo.domain }
+        faviconInfos.add(faviconInfo)
+        faviconBitmapCache.remove(faviconInfo.domain)
+    }
+
+    /** Fire-and-forget variant for non-suspend callers (the web engine). */
+    fun insertFaviconAsync(faviconInfo: FaviconInfo) {
+        ioScope.launch { insertFavicon(faviconInfo) }
+    }
 
     // --- highlights (Phase 5) ---
 
@@ -146,7 +165,16 @@ class BookmarkManager(private val database: AppDatabase) {
 
     suspend fun deleteAllChatGptQueries() = chatGptQueryDao.deleteAll()
 
-    // Favicon bitmaps are not rendered yet (decode helper arrives with the
-    // favicon-capture work); UI falls back to the default globe icon.
-    fun findFaviconBitmapBy(url: String): androidx.compose.ui.graphics.ImageBitmap? = null
+    // Decoded bitmaps are cached per domain so repeated lookups return the same
+    // instance; Compose skipping and mutableStateOf equality rely on that.
+    fun findFaviconBitmapBy(url: String): androidx.compose.ui.graphics.ImageBitmap? {
+        val host = info.plateaukao.einkbro.util.Uri.parse(url).host ?: return null
+        faviconBitmapCache[host]?.let { return it }
+        val bitmap = faviconInfos.firstOrNull { it.domain == host }?.getBitmap() ?: return null
+        if (faviconBitmapCache.size >= 100) {
+            faviconBitmapCache.remove(faviconBitmapCache.keys.first())
+        }
+        faviconBitmapCache[host] = bitmap
+        return bitmap
+    }
 }
