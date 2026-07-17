@@ -240,7 +240,11 @@ fun <T> ValueSettingItemUi(
     showBorder: Boolean = false,
     showValue: Boolean = true,
 ) {
-    val coroutineScope = rememberCoroutineScope()
+    // NOT rememberCoroutineScope: when the software keyboard opens, the lazy
+    // settings grid recycles this row out of composition, which would cancel
+    // the scope and thereby the pending getTextInput — dismissing the dialog
+    // the moment its field is focused. A plain MainScope survives recycling.
+    val coroutineScope = remember { kotlinx.coroutines.MainScope() }
     val currentValue = remember(setting) { mutableStateOf(setting.config.get()) }
     SettingItemUi(
         setting = setting,

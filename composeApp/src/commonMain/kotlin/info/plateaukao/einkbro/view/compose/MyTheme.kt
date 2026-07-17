@@ -29,7 +29,11 @@ private val DarkColors = darkColors(
     // primary-tinted widget (Slider, Switch track, TextField cursor/indicator,
     // progress spinners) would be black-on-black. Gray keeps them readable.
     primary = Color.Gray,
-    onPrimary = Color.Black,
+    // Stays Gray: top app bars render on the dark *surface* (black) but color
+    // their text/icons with onPrimary — Black here made headers unreadable.
+    // The two filled Buttons override their colors explicitly, so nothing
+    // renders onPrimary on top of the gray primary.
+    onPrimary = Color.Gray,
     secondary = Color.Gray,
     onSecondary = Color.White,
     surface = Color.Black,

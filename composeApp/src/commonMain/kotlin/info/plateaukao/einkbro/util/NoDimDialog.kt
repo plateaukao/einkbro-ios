@@ -77,6 +77,12 @@ fun NoDimAlertDialog(
             shape = shape,
             color = backgroundColor,
             contentColor = contentColor,
+            // The popup AlertDialog separated itself with an elevation shadow;
+            // this flat replacement needs an explicit edge — gray in dark mode
+            // (onBackground), black in light, matching the e-ink dialogs.
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp, MaterialTheme.colors.onBackground,
+            ),
         ) {
             Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 8.dp)) {
                 title?.let {
