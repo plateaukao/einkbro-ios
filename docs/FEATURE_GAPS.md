@@ -16,52 +16,46 @@ divergence in PARITY_PLAN §7 or SETTINGS_AUDIT.
 
 ## Tier 1 — wire-ups and quick wins (S)
 
-Existing code, one connection missing:
+DONE (2026-07-18 overnight):
+- ✅ **AI task runner** — built-in task menu + free-form agent
+  (`FreeFormAgentTask` + `OpenAiRepository.chatWithTools`) wired into
+  BrowserScreen; progress streams to the AI dialog.
+- ✅ **FastToggle whitelist edit-icons** — open the DataList editor.
+- ✅ **Analytics fast-block** — ANALYTICS_DOMAINS → WKContentRuleList.
+- ✅ **hasVideo menu gating** — DOM video check on menu open.
+- ✅ **DNT header** — always sent (Android parity).
+- ✅ **Highlights HTML export** — writes HTML + share sheet.
+- ✅ **Per-site desktop viewport width** — force_viewport_width.js injected.
 
-- **AI task runner** — port done (`task/` package); wire built-in task menu +
-  custom-task path into BrowserScreen, plus `TranslationViewModel.setupTaskStream`.
-  (In progress.)
-- **Settings entry points** — AdBlock settings, GPT-action editor, GPT-query
-  list, userscript manager, statusbar-config, menu-item-hide all exist but are
-  reachable only from the retired catalog. Add Settings rows (Android has them).
-- **FastToggle whitelist edit-icons** — the AdBlock/JS/Cookie pencil icons
-  toast; point them at the already-built `DataList` editor (like split-search).
-- **Analytics fast-block** (`blockAnalytics`) — inert pref; add the tracker
-  domains to the content-rule list.
-- **hasVideo menu gating** — `AudioOnly` menu row never shows because hasVideo
-  is never computed; add a DOM `querySelector('video')` check on page finish.
-- **DNT header** — send `DNT: 1` alongside the existing Save-Data header.
-- **Highlights HTML export** — the export button toasts; the HTML dump
-  functions exist, just need a file write + share sheet (`FileStore`).
-- **Per-site desktop viewport width** — pref/DB/SiteSettings exist but
-  `force_viewport_width.js` is never injected; inject on load.
+Already done earlier (audit was stale): Settings entry points for AdBlock /
+GPT-actions / GPT-queries / userscripts / statusbar-config / menu-item-hide are
+all wired.
+
+Remaining:
 - **Instapaper credential verify** — `authenticate()` not ported (add-URL works).
 - **EPUB ToC reorder/rename before save** — `EpubDialog` only does new-vs-append.
 
 ## Tier 2 — self-contained iOS-native subsystems (M)
 
-Genuinely new work, but well-scoped and unattended-safe (no new Xcode target):
+DONE (2026-07-18 overnight):
+- ✅ **Background audio + lock-screen TTS controls** — `MediaSession`
+  (MPNowPlayingInfoCenter + MPRemoteCommandCenter) + `UIBackgroundModes:audio`.
+- ✅ **Offline error page + retry** — `error_page.html` rendered on main-frame
+  failures; `einkbro://retry` re-fetches through the nav delegate.
+- ✅ **Backup: nested bookmark folders + domain configurations.** (Remaining
+  backup tables — favicons re-derivable, articles/highlights/gptQueries/saved
+  pages — still pending; not started.)
 
-- **Background audio + lock-screen TTS controls** — highest-value gap in the
-  input/system domain. `MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` for
-  play/pause/next from Control Center and headsets, plus `UIBackgroundModes:
-  audio` in Info.plist so TTS/AI audio survives backgrounding. Nothing exists
-  today (zero MPNowPlaying refs).
-- **App Quick Actions** (`UIApplicationShortcutItems`) — launcher long-press
-  shortcuts (new tab, bookmarks, incognito). Android has the analog; §7 says
-  app-level quick actions are feasible (only *per-site* home icons are not).
-- **Offline error page + retry** — port `error_page.html` + `einkbro://retry`
-  and the https→http fallback on SSL-protocol errors; today `onLoadError` only
-  toasts.
+Remaining:
+- **App Quick Actions** (`UIApplicationShortcutItems`) — deferred: needs Swift
+  lifecycle wiring + a device home-screen long-press to verify.
 - **Blob downloads** — `blob:` URLs currently navigate; port
   `blob_download_hook.js` + a fetch→save bridge.
 - **Custom font file import** — `FontBrowserDialog` picker is stubbed and
   `FontType.CUSTOM` renders nothing; needs `UIDocumentPicker` for the TTF and a
   `WKURLSchemeHandler` to serve it into `@font-face`.
-- **Backup completeness** — the backup ZIP covers only prefs+bookmarks+history;
-  Android also backs up favicons, articles/highlights, chatGptQueries, domain
-  configs, saved pages, and whitelist domains. Add those tables + a category
-  picker. Also: Chrome/Netscape bookmark import is flat — port nested folders.
+- **Backup: remaining DB tables** — articles/highlights, chatGptQueries, saved
+  pages; plus a category picker.
 - **Tap-to-select sentence/paragraph** — context-menu "Select text" toasts;
   port `select_sentence.js`/`select_paragraph.js`.
 - **SiteSettings per-site CSS/JS editor** — the text editor is stubbed; wire
