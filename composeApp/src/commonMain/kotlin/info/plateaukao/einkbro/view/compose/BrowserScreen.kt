@@ -181,6 +181,15 @@ fun BrowserScreen(
                 info.plateaukao.einkbro.preference.TabConfig.K_SHOW_TAB_BAR ->
                     showTabStrip = config.tab.shouldShowTabBar
                 in uiKeys -> toolbarRefreshTick += 1
+                // Android reloads the page for these (BrowserActivity L1124-31).
+                info.plateaukao.einkbro.preference.BrowserConfig.K_DESKTOP,
+                info.plateaukao.einkbro.preference.BrowserConfig.K_ENABLE_VIDEO_AUTOPLAY,
+                info.plateaukao.einkbro.preference.BrowserConfig.K_ENABLE_CUSTOM_USER_AGENT,
+                info.plateaukao.einkbro.preference.BrowserConfig.K_CUSTOM_USER_AGENT,
+                info.plateaukao.einkbro.preference.DisplayConfig.K_DARK_MODE -> {
+                    browserViewModel.reapplyWebConfig()
+                    browserViewModel.currentEngine?.reload()
+                }
                 else -> Unit
             }
         }

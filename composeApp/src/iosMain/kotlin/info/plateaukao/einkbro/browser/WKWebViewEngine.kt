@@ -600,6 +600,25 @@ private class EBWKWebView(
         }
         return super.canPerformAction(action, withSender)
     }
+
+    // iOS 16+ builds the edit menu through UIMenuBuilder as well; items added
+    // there (e.g. WebKit's "Copy Link with Highlight") never consult
+    // canPerformAction and use private identifiers, so instead of guessing,
+    // walk the root menu and drop every child menu except standard-edit —
+    // whose cut/copy actions canPerformAction already hides, keeping paste
+    // usable in editable fields.
+    override fun buildMenuWithBuilder(builder: platform.UIKit.UIMenuBuilderProtocol) {
+        super.buildMenuWithBuilder(builder)
+        if (AppServices.config.ui.showDefaultActionMenu) return
+        val root = builder.menuForIdentifier(platform.UIKit.UIMenuRoot) ?: return
+        root.children.forEach { child ->
+            val menu = child as? platform.UIKit.UIMenu ?: return@forEach
+            if (menu.identifier != platform.UIKit.UIMenuStandardEdit) {
+                builder.removeMenuForIdentifier(menu.identifier)
+            }
+        }
+    }
+
 }
 
 // Last matching link wins, same as Android WebView's icon pick; absolute href
