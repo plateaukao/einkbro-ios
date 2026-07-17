@@ -34,6 +34,9 @@ import platform.Foundation.NSURLCredential
 import platform.Foundation.NSURLCredentialPersistence
 import platform.Foundation.NSMutableURLRequest
 import platform.Foundation.NSURLRequest
+import platform.Foundation.NSValue
+import platform.UIKit.valueWithCGRect
+import platform.UIKit.viewPrintFormatter
 import platform.Foundation.NSURLRequestReturnCacheDataElseLoad
 import platform.Foundation.setValue
 import platform.Foundation.NSURLResponse
@@ -112,22 +115,48 @@ class WKWebViewEngine(
             // Private browsing: a non-persistent store leaves nothing on disk
             // (cookies, cache, local storage all vanish when it's released).
             if (incognito) websiteDataStore = WKWebsiteDataStore.nonPersistentDataStore()
+            // enableRemoteAccess (Android allowFileAccessFromFileURLs): WKWebView
+            // has no public switch; the WebKit prefs respond to the same keys
+            // via KVC. Read at engine creation, like Android's config applier.
+            if (AppServices.config.browser.enableRemoteAccess) {
+                preferences.setValue(true, forKey = "allowFileAccessFromFileURLs")
+                setValue(true, forKey = "allowUniversalAccessFromFileURLs")
+            }
         },
     ).apply {
+        // shareLocation off (Android setGeolocationEnabled(false)): stub the
+        // geolocation API at document start so pages can't even prompt.
+        if (!AppServices.config.browser.shareLocation) {
+            configuration.userContentController.addUserScript(
+                WKUserScript(
+                    source = GEOLOCATION_BLOCK_JS,
+                    injectionTime = WKUserScriptInjectionTime.WKUserScriptInjectionTimeAtDocumentStart,
+                    forMainFrameOnly = false,
+                )
+            )
+        }
+    }.apply {
         navigationDelegate = this@WKWebViewEngine.navigationDelegate
         UIDelegate = this@WKWebViewEngine.uiDelegate
         allowsBackForwardNavigationGestures = true
         // Our own long-press link menu replaces the native peek/preview.
         allowsLinkPreview = false
-        // Pull-to-refresh (parity Phase D), opt-out via enablePullToRefresh.
-        if (browserConfig.enablePullToRefresh) {
+        // Pull-to-refresh (parity Phase D), opt-out via enablePullToRefresh;
+        // applyWebConfig keeps it in sync with the pref afterwards.
+    }
+
+    override fun setPullToRefreshEnabled(enabled: Boolean) {
+        if (enabled && webView.scrollView.refreshControl == null) {
             val refreshControl = UIRefreshControl()
             refreshControl.addTarget(
                 refreshTarget,
                 action = platform.darwin.sel_registerName("onRefresh"),
                 forControlEvents = UIControlEventValueChanged,
             )
-            scrollView.refreshControl = refreshControl
+            webView.scrollView.refreshControl = refreshControl
+        } else if (!enabled && webView.scrollView.refreshControl != null) {
+            webView.scrollView.refreshControl?.removeFromSuperview()
+            webView.scrollView.refreshControl = null
         }
     }
 
@@ -269,6 +298,19 @@ class WKWebViewEngine(
         webView.scrollView.pinchGestureRecognizer?.enabled = enabled
     }
 
+    private var scrollDelegate: ScrollObserver? = null
+
+    override fun setScrollChangeHandler(handler: ((Int, Int) -> Unit)?) {
+        if (handler == null) {
+            webView.scrollView.delegate = null
+            scrollDelegate = null
+            return
+        }
+        val observer = ScrollObserver(handler)
+        scrollDelegate = observer // strong ref; scrollView.delegate is weak
+        webView.scrollView.delegate = observer
+    }
+
     private var multitouchHandler: ((MultitouchDirection) -> Unit)? = null
     private var panTarget: TwoFingerPanTarget? = null
 
@@ -300,9 +342,37 @@ class WKWebViewEngine(
     }
 
     override fun createPdf(callback: (ByteArray?) -> Unit) {
-        webView.createPDFWithConfiguration(null) { data, _ ->
-            callback(data?.toByteArray())
+        // Paginated PDF at the configured paper size (Android prints through
+        // PrintManager with PrintAttributes.MediaSize; UIPrintPageRenderer is
+        // the iOS equivalent). Falls back to WKWebView's single-page snapshot
+        // if the renderer produces nothing.
+        val (w, h) = when (AppServices.config.display.pdfPaperSize) {
+            info.plateaukao.einkbro.preference.PaperSize.ISO_13 -> 595.0 to 842.0   // A4
+            info.plateaukao.einkbro.preference.PaperSize.SIZE_10 -> 420.0 to 595.0  // A5
+            info.plateaukao.einkbro.preference.PaperSize.ISO_67 -> 315.0 to 445.0   // ~6.7"
+            info.plateaukao.einkbro.preference.PaperSize.SIZE_8 -> 323.0 to 459.0   // C6-ish
         }
+        val renderer = platform.UIKit.UIPrintPageRenderer()
+        renderer.addPrintFormatter(webView.viewPrintFormatter(), startingAtPageAtIndex = 0)
+        val paper = platform.CoreGraphics.CGRectMake(0.0, 0.0, w, h)
+        val printable = platform.CoreGraphics.CGRectMake(20.0, 20.0, w - 40.0, h - 40.0)
+        renderer.setValue(NSValue.valueWithCGRect(paper), forKey = "paperRect")
+        renderer.setValue(NSValue.valueWithCGRect(printable), forKey = "printableRect")
+        val pages = renderer.numberOfPages.toInt()
+        if (pages <= 0) {
+            webView.createPDFWithConfiguration(null) { data, _ -> callback(data?.toByteArray()) }
+            return
+        }
+        val pdfData = platform.Foundation.NSMutableData()
+        platform.UIKit.UIGraphicsBeginPDFContextToData(pdfData, paper, null)
+        for (i in 0 until pages) {
+            platform.UIKit.UIGraphicsBeginPDFPage()
+            renderer.drawPageAtIndex(
+                i.toLong(), platform.UIKit.UIGraphicsGetPDFContextBounds(),
+            )
+        }
+        platform.UIKit.UIGraphicsEndPDFContext()
+        callback(pdfData.toByteArray())
     }
 
     override fun createWebArchive(callback: (ByteArray?) -> Unit) {
@@ -578,6 +648,25 @@ private class NavigationDelegate(
 
 private val WEB_SCHEMES = setOf("http", "https", "file", "about", "blob", "data")
 
+// navigator.geolocation stub: every request fails with PERMISSION_DENIED.
+private val GEOLOCATION_BLOCK_JS = """
+    (function() {
+      var deny = function(success, error) {
+        if (error) error({ code: 1, message: 'Geolocation disabled' });
+      };
+      try {
+        Object.defineProperty(navigator, 'geolocation', {
+          value: {
+            getCurrentPosition: deny,
+            watchPosition: function(s, e) { deny(s, e); return 0; },
+            clearWatch: function() {},
+          },
+          configurable: false,
+        });
+      } catch (e) {}
+    })();
+""".trimIndent()
+
 /**
  * WKWebView that hides the system edit menu on text selection: EinkBro shows
  * its own ActionModeMenu instead (Android suppresses the default ActionMode
@@ -636,6 +725,21 @@ private val FAVICON_URL_JS = """
 private class RefreshTarget(private val onRefresh: () -> Unit) : NSObject() {
     @ObjCAction
     fun onRefresh() = onRefresh.invoke()
+}
+
+/** Streams vertical scroll deltas for the auto-hide-toolbar pref. */
+@OptIn(ExperimentalForeignApi::class)
+private class ScrollObserver(
+    private val onScroll: (Int, Int) -> Unit,
+) : NSObject(), platform.UIKit.UIScrollViewDelegateProtocol {
+    private var lastY = 0.0
+
+    override fun scrollViewDidScroll(scrollView: platform.UIKit.UIScrollView) {
+        val y = scrollView.contentOffset.useContents { this.y }
+        val dy = y - lastY
+        lastY = y
+        onScroll(dy.toInt(), y.toInt())
+    }
 }
 
 /** Two-finger pan target (parity Phase F multitouch): on gesture end, the net

@@ -24,6 +24,7 @@ object Assets {
         ?: error("asset $name not preloaded — call Assets.preload() first")
 
     private val NAMES = listOf(
+        "recent_bookmarks.html",
         "MozReadability.js",
         "jsonld_article.js",
         "readerview.css",

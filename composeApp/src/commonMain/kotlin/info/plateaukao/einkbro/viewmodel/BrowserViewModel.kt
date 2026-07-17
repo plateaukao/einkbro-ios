@@ -190,6 +190,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             }
         )
         engine.setZoomEnabled(config.display.enableZoom)
+        engine.setPullToRefreshEnabled(config.browser.enablePullToRefresh)
     }
 
     /** Re-applies web config to every open tab (after a toggle or adblock compile). */

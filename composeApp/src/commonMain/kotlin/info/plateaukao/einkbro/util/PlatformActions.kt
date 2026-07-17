@@ -9,4 +9,10 @@ expect object PlatformActions {
     fun copyToClipboard(text: String)
     fun share(text: String)
     fun openUrl(url: String)
+
+    /**
+     * Overrides the app UI language (AppleLanguages on iOS; applies after the
+     * app is relaunched). Empty tag restores the system language.
+     */
+    fun setAppLocale(languageTag: String)
 }

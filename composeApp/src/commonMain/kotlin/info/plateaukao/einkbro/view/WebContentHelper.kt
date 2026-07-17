@@ -224,8 +224,11 @@ class WebContentHelper(
 
         // Android scales text natively via WebSettings.textZoom; WKWebView has
         // no equivalent, so text size rides in the same CSS slot.
+        // -webkit-text-size-adjust is NOT inherited and virtually every site
+        // resets it on body, so an html-only rule never applies — hit both.
         val textSizeCss =
-            if (textSize != 100) "html { -webkit-text-size-adjust: $textSize% !important; }\n"
+            if (textSize != 100)
+                "html, body { -webkit-text-size-adjust: $textSize% !important; }\n"
             else ""
 
         val cssStyle = fontCss +

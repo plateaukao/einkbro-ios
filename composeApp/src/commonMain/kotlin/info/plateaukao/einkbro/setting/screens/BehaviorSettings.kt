@@ -97,12 +97,8 @@ fun buildBehaviorSettingItems(deps: SettingScreenDeps): List<SettingItemInterfac
         ),
         DividerSettingItem(),
         // Input & controls
-        BooleanSettingItem(
-            Res.string.setting_title_vi_binding,
-            null,
-            Res.string.setting_summary_vi_binding,
-            config.browser::enableViBinding,
-        ),
+        // (Android also has the vi-binding toggle here; dropped on iOS per
+        // user decision — no hardware-key handling planned.)
         BooleanSettingItem(
             Res.string.setting_title_disable_long_press_toucharea,
             null,

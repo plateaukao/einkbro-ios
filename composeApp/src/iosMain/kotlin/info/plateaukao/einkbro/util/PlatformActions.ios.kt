@@ -23,5 +23,14 @@ actual object PlatformActions {
         UIApplication.sharedApplication.openURL(nsUrl, options = emptyMap<Any?, Any?>(), completionHandler = null)
     }
 
+    actual fun setAppLocale(languageTag: String) {
+        val defaults = platform.Foundation.NSUserDefaults.standardUserDefaults
+        if (languageTag.isEmpty()) {
+            defaults.removeObjectForKey("AppleLanguages")
+        } else {
+            defaults.setObject(listOf(languageTag), forKey = "AppleLanguages")
+        }
+    }
+
     private fun topViewController() = UIApplication.sharedApplication.keyWindow?.rootViewController
 }

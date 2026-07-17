@@ -27,6 +27,7 @@ import androidx.compose.material.Surface
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.FullscreenExit
+import androidx.compose.material.icons.outlined.Highlight
 import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
@@ -190,6 +191,8 @@ fun BrowserScreen(
                     browserViewModel.reapplyWebConfig()
                     browserViewModel.currentEngine?.reload()
                 }
+                info.plateaukao.einkbro.preference.BrowserConfig.K_ENABLE_PULL_TO_REFRESH ->
+                    browserViewModel.reapplyWebConfig()
                 else -> Unit
             }
         }
@@ -197,6 +200,9 @@ fun BrowserScreen(
         onDispose { config.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     var isFullscreen by remember { mutableStateOf(false) }
+    // Auto-hide toolbar on scroll (Android shouldHideToolbar): hidden past a
+    // downward-scroll threshold, restored on scroll-up or jump-to-top.
+    var toolbarHiddenByScroll by remember { mutableStateOf(false) }
     var showSearchBar by remember { mutableStateOf(false) }
     var searchResultInfo by remember { mutableStateOf("") }
     var touchPagingEnabled by remember { mutableStateOf(config.touch.enableTouchTurn) }
@@ -430,8 +436,16 @@ fun BrowserScreen(
                         config.favoriteUrl.ifBlank { BrowserViewModel.DEFAULT_HOME }
                     )
                 info.plateaukao.einkbro.preference.NewTabBehavior.SHOW_RECENT_BOOKMARKS -> {
-                    browserViewModel.newTab("", title = "New tab")
-                    showBookmarks = true
+                    // Android BookmarkRenderer.loadRecentlyUsedBookmarks: the new
+                    // tab shows an HTML card list of recently used bookmarks.
+                    val html = recentBookmarksHtml(config)
+                    if (html.isNotBlank()) {
+                        browserViewModel.newTab("", title = "Recently used bookmarks")
+                        browserViewModel.currentEngine?.loadHtml(html)
+                    } else {
+                        browserViewModel.newTab("", title = "New tab")
+                        showBookmarks = true
+                    }
                 }
             }
             BrowserAction.DuplicateTab ->
@@ -450,6 +464,10 @@ fun BrowserScreen(
                 else EBToast.show(AppServices.context, "Can't go forward")
             BrowserAction.HandleBackKey -> when {
                 showOverview -> showOverview = false
+                // "Toolbar first": when hidden by scrolling, Back restores the
+                // toolbar before navigating (Android BrowserActivity L655).
+                config.ui.showToolbarFirst && toolbarHiddenByScroll ->
+                    toolbarHiddenByScroll = false
                 currentEngine?.canGoBack() == true -> currentEngine.goBack()
                 config.tab.closeTabWhenNoMoreBackHistory ->
                     browserViewModel.currentAlbum?.let { browserViewModel.closeTab(it) } ?: Unit
@@ -768,6 +786,18 @@ fun BrowserScreen(
         currentUrl = { browserViewModel.currentUrl.value },
     )
 
+    // Auto-hide toolbar on scroll (shouldHideToolbar): hide after a clear
+    // downward scroll away from the top; restore on scroll-up or at the top.
+    LaunchedEffect(engine) {
+        engine?.setScrollChangeHandler { dy, y ->
+            when {
+                !config.ui.shouldHideToolbar -> toolbarHiddenByScroll = false
+                dy > 12 && y > 100 -> toolbarHiddenByScroll = true
+                dy < -12 || y <= 0 -> toolbarHiddenByScroll = false
+            }
+        }
+    }
+
     // Two-finger swipe paging (parity Phase F multitouch). Rides on the engine's
     // native gesture recognizers — a Compose overlay can't catch two-finger
     // gestures over the WKWebView interop. Bindings read live from config.
@@ -920,7 +950,10 @@ fun BrowserScreen(
                             }),
                             MenuInfo(
                                 "Highlight",
-                                drawable = Res.drawable.ic_highlight_color,
+                                // ic_highlight_color is a white-filled/tinted
+                                // vector that renders invisible untinted; use
+                                // the theme-tinted material icon instead.
+                                imageVector = Icons.Outlined.Highlight,
                                 action = { browserViewModel.highlightCurrentSelection() },
                             ),
                             MenuInfo("Translate", imageVector = Icons.Outlined.Translate, action = {
@@ -1093,7 +1126,7 @@ fun BrowserScreen(
         // Phase N). Left/Right toolbar falls back to bottom for now.
         val toolbarAtTop = config.ui.isToolbarOnTop
         val renderToolbar: @Composable () -> Unit = {
-            if (!isFullscreen) {
+            if (!isFullscreen && !toolbarHiddenByScroll) {
                 ComposedToolbar(
                     showTabs = showTabStrip,
                     toolbarActionInfos = remember(toolbarRefreshTick) {
@@ -1919,4 +1952,37 @@ private fun SplitBarButton(
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 6.dp),
     )
+}
+
+/** Port of Android BookmarkRenderer.getRecentBookmarksContent. */
+private fun recentBookmarksHtml(
+    config: info.plateaukao.einkbro.preference.ConfigManager,
+): String {
+    val stored = config.recentBookmarks
+    if (stored.isEmpty()) return ""
+    val alignBottom = !config.ui.isToolbarOnTop
+    val bookmarks = if (alignBottom) stored.reversed() else stored
+    val content = bookmarks.joinToString(separator = "\n") {
+        val initial = it.name.firstOrNull()?.uppercase() ?: "#"
+        val host = info.plateaukao.einkbro.util.Uri.parse(it.url).host.orEmpty()
+        val domain = host.removePrefix("www.")
+        val scheme = it.url.substringBefore("://", "https")
+        val faviconUrl = if (host.isNotEmpty()) "$scheme://$host/favicon.ico" else ""
+        """
+        <a href="${it.url}" class="card">
+            <div class="icon">
+                <img src="$faviconUrl" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+                <span class="fallback">$initial</span>
+            </div>
+            <div class="info">
+                <div class="name">${it.name}</div>
+                <div class="domain">$domain</div>
+            </div>
+        </a>
+        """
+    }
+    val bodyClass = if (alignBottom) "align-bottom" else ""
+    return info.plateaukao.einkbro.browser.Assets.get("recent_bookmarks.html")
+        .replace("{{BODY_CLASS}}", bodyClass)
+        .replace("{{CONTENT}}", content)
 }

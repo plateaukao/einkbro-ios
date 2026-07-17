@@ -78,6 +78,15 @@ interface WebViewEngine {
     /** Enables/disables pinch-to-zoom on the page. */
     fun setZoomEnabled(enabled: Boolean)
 
+    /** Installs/removes the pull-to-refresh control (UIRefreshControl on iOS). */
+    fun setPullToRefreshEnabled(enabled: Boolean) {}
+
+    /**
+     * Reports vertical scrolls: (deltaY, contentOffsetY) in points. Used for
+     * the auto-hide-toolbar pref (Android ChromeSetupDelegate scroll hook).
+     */
+    fun setScrollChangeHandler(handler: ((Int, Int) -> Unit)?) {}
+
     /**
      * Installs a two-finger swipe recognizer on the native web view (parity
      * Phase F multitouch). A Compose overlay can't reliably catch two-finger

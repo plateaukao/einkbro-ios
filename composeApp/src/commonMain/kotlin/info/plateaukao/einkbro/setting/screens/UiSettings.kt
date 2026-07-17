@@ -11,18 +11,33 @@ import info.plateaukao.einkbro.setting.ListSettingWithEnumItem
 import info.plateaukao.einkbro.setting.SettingItemInterface
 import info.plateaukao.einkbro.setting.ValueSettingItem
 import info.plateaukao.einkbro.view.EBToast
+import kotlinx.coroutines.launch
 
 fun buildUiSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
     val config = deps.config
     return listOf(
         // On Android this opens TranslationLanguageDialog.showAppLocale() and
-        // recreates the activity when the locale changed.
+        // recreates the activity; iOS sets AppleLanguages, applied on relaunch.
         ActionSettingItem(
             Res.string.setting_app_locale,
             null,
             Res.string.setting_summary_app_locale,
         ) {
-            EBToast.show(deps.context, "would open the app locale picker")
+            deps.scope.launch {
+                val locales = appLocaleChoices
+                val current = locales.indexOfFirst {
+                    it.second == config.uiLocaleLanguage
+                }.coerceAtLeast(0)
+                val picked = info.plateaukao.einkbro.AppServices.dialogManager.getSelectedOptionWithString(
+                    Res.string.setting_app_locale,
+                    locales.map { it.first },
+                    current,
+                ) ?: return@launch
+                val tag = locales[picked].second
+                config.uiLocaleLanguage = tag
+                info.plateaukao.einkbro.util.PlatformActions.setAppLocale(tag)
+                EBToast.show(deps.context, "Restart the app to apply the language")
+            }
         },
         BooleanSettingItem(
             Res.string.hide_statusbar,
@@ -86,13 +101,8 @@ fun buildUiSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
                 Res.string.dark_mode_disabled,
             )
         ),
-        EinkImageSettingItem(
-            Res.string.eink_image_adjustment,
-            null,
-            Res.string.eink_image_adjustment_summary,
-            config.display::einkImageAdjustment,
-            config.display::einkImageMode,
-        ),
+        // (Android also has EinkImageSettingItem here; dropped on iOS — no
+        // iOS device has an e-ink display.)
         ListSettingWithEnumItem(
             Res.string.setting_title_nav_pos,
             null,
@@ -134,3 +144,16 @@ fun buildUiSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
         },
     )
 }
+
+/** Languages the iOS build ships strings for (display name to AppleLanguages tag). */
+private val appLocaleChoices = listOf(
+    "System default" to "",
+    "English" to "en",
+    "中文（台灣）" to "zh-TW",
+    "简体中文" to "zh-CN",
+    "日本語" to "ja",
+    "Deutsch" to "de",
+    "Français" to "fr",
+    "Español" to "es",
+    "한국어" to "ko",
+)

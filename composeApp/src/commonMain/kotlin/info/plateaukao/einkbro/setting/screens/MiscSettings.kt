@@ -12,6 +12,7 @@ import info.plateaukao.einkbro.setting.NavigateSettingItem
 import info.plateaukao.einkbro.setting.SettingItemInterface
 import info.plateaukao.einkbro.setting.ValueSettingItem
 import info.plateaukao.einkbro.view.EBToast
+import kotlinx.coroutines.launch
 
 fun buildMiscSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
     val config = deps.config
@@ -44,7 +45,16 @@ fun buildMiscSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
         ),
         // On Android this opens PrinterDocumentPaperSizeDialog.
         ActionSettingItem(Res.string.setting_title_pdf_paper_size, null) {
-            EBToast.show(deps.context, "would open the PDF paper size dialog")
+            deps.scope.launch {
+                val sizes = info.plateaukao.einkbro.preference.PaperSize.entries
+                val picked = info.plateaukao.einkbro.AppServices.dialogManager
+                    .getSelectedOptionWithString(
+                        Res.string.setting_title_pdf_paper_size,
+                        sizes.map { it.sizeString },
+                        deps.config.display.pdfPaperSize.ordinal,
+                    ) ?: return@launch
+                deps.config.display.pdfPaperSize = sizes[picked]
+            }
         },
         DividerSettingItem(),
 //        BooleanSettingItem(
