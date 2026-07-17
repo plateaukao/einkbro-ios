@@ -44,13 +44,55 @@ object BackupManager {
     }
 
     /** Minimal Netscape/Chrome bookmark parser: every `<A HREF="…">title</A>` (flat). */
+    // Netscape/Chrome bookmark HTML with nested folders (Android
+    // BackupUnit.parseChromeBookmarks): <H3> opens a folder whose children live
+    // in the following <DL>, so we track a parent-id stack instead of Jsoup.
     private fun parseNetscape(html: String): List<Bookmark> {
-        val regex = Regex("""<a[^>]*\shref="([^"]*)"[^>]*>(.*?)</a>""", RegexOption.IGNORE_CASE)
-        return regex.findAll(html).mapNotNull { m ->
-            val url = m.groupValues[1].trim()
-            val title = m.groupValues[2].replace(Regex("<[^>]*>"), "").trim()
-            if (url.isBlank()) null else Bookmark(title = title.ifBlank { url }, url = url)
-        }.toList()
+        val tokenRegex = Regex(
+            """<h3[^>]*>(.*?)</h3>|<a[^>]*\shref="([^"]*)"[^>]*>(.*?)</a>|<dl[^>]*>|</dl>""",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+        )
+        val strip = Regex("<[^>]*>")
+        fun clean(s: String) = s.replace(strip, "").trim()
+
+        var counter = 0
+        val parentStack = ArrayDeque<Int>().apply { addLast(0) }
+        var pendingFolder: Int? = null
+        val result = mutableListOf<Bookmark>()
+
+        for (m in tokenRegex.findAll(html)) {
+            val tag = m.value.lowercase()
+            when {
+                tag.startsWith("<h3") -> {
+                    val id = ++counter
+                    result += Bookmark(
+                        title = clean(m.groupValues[1]),
+                        url = "",
+                        isDirectory = true,
+                        parent = parentStack.last(),
+                        order = result.size,
+                    ).also { it.id = id }
+                    pendingFolder = id
+                }
+                tag.startsWith("<a") -> {
+                    val url = m.groupValues[2].trim()
+                    if (url.isNotBlank()) {
+                        result += Bookmark(
+                            title = clean(m.groupValues[3]).ifBlank { url },
+                            url = url,
+                            parent = parentStack.last(),
+                            order = result.size,
+                        ).also { it.id = ++counter }
+                    }
+                }
+                tag.startsWith("<dl") -> {
+                    parentStack.addLast(pendingFolder ?: parentStack.last())
+                    pendingFolder = null
+                }
+                tag == "</dl>" -> if (parentStack.size > 1) parentStack.removeLast()
+            }
+        }
+        return result
     }
 
     // --- history ---
