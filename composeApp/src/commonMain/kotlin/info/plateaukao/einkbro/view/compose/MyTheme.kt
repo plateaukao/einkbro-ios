@@ -24,8 +24,12 @@ fun MyTheme(
 val NormalTextModifier = Modifier.padding(6.dp)
 
 private val DarkColors = darkColors(
-    primary = Color.Black,
-    onPrimary = Color.Gray,
+    // Android keeps primary black even in dark mode, but its dark-sensitive
+    // dialogs are XML views there; in this all-Compose port every
+    // primary-tinted widget (Slider, Switch track, TextField cursor/indicator,
+    // progress spinners) would be black-on-black. Gray keeps them readable.
+    primary = Color.Gray,
+    onPrimary = Color.Black,
     secondary = Color.Gray,
     onSecondary = Color.White,
     surface = Color.Black,
