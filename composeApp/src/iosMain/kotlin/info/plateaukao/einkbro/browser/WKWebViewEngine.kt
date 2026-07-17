@@ -82,9 +82,9 @@ import platform.WebKit.WKWindowFeatures
 import platform.darwin.NSObject
 
 /**
- * WKWebView-backed engine. Title/url/progress updates come from the
- * navigation delegate (KVO category methods aren't overridable from
- * Kotlin/Native); progress is therefore coarse — fine for e-ink UX.
+ * WKWebView-backed engine. Title/url updates come from the navigation delegate;
+ * load progress is polled from estimatedProgress on a timer (KVO isn't reachable
+ * from Kotlin/Native), giving a real 0→1 progress bar.
  */
 @OptIn(ExperimentalForeignApi::class)
 class WKWebViewEngine(
@@ -143,6 +143,28 @@ class WKWebViewEngine(
         allowsLinkPreview = false
         // Pull-to-refresh (parity Phase D), opt-out via enablePullToRefresh;
         // applyWebConfig keeps it in sync with the pref afterwards.
+    }
+
+    // Real progress bar: KVO on estimatedProgress isn't reachable from K/N, so
+    // poll it with a light timer while a load is in flight. Reports the real
+    // fraction (0→1) instead of the old coarse 0.15/0.6/1.0 steps.
+    private var progressTimer: platform.Foundation.NSTimer? = null
+
+    private fun startProgressTimer() {
+        stopProgressTimer()
+        progressTimer = platform.Foundation.NSTimer.scheduledTimerWithTimeInterval(
+            interval = 0.1,
+            repeats = true,
+        ) { _ ->
+            val p = webView.estimatedProgress.toFloat()
+            listener.onProgressChanged(this, p.coerceAtLeast(0.05f))
+            if (p >= 1f) stopProgressTimer()
+        }
+    }
+
+    private fun stopProgressTimer() {
+        progressTimer?.invalidate()
+        progressTimer = null
     }
 
     override fun setPullToRefreshEnabled(enabled: Boolean) {
@@ -348,7 +370,13 @@ class WKWebViewEngine(
 
     override fun setMultitouchSwipeHandler(handler: ((MultitouchDirection) -> Unit)?) {
         multitouchHandler = handler
-        if (handler != null && panTarget == null) {
+        // Only install the two-finger pan recognizer when multitouch paging is
+        // actually enabled — it competes with WKWebView's native pinch-to-zoom
+        // and breaks it otherwise (and multitouch is off by default). Reads the
+        // pref at engine creation, like the other web prefs.
+        if (handler != null && panTarget == null &&
+            AppServices.config.touch.isMultitouchEnabled
+        ) {
             // A two-finger pan recognizer (not a swipe recognizer, which is too
             // velocity-picky) reads its net translation on end and maps it to a
             // direction. The scrollView's own pan is capped to one finger so
@@ -436,6 +464,7 @@ class WKWebViewEngine(
     override fun resume() {}
 
     override fun destroy() {
+        stopProgressTimer()
         webView.navigationDelegate = null
         webView.UIDelegate = null
         messageHandlers.keys.forEach {
@@ -447,18 +476,21 @@ class WKWebViewEngine(
     }
 
     internal fun notifyStarted() {
-        listener.onProgressChanged(this, 0.15f)
+        // Kick the bar visible immediately; the timer drives it from there as
+        // estimatedProgress climbs.
+        listener.onProgressChanged(this, 0.05f)
         listener.onUrlChanged(this, webView.URL?.absoluteString ?: "")
+        startProgressTimer()
     }
 
     internal fun notifyCommitted() {
-        listener.onProgressChanged(this, 0.6f)
         listener.onUrlChanged(this, webView.URL?.absoluteString ?: "")
     }
 
     internal fun notifyFinished() {
         // End the pull-to-refresh spinner once the load completes.
         webView.scrollView.refreshControl?.endRefreshing()
+        stopProgressTimer()
         listener.onProgressChanged(this, 1f)
         listener.onTitleChanged(this, webView.title ?: "")
         listener.onUrlChanged(this, webView.URL?.absoluteString ?: "")
@@ -500,6 +532,7 @@ class WKWebViewEngine(
     }
 
     internal fun notifyFailed() {
+        stopProgressTimer()
         listener.onProgressChanged(this, 1f)
     }
 
@@ -812,6 +845,7 @@ private class RefreshTarget(private val onRefresh: () -> Unit) : NSObject() {
     @ObjCAction
     fun onRefresh() = onRefresh.invoke()
 }
+
 
 /** Streams vertical scroll deltas for the auto-hide-toolbar pref. */
 @OptIn(ExperimentalForeignApi::class)

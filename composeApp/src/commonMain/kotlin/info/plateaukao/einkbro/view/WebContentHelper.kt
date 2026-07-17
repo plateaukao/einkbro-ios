@@ -52,6 +52,12 @@ class WebContentHelper(
                     .replace("__WIDTH__", width.toString())
             )
         }
+        // Force pinch-zoom on sites that set user-scalable=no / maximum-scale=1
+        // (Android WebContentPostProcessor enableZoomJs). WKWebView otherwise
+        // obeys the page's viewport and pinch does nothing.
+        if (config.display.enableZoom && !isReaderModeOn) {
+            evaluateJsFile("force_zoom.js")
+        }
     }
 
     // --- CSS slots -------------------------------------------------------
