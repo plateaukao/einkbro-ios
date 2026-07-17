@@ -95,6 +95,28 @@ object BackupManager {
         return result
     }
 
+    // --- per-site domain configurations (translation/CSS/JS/font per host) ---
+
+    private suspend fun exportDomainConfigsJson(): String {
+        val configs = AppServices.bookmarkManager.getAllDomainConfigurations()
+        return json.encodeToString(
+            ListSerializer(
+                info.plateaukao.einkbro.database.DomainConfigurationData.serializer()
+            ),
+            configs,
+        )
+    }
+
+    private fun importDomainConfigs(text: String) {
+        val configs = json.decodeFromString(
+            ListSerializer(
+                info.plateaukao.einkbro.database.DomainConfigurationData.serializer()
+            ),
+            text,
+        )
+        configs.forEach { AppServices.bookmarkManager.addDomainConfiguration(it) }
+    }
+
     // --- history ---
 
     private suspend fun exportHistoryJson(): String {
@@ -118,6 +140,7 @@ object BackupManager {
         zip.addStored("prefs.json", AppServices.sharedPreferences.exportPrefs())
         zip.addStored("bookmarks.json", exportBookmarksJson())
         zip.addStored("history.json", exportHistoryJson())
+        zip.addStored("domain_configs.json", exportDomainConfigsJson())
         return zip.build()
     }
 
@@ -127,6 +150,7 @@ object BackupManager {
         entries["prefs.json"]?.let { AppServices.sharedPreferences.importPrefs(it.decodeToString()) }
         entries["bookmarks.json"]?.let { importBookmarks(it.decodeToString()) }
         entries["history.json"]?.let { importHistory(it.decodeToString()) }
+        entries["domain_configs.json"]?.let { importDomainConfigs(it.decodeToString()) }
         // Config delegates read the prefs store live, so restored settings apply on
         // next read; a relaunch guarantees everything (incl. cached sub-configs).
         return true
