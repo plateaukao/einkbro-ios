@@ -180,6 +180,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         // web view to Safari Web Inspector when debug is on.
         engine.setImageBlockEnabled(!config.browser.enableImages)
         engine.setCookieBlockEnabled(!config.getEnableCookies(url))
+        engine.setAnalyticsBlockEnabled(config.browser.blockAnalytics)
         engine.setInspectable(config.browser.debugWebView)
         // Display prefs (parity Phase C): dark-mode override + pinch zoom.
         engine.setDarkMode(

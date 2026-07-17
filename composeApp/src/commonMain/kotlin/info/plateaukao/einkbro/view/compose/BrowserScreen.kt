@@ -1314,8 +1314,18 @@ fun BrowserScreen(
             properties = DialogProperties(usePlatformDefaultWidth = false),
         ) {
             AnchoredDialogFrame(onDismiss = { showMenu = false }, scrollable = false) {
+                // hasVideo gates the AudioOnly row (Android computes it in
+                // WebContentPostProcessor); check the DOM when the menu opens.
+                var pageHasVideo by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    engine?.evaluateJavascript(
+                        "(document.querySelector('video')!=null).toString()"
+                    ) { pageHasVideo = it?.contains("true") == true }
+                }
                 MenuDialogContent(
                     url = browserViewModel.currentUrl.value,
+                    isAudioOnly = helper?.isAudioOnlyOn == true,
+                    hasVideo = pageHasVideo,
                     itemClicked = { menuActionHandler.handle(it) },
                     itemLongClicked = { menuActionHandler.handleLongClick(it) },
                     onDismiss = { showMenu = false },

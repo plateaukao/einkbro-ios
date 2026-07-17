@@ -173,6 +173,8 @@ class WKWebViewEngine(
         if (AppServices.config.browser.enableSaveData) {
             request.setValue("on", forHTTPHeaderField = "Save-Data")
         }
+        // DNT is always sent, matching Android EBWebView.requestHeaders.
+        request.setValue("1", forHTTPHeaderField = "DNT")
         webView.loadRequest(request)
         notifyStarted()
     }
@@ -274,6 +276,13 @@ class WKWebViewEngine(
     override fun setCookieBlockEnabled(enabled: Boolean) {
         val controller = webView.configuration.userContentController
         val list = ContentBlocker.cookieBlockList ?: return
+        if (enabled) controller.addContentRuleList(list)
+        else controller.removeContentRuleList(list)
+    }
+
+    override fun setAnalyticsBlockEnabled(enabled: Boolean) {
+        val controller = webView.configuration.userContentController
+        val list = ContentBlocker.analyticsBlockList ?: return
         if (enabled) controller.addContentRuleList(list)
         else controller.removeContentRuleList(list)
     }

@@ -19,6 +19,10 @@ actual object ContentBlocker {
     internal var cookieBlockList: WKContentRuleList? = null
         private set
 
+    // Analytics/tracker fast-block (Android NinjaWebViewClient.ANALYTICS_DOMAINS).
+    internal var analyticsBlockList: WKContentRuleList? = null
+        private set
+
     actual val isReady: Boolean get() = compiledList != null
 
     actual fun preload(rulesJson: String, onReady: () -> Unit) {
@@ -42,7 +46,7 @@ actual object ContentBlocker {
 
     actual fun preloadPrivacyRules(onReady: () -> Unit) {
         val store = WKContentRuleListStore.defaultStore() ?: run { onReady(); return }
-        var pending = 2
+        var pending = 3
         val done = { pending--; if (pending == 0) onReady() }
         if (imageBlockList == null) {
             store.compileContentRuleListForIdentifier(
@@ -56,6 +60,12 @@ actual object ContentBlocker {
                 encodedContentRuleList = COOKIE_BLOCK_JSON,
             ) { list, _ -> if (list != null) cookieBlockList = list; done() }
         } else done()
+        if (analyticsBlockList == null) {
+            store.compileContentRuleListForIdentifier(
+                identifier = "einkbro-block-analytics",
+                encodedContentRuleList = ANALYTICS_BLOCK_JSON,
+            ) { list, _ -> if (list != null) analyticsBlockList = list; done() }
+        } else done()
     }
 
     private const val IMAGE_BLOCK_JSON =
@@ -63,4 +73,16 @@ actual object ContentBlocker {
             "\"action\":{\"type\":\"block\"}}]"
     private const val COOKIE_BLOCK_JSON =
         "[{\"trigger\":{\"url-filter\":\".*\"},\"action\":{\"type\":\"block-cookies\"}}]"
+
+    // One block rule per tracker host (Android's ANALYTICS_DOMAINS). Dots are
+    // escaped for the url-filter regex; substring match is the default.
+    private val ANALYTICS_BLOCK_JSON: String = listOf(
+        "google-analytics\\.com", "googletagmanager\\.com", "connect\\.facebook\\.net",
+        "platform\\.twitter\\.com/widgets\\.js", "cdn\\.segment\\.com",
+        "static\\.hotjar\\.com", "bat\\.bing\\.com", "mc\\.yandex\\.ru",
+        "analytics\\.tiktok\\.com", "snap\\.licdn\\.com", "cdn\\.mouseflow\\.com",
+        "cdn\\.heapanalytics\\.com",
+    ).joinToString(prefix = "[", postfix = "]", separator = ",") { host ->
+        "{\"trigger\":{\"url-filter\":\"$host\"},\"action\":{\"type\":\"block\"}}"
+    }
 }

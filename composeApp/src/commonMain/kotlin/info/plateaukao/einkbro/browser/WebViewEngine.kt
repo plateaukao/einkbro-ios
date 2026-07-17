@@ -81,6 +81,9 @@ interface WebViewEngine {
     /** Installs/removes the pull-to-refresh control (UIRefreshControl on iOS). */
     fun setPullToRefreshEnabled(enabled: Boolean) {}
 
+    /** Adds/removes the analytics/tracker fast-block content rule. */
+    fun setAnalyticsBlockEnabled(enabled: Boolean) {}
+
     /**
      * Reports vertical scrolls: (deltaY, contentOffsetY) in points. Used for
      * the auto-hide-toolbar pref (Android ChromeSetupDelegate scroll hook).

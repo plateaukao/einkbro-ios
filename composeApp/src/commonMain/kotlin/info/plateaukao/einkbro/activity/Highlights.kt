@@ -56,6 +56,7 @@ import info.plateaukao.einkbro.util.System
 import info.plateaukao.einkbro.view.EBToast
 import info.plateaukao.einkbro.view.compose.MyTheme
 import info.plateaukao.einkbro.viewmodel.HighlightViewModel
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
@@ -69,6 +70,7 @@ import org.jetbrains.compose.resources.vectorResource
 fun HighlightsScreen(onClose: () -> Unit = {}) {
     val highlightViewModel = remember { HighlightViewModel() }
     val context = LocalContext.current
+    val exportScope = androidx.compose.runtime.rememberCoroutineScope()
     val navController: NavHostController = rememberNavController()
 
     MyTheme {
@@ -85,8 +87,21 @@ fun HighlightsScreen(onClose: () -> Unit = {}) {
                 HighlightsBar(
                     currentScreen = currentScreen,
                     onClick = {
-                        // Android: file picker + BackupUnit export of the dumped html.
-                        EBToast.show(context, "would export ${currentScreen.name} as html")
+                        // Android dumps highlights to HTML and hands it to a file
+                        // picker; here we write the HTML and open the share sheet.
+                        exportScope.launch {
+                            val html = highlightViewModel.dumpArticlesHighlightsAsHtml()
+                            val doc =
+                                "<!doctype html><html><head><meta charset=\"utf-8\">" +
+                                    "<title>EinkBro highlights</title></head><body>$html</body></html>"
+                            val path = info.plateaukao.einkbro.util.FileStore.writeBytes(
+                                "highlights",
+                                "highlights_${info.plateaukao.einkbro.util.System.currentTimeMillis()}.html",
+                                doc.encodeToByteArray(),
+                            )
+                            if (path != null) info.plateaukao.einkbro.util.FileStore.share(path)
+                            else EBToast.show(context, "Export failed")
+                        }
                     },
                     navigateUp = {
                         if (navController.previousBackStackEntry != null) navController.navigateUp()
