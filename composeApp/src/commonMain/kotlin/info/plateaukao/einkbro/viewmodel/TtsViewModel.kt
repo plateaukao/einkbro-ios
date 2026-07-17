@@ -57,7 +57,32 @@ class TtsViewModel(
     private val _currentReadingContent = MutableStateFlow("")
     val currentReadingContent: StateFlow<String> get() = _currentReadingContent
 
+    private var pageTitle = ""
+
+    init {
+        // Lock-screen / Control-Center transport + now-playing (Android's
+        // TtsNotificationManager equivalent).
+        info.plateaukao.einkbro.service.MediaSession.configure(
+            onPlayPause = ::pauseOrResume,
+            onNext = ::nextArticle,
+            onStop = ::reset,
+        )
+        viewModelScope.launch {
+            _readingState.collect { state ->
+                when (state) {
+                    TtsReadingState.IDLE ->
+                        info.plateaukao.einkbro.service.MediaSession.clear()
+                    else -> info.plateaukao.einkbro.service.MediaSession.update(
+                        title = pageTitle.ifBlank { "EinkBro" },
+                        isPlaying = state == TtsReadingState.PLAYING,
+                    )
+                }
+            }
+        }
+    }
+
     fun readArticle(text: String, title: String = "") {
+        if (title.isNotBlank()) pageTitle = title
         articlesToBeRead.add(text)
         if (isReading()) {
             updateReadProgress()
