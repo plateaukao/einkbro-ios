@@ -897,13 +897,16 @@ fun BrowserScreen(
         }
     }
 
+    // The bottom safe-area inset is never reserved: the toolbar/webview always
+    // reaches the physical bottom edge (the home indicator overlays it).
     val rootInsets = when {
-        // Fullscreen: use the whole panel — content runs under the status bar
-        // AND the home indicator to the physical bottom edge.
-        isFullscreen -> WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
-        statusBarSuppressed ->
-            WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
-        else -> WindowInsets.safeDrawing
+        // Fullscreen additionally runs under the status bar.
+        isFullscreen || statusBarSuppressed ->
+            WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
+        else ->
+            WindowInsets.safeDrawing.only(
+                WindowInsetsSides.Horizontal + WindowInsetsSides.Top
+            )
     }
     Column(Modifier.fillMaxSize().windowInsetsPadding(rootInsets)) {
         // The main web pane and all its overlays, rendered into whatever slot the
