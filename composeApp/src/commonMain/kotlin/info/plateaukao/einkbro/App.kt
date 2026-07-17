@@ -211,7 +211,7 @@ private fun ToastOverlay(modifier: Modifier = Modifier) {
     val message by EBToast.current
     if (message != null) {
         LaunchedEffect(message) {
-            delay(2200)
+            delay(2000)
             EBToast.current.value = null
         }
         // E-ink style, matching the app's dialogs: pure white/black surface

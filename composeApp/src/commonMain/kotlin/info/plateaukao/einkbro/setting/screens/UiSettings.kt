@@ -130,7 +130,7 @@ fun buildUiSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
             null,
             Res.string.setting_summary_hide_menu_items,
         ) {
-            EBToast.show(deps.context, "would open the hide-menu-items editor")
+            deps.onOpenMenuItemHide()
         },
     )
 }

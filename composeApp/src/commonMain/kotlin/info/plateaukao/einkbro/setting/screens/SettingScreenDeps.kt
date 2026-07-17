@@ -31,6 +31,8 @@ class SettingScreenDeps(
     val onOpenAdBlockSettings: () -> Unit = {},
     /** Opens a per-type whitelist editor (adblock/JS/cookie/split-search, Phase N). */
     val onOpenWhitelist: (WhiteListType) -> Unit = {},
+    /** Opens the hide/reorder-menu-items editor (Android MenuItemHideActivity). */
+    val onOpenMenuItemHide: () -> Unit = {},
 )
 
 interface BackupOps {

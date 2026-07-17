@@ -215,6 +215,7 @@ fun SettingsScreen(
     onOpenStatusbarConfig: () -> Unit = {},
     onOpenAdBlockSettings: () -> Unit = {},
     onOpenWhitelist: (WhiteListType) -> Unit = {},
+    onOpenMenuItemHide: () -> Unit = {},
     // Android's SettingActivity accepts a route extra (IntentUnit.gotoSettings)
     // so callers like the touch-area dialog can land directly on a sub-screen.
     initialRoute: SettingRoute = Main,
@@ -229,6 +230,7 @@ fun SettingsScreen(
             context, config, scope, RealBackupOps(context, scope),
             onOpenUserScripts, onOpenGptActions, onOpenGptQueries,
             onOpenToolbarConfig, onOpenStatusbarConfig, onOpenAdBlockSettings, onOpenWhitelist,
+            onOpenMenuItemHide,
         )
     }
 

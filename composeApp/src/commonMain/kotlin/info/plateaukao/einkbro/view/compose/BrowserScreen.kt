@@ -139,6 +139,7 @@ fun BrowserScreen(
     var showBoldnessDialog by remember { mutableStateOf(false) }
     var showReaderSettings by remember { mutableStateOf(false) }
     var showToolbarConfig by remember { mutableStateOf(false) }
+    var showMenuItemHide by remember { mutableStateOf(false) }
     var showPageAiActions by remember { mutableStateOf(false) }
     var showUserScripts by remember { mutableStateOf(false) }
     var showEpubDialog by remember { mutableStateOf(false) }
@@ -482,11 +483,6 @@ fun BrowserScreen(
             }
             BrowserAction.ToggleFullscreen -> {
                 isFullscreen = !isFullscreen
-                EBToast.show(
-                    AppServices.context,
-                    if (isFullscreen) "Fullscreen on — tap ⤢ or long-press refresh to exit"
-                    else "Fullscreen off"
-                )
             }
             is BrowserAction.ToggleSplitScreen -> browserViewModel.toggleSplitScreen(action.url)
 
@@ -1331,6 +1327,7 @@ fun BrowserScreen(
                 onOpenGptQueries = { showSettings = false; showGptQueries = true },
                 onOpenToolbarConfig = { showSettings = false; showToolbarConfig = true },
                 onOpenStatusbarConfig = { showSettings = false; showStatusbarConfig = true },
+                onOpenMenuItemHide = { showSettings = false; showMenuItemHide = true },
                 onOpenAdBlockSettings = { showSettings = false; showAdBlockSettings = true },
                 onOpenWhitelist = { type -> showSettings = false; showWhitelist = type },
             )
@@ -1641,6 +1638,14 @@ fun BrowserScreen(
     if (showUserScripts) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
             UserScriptListScreen(onClose = { showUserScripts = false })
+        }
+    }
+
+    if (showMenuItemHide) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            info.plateaukao.einkbro.activity.MenuItemHideScreen(
+                onClose = { showMenuItemHide = false },
+            )
         }
     }
 
