@@ -18,13 +18,12 @@ after the same-day fix round. Use this as the work-list for closing the rest.
 | `saveHistoryMode` SAVE_WHEN_CLOSE | history record deferred until tab close (BrowserViewModel) |
 | Live UI pref reaction | listener now recomposes on toolbar/statusbar/FAB/hide-statusbar key changes |
 | Selection-menu GPT actions | gptActionList items appended to the text-selection menu (Android ActionModeMenuViewModel parity) |
+| `enableSearchSuggestion` | engine suggestions in the URL bar (SearchSuggestionFetcher; all engines via OpenSearch JSON) |
 | Shortcut menu item | removed (§7 impossible) |
 | Quit menu item + UI catalog entry | removed (§7); catalog unreachable |
 
 ## Remaining gaps (INERT/PARTIAL, portable — future phases)
 
-- **`enableSearchSuggestion`** — no network suggestion pipeline; autocomplete is
-  local-only. Port SearchSuggestionViewModel's engine-suggestion fetch.
 - **`remoteQueryActionName`** — Android uses it to pick which GPT action the
   dedicated remote-query gesture runs (ActionModeDelegate:204); iOS now lists
   all GPT actions in the selection menu but has no dedicated remote-query

@@ -97,7 +97,10 @@ import info.plateaukao.einkbro.viewmodel.BrowserViewModel
 import info.plateaukao.einkbro.viewmodel.TRANSLATE_API
 import info.plateaukao.einkbro.viewmodel.TranslationViewModel
 import info.plateaukao.einkbro.viewmodel.TtsViewModel
+import androidx.compose.runtime.snapshotFlow
+import info.plateaukao.einkbro.database.Record
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -1019,6 +1022,42 @@ fun BrowserScreen(
                 }
                 val urlFocusRequester = remember { FocusRequester() }
                 LaunchedEffect(Unit) { urlFocusRequester.requestFocus() }
+                // Android SearchSuggestionViewModel.updateSuggestions: filter
+                // local history/bookmarks by the query and, when enabled, put up
+                // to 4 engine suggestions ahead of them (debounced per keystroke).
+                var suggestionQuery by remember { mutableStateOf("") }
+                LaunchedEffect(Unit) {
+                    snapshotFlow { suggestionQuery }.collectLatest { query ->
+                        val all = browserViewModel.records.value
+                        if (query.isEmpty()) {
+                            recordsState.value = all
+                            return@collectLatest
+                        }
+                        val filtered = all.filter {
+                            it.title?.contains(query, ignoreCase = true) == true ||
+                                it.url.contains(query, ignoreCase = true)
+                        }
+                        if ((query.length <= 1 && filtered.isNotEmpty()) ||
+                            !config.browser.enableSearchSuggestion
+                        ) {
+                            recordsState.value = filtered
+                            return@collectLatest
+                        }
+                        recordsState.value = filtered
+                        delay(200)
+                        val fromEngine = info.plateaukao.einkbro.search.suggestion
+                            .SearchSuggestionFetcher
+                            .fetch(config.browser.searchEngine, query)
+                            .take(4)
+                            .map {
+                                Record(
+                                    title = it, url = it, time = -1,
+                                    type = info.plateaukao.einkbro.database.RecordType.Suggestion,
+                                )
+                            }
+                        recordsState.value = fromEngine + filtered
+                    }
+                }
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
                     AutoCompleteTextField(
                         focusRequester = urlFocusRequester,
@@ -1032,7 +1071,7 @@ fun BrowserScreen(
                         onTextSubmit = {
                             browserViewModel.loadUrlOrSearch(it); showUrlInput = false
                         },
-                        onTextChange = {},
+                        onTextChange = { suggestionQuery = it },
                         onPasteClick = {},
                         closeAction = { showUrlInput = false },
                         onRecordClick = {

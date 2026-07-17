@@ -59,6 +59,7 @@ import info.plateaukao.einkbro.database.BookmarkManager
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.drag_to_reorder
 import info.plateaukao.einkbro.resources.ic_folder
+import info.plateaukao.einkbro.resources.ic_launcher
 import info.plateaukao.einkbro.resources.ic_grid_view
 import info.plateaukao.einkbro.resources.ic_hamburger
 import info.plateaukao.einkbro.resources.ic_sort
@@ -467,12 +468,17 @@ fun BookmarkItem(
                 action = iconClick
             )
         } else {
-            // Android falls back to the app launcher icon; use the earth
-            // glyph as the default favicon here.
-            ActionIcon(
-                modifier = Modifier.align(Alignment.CenterVertically),
-                iconResId = Res.drawable.icon_earth,
-                action = iconClick
+            // Same fallback as Android: the app launcher icon.
+            Image(
+                modifier = Modifier
+                    .align(Alignment.CenterVertically)
+                    .size(36.dp)
+                    .padding(end = 5.dp)
+                    .clickable { iconClick() },
+                painter = org.jetbrains.compose.resources.painterResource(
+                    Res.drawable.ic_launcher
+                ),
+                contentDescription = null,
             )
         }
         Text(
