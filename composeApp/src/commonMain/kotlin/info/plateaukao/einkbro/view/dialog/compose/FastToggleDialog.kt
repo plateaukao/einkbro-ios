@@ -52,16 +52,26 @@ import org.jetbrains.compose.resources.StringResource
 @Composable
 fun FastToggleDialogContent(
     extraAction: () -> Unit = {},
+    onOpenWhitelist: (info.plateaukao.einkbro.activity.WhiteListType) -> Unit = {},
     onDismiss: () -> Unit = {},
 ) {
-    FastToggleItemList(LocalContext.current, AppServices.config) { needExtraAction ->
+    FastToggleItemList(
+        LocalContext.current,
+        AppServices.config,
+        onOpenWhitelist = { type -> onDismiss(); onOpenWhitelist(type) },
+    ) { needExtraAction ->
         if (needExtraAction) extraAction()
         onDismiss()
     }
 }
 
 @Composable
-fun FastToggleItemList(context: Context, config: ConfigManager, onClicked: ((Boolean) -> Unit)) {
+fun FastToggleItemList(
+    context: Context,
+    config: ConfigManager,
+    onOpenWhitelist: (info.plateaukao.einkbro.activity.WhiteListType) -> Unit = {},
+    onClicked: ((Boolean) -> Unit),
+) {
     Column(modifier = Modifier.width(IntrinsicSize.Max)) {
         ToggleItem(
             state = config.isIncognitoMode,
@@ -75,7 +85,7 @@ fun FastToggleItemList(context: Context, config: ConfigManager, onClicked: ((Boo
             state = config.browser.adBlock,
             titleResId = Res.string.setting_title_adblock, imageVector = Icons.Outlined.Block,
             onEditAction = {
-                EBToast.show(context, "would open the adblock whitelist editor")
+                onOpenWhitelist(info.plateaukao.einkbro.activity.WhiteListType.Adblock)
             }
         ) {
             config.browser::adBlock.toggle()
@@ -85,7 +95,7 @@ fun FastToggleItemList(context: Context, config: ConfigManager, onClicked: ((Boo
             state = config.browser.enableJavascript,
             titleResId = Res.string.setting_title_javascript, imageVector = Icons.Outlined.Terminal,
             onEditAction = {
-                EBToast.show(context, "would open the javascript whitelist editor")
+                onOpenWhitelist(info.plateaukao.einkbro.activity.WhiteListType.Javascript)
             }
         ) {
             config.browser::enableJavascript.toggle()
@@ -95,7 +105,7 @@ fun FastToggleItemList(context: Context, config: ConfigManager, onClicked: ((Boo
             state = config.browser.cookies,
             titleResId = Res.string.setting_title_cookie, imageVector = Icons.Outlined.Cookie,
             onEditAction = {
-                EBToast.show(context, "would open the cookie whitelist editor")
+                onOpenWhitelist(info.plateaukao.einkbro.activity.WhiteListType.Cookie)
             }
         ) {
             config.browser::cookies.toggle()

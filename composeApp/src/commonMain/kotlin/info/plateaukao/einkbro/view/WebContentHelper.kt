@@ -43,6 +43,15 @@ class WebContentHelper(
         if (config.display.enableZoomTextWrapReflow) {
             evaluateJsFile("zoom-text-wrap-reflow.js")
         }
+        // Per-site desktop viewport width (Android injectForcedViewportWidth):
+        // force a wide viewport so desktop-mode sites lay out at full width.
+        val width = config.getDesktopViewportWidth(engine.currentUrl().orEmpty())
+        if (width != null && width > 0) {
+            engine.evaluateJavascript(
+                info.plateaukao.einkbro.browser.Assets.get("force_viewport_width.js")
+                    .replace("__WIDTH__", width.toString())
+            )
+        }
     }
 
     // --- CSS slots -------------------------------------------------------

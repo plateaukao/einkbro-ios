@@ -1385,11 +1385,14 @@ fun BrowserScreen(
             properties = DialogProperties(usePlatformDefaultWidth = false),
         ) {
             AnchoredDialogFrame(onDismiss = dismissFastToggle) {
-                FastToggleDialogContent(onDismiss = {
-                    showFastToggle = false
-                    // Adblock/JS/cookie/incognito toggles take effect on live tabs.
-                    browserViewModel.reapplyWebConfig()
-                })
+                FastToggleDialogContent(
+                    onOpenWhitelist = { type -> showFastToggle = false; showWhitelist = type },
+                    onDismiss = {
+                        showFastToggle = false
+                        // Adblock/JS/cookie/incognito toggles take effect on live tabs.
+                        browserViewModel.reapplyWebConfig()
+                    },
+                )
             }
         }
     }
