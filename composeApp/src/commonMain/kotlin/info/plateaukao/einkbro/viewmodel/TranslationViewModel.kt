@@ -385,4 +385,50 @@ class TranslationViewModel(
             targetLanguage = config.translation.translationLanguage.value,
             langDetect = true,
         )?.renderedImage
+
+    // --- AI task runner (Android TaskMenuDelegate parity) ----------------
+    // The task result stream is rendered into the same result surface the
+    // translate/AI dialog already shows, as live markdown.
+
+    private var taskStreamJob: kotlinx.coroutines.Job? = null
+
+    fun setupTaskStream(
+        progressFlow: StateFlow<info.plateaukao.einkbro.task.TaskProgress?>,
+    ) {
+        updateTranslateMethod(TRANSLATE_API.LLM)
+        _inputMessage.value = ""
+        _responseMessage.value = AnnotatedString("…")
+        taskStreamJob?.cancel()
+        taskStreamJob = viewModelScope.launch {
+            progressFlow.collect { progress ->
+                if (progress == null) return@collect
+                _responseMessage.value = HelperUnit.parseMarkdown(renderTaskProgress(progress))
+            }
+        }
+    }
+
+    private fun renderTaskProgress(
+        progress: info.plateaukao.einkbro.task.TaskProgress,
+    ): String {
+        val sb = StringBuilder()
+        sb.append("**").append(progress.taskName).append("** — ")
+        sb.append(
+            when (progress.status) {
+                info.plateaukao.einkbro.task.TaskProgress.Status.Running -> "running…"
+                info.plateaukao.einkbro.task.TaskProgress.Status.Done -> "done"
+                info.plateaukao.einkbro.task.TaskProgress.Status.Cancelled -> "cancelled"
+                info.plateaukao.einkbro.task.TaskProgress.Status.Failed -> "failed"
+            }
+        ).append("\n\n")
+        progress.steps.forEach { step ->
+            val marker = when (step.kind) {
+                info.plateaukao.einkbro.task.TaskProgress.StepLine.Kind.Info -> "- "
+                info.plateaukao.einkbro.task.TaskProgress.StepLine.Kind.Tool -> "- [tool] "
+                info.plateaukao.einkbro.task.TaskProgress.StepLine.Kind.Error -> "- [error] "
+            }
+            sb.append(marker).append(step.text).append("\n")
+        }
+        progress.finalMarkdown?.let { sb.append("\n---\n\n").append(it) }
+        return sb.toString()
+    }
 }

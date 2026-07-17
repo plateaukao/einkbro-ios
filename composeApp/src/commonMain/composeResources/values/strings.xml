@@ -678,6 +678,7 @@
     <string name="task_read_article_list">News anchor</string>
     <string name="task_read_article_list_desc">Extract article links from this page, then open each one and read it aloud in sequence.</string>
     <string name="task_custom">Custom task…</string>
+    <string name="task_custom_title">Custom task</string>
     <string name="task_custom_desc">Describe a multi-step task in natural language; an LLM will run it.</string>
     <string name="task_custom_hint">e.g. open the top 3 story links and give me one-sentence summaries</string>
     <string name="task_run">Run</string>

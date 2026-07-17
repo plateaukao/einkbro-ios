@@ -67,6 +67,8 @@ import info.plateaukao.einkbro.database.Bookmark
 import info.plateaukao.einkbro.preference.ShareLongPressAction
 import info.plateaukao.einkbro.preference.TranslationMode
 import info.plateaukao.einkbro.resources.Res
+import info.plateaukao.einkbro.resources.task_custom_hint
+import info.plateaukao.einkbro.resources.task_custom_title
 import info.plateaukao.einkbro.resources.ic_chat_gpt
 import info.plateaukao.einkbro.resources.ic_highlight_color
 import info.plateaukao.einkbro.util.PlatformActions
@@ -220,6 +222,13 @@ fun BrowserScreen(
     // Session-scoped services (Phase 6): reading continues after the TTS
     // dialog closes, and translate results survive reopening the popup.
     val ttsViewModel = remember { TtsViewModel() }
+    var showTaskMenu by remember { mutableStateOf(false) }
+    val taskRunner = remember {
+        info.plateaukao.einkbro.task.TaskRunner(
+            ttsViewModel = ttsViewModel,
+            activeEngineProvider = { browserViewModel.currentEngine },
+        )
+    }
     val translationViewModel = remember { TranslationViewModel() }
     val chatWithWebViewModel = remember { info.plateaukao.einkbro.viewmodel.ChatWithWebViewModel() }
 
@@ -340,6 +349,43 @@ fun BrowserScreen(
     }
 
     /** Runs the chosen translation mode on the current page (Phase 6). */
+    // AI task runner (Android TaskMenuDelegate parity): start the task, attach
+    // the progress stream to the translate/AI result dialog, then show it.
+    fun runTaskById(taskId: String) {
+        val descriptor = info.plateaukao.einkbro.task.TaskCatalog.byId(taskId)
+        if (descriptor == null) {
+            EBToast.show(AppServices.context, "Unknown task")
+            return
+        }
+        if (!translationViewModel.hasOpenAiApiKey() && !config.ai.useGeminiApi) {
+            EBToast.show(AppServices.context, "Add OpenAI key in Settings")
+            return
+        }
+        // Start first so the progress flow holds the fresh Running state before
+        // the collector attaches (else the collector's first emission is the
+        // previous task's stale Done value).
+        taskRunner.run(descriptor.factory())
+        translationViewModel.setupTaskStream(taskRunner.progress)
+        translateDialogWholePage = true
+        showTranslateDialog = true
+    }
+
+    fun runCustomTask(prompt: String) {
+        if (prompt.isBlank()) return
+        if (config.ai.useGeminiApi) {
+            EBToast.show(AppServices.context, "Custom tasks require OpenAI (tool-calling)")
+            return
+        }
+        if (!translationViewModel.hasOpenAiApiKey()) {
+            EBToast.show(AppServices.context, "Add OpenAI key in Settings")
+            return
+        }
+        taskRunner.run(info.plateaukao.einkbro.task.FreeFormAgentTask(prompt))
+        translationViewModel.setupTaskStream(taskRunner.progress)
+        translateDialogWholePage = true
+        showTranslateDialog = true
+    }
+
     fun translateWithMode(mode: TranslationMode) {
         val currentHelper = helper ?: return
         val bridge = browserViewModel.translationBridge
@@ -685,11 +731,9 @@ fun BrowserScreen(
                     showPageAiActions = true
                 }
             }
-            BrowserAction.ShowTaskMenu, is BrowserAction.RunTask, is BrowserAction.RunCustomTask ->
-                EBToast.show(
-                    AppServices.context,
-                    "The AI task runner (browser automation agent) is not available on iOS yet",
-                )
+            BrowserAction.ShowTaskMenu -> showTaskMenu = true
+            is BrowserAction.RunTask -> runTaskById(action.taskId)
+            is BrowserAction.RunCustomTask -> runCustomTask(action.prompt)
 
             // File
             BrowserAction.ShowEpubDialog -> showEpubDialog = true
@@ -1612,10 +1656,8 @@ fun BrowserScreen(
                         handleBrowserAction(BrowserAction.ChatWithWeb(useSplitScreen = true))
                     },
                     onTaskRunnerClicked = {
-                        EBToast.show(
-                            AppServices.context,
-                            "The AI task runner (browser automation agent) is not available on iOS yet",
-                        )
+                        showPageAiActions = false
+                        showTaskMenu = true
                     },
                     onDismiss = { showPageAiActions = false },
                 )
@@ -1711,6 +1753,31 @@ fun BrowserScreen(
             info.plateaukao.einkbro.activity.MenuItemHideScreen(
                 onClose = { showMenuItemHide = false },
             )
+        }
+    }
+
+    if (showTaskMenu) {
+        Dialog(onDismissRequest = { showTaskMenu = false }) {
+            DialogFrame(onDismiss = { showTaskMenu = false }) {
+                info.plateaukao.einkbro.view.dialog.compose.TaskMenuDialogContent(
+                    onTemplateClicked = { descriptor ->
+                        showTaskMenu = false
+                        handleBrowserAction(BrowserAction.RunTask(descriptor.id))
+                    },
+                    onCustomClicked = {
+                        showTaskMenu = false
+                        scope.launch {
+                            val prompt = AppServices.dialogManager.getTextInput(
+                                Res.string.task_custom_title,
+                                Res.string.task_custom_hint,
+                                "",
+                            ) ?: return@launch
+                            handleBrowserAction(BrowserAction.RunCustomTask(prompt))
+                        }
+                    },
+                    onDismiss = { showTaskMenu = false },
+                )
+            }
         }
     }
 
