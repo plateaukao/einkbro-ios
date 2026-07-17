@@ -27,7 +27,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.AlertDialog
+import info.plateaukao.einkbro.util.NoDimAlertDialog as AlertDialog
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Switch
@@ -55,7 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import info.plateaukao.einkbro.util.NoDimDialog as Dialog
 import androidx.navigation.NavHostController
 import info.plateaukao.einkbro.BuildConfig
 import info.plateaukao.einkbro.preference.EinkImageAdjustment

@@ -20,7 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
+import info.plateaukao.einkbro.util.NoDimDialog as Dialog
 
 /**
  * Instapaper credentials dialog (parity Phase J): username + masked password,

@@ -47,7 +47,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import info.plateaukao.einkbro.util.NoDimDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.activity.HighlightsScreen
@@ -964,7 +964,10 @@ fun BrowserScreen(
             }
 
             if (showOverview) {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+                // Transparent overlay like Android's OverviewDialogController:
+                // the panel sizes to its content at the toolbar edge, the page
+                // stays visible behind, and tapping the empty area closes it.
+                Box(Modifier.fillMaxSize()) {
                     HistoryAndTabs(
                         bookmarkManager = AppServices.bookmarkManager,
                         isHistoryOpen = overviewShowsHistory,

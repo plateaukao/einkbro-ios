@@ -33,7 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
+import info.plateaukao.einkbro.util.NoDimDialog as Dialog
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.data.remote.GptVoiceOption
 import info.plateaukao.einkbro.resources.Res

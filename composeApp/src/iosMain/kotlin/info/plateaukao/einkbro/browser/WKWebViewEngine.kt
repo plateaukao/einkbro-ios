@@ -11,6 +11,7 @@ import kotlinx.cinterop.ObjCAction
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.readValue
+import kotlinx.cinterop.toKString
 import kotlinx.cinterop.useContents
 import info.plateaukao.einkbro.database.FaviconInfo
 import info.plateaukao.einkbro.util.Uri
@@ -99,7 +100,7 @@ class WKWebViewEngine(
     private val browserConfig = AppServices.config.browser
     private val refreshTarget = RefreshTarget { webView.reload() }
 
-    val webView: WKWebView = WKWebView(
+    val webView: WKWebView = EBWKWebView(
         frame = CGRectZero.readValue(),
         configuration = WKWebViewConfiguration().apply {
             // Video prefs (parity Phase D): auto-fullscreen forces non-inline
@@ -576,6 +577,30 @@ private class NavigationDelegate(
 }
 
 private val WEB_SCHEMES = setOf("http", "https", "file", "about", "blob", "data")
+
+/**
+ * WKWebView that hides the system edit menu on text selection: EinkBro shows
+ * its own ActionModeMenu instead (Android suppresses the default ActionMode
+ * the same way), unless Appearance → "show default action menu" is enabled.
+ * paste/select stay allowed so editable fields keep working.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private class EBWKWebView(
+    frame: kotlinx.cinterop.CValue<platform.CoreGraphics.CGRect>,
+    configuration: WKWebViewConfiguration,
+) : WKWebView(frame, configuration) {
+    override fun canPerformAction(
+        action: kotlinx.cinterop.COpaquePointer?,
+        withSender: Any?,
+    ): Boolean {
+        if (!AppServices.config.ui.showDefaultActionMenu && action != null) {
+            val name = platform.objc.sel_getName(action)?.toKString() ?: ""
+            val allowed = name == "paste:" || name == "select:" || name == "selectAll:"
+            if (!allowed) return false
+        }
+        return super.canPerformAction(action, withSender)
+    }
+}
 
 // Last matching link wins, same as Android WebView's icon pick; absolute href
 // courtesy of the DOM. Falls back to the conventional /favicon.ico.
