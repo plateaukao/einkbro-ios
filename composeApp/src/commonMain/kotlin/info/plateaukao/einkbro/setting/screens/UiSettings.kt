@@ -82,13 +82,30 @@ fun buildUiSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
             Res.string.setting_summary_page_left_value,
             config.touch::pageReservedOffsetInString
         ),
-        // On Android this opens the ReaderSettingsDialogFragment chain
-        // (reader settings -> font dialog -> font browser).
+        // Android's ReaderSettingsDialogFragment: reader-mode font size and
+        // family (read by updateCssStyle when reader mode is on). Two pickers
+        // through the shared select-option dialog.
         ActionSettingItem(
             Res.string.reader_settings,
             null,
         ) {
-            EBToast.show(deps.context, "would open the reader settings dialog")
+            deps.scope.launch {
+                val dialogManager = info.plateaukao.einkbro.AppServices.dialogManager
+                val sizes = listOf(75, 90, 100, 110, 125, 150, 175, 200)
+                val sizeIndex = dialogManager.getSelectedOptionWithString(
+                    Res.string.font_size,
+                    sizes.map { "$it%" },
+                    sizes.indexOf(config.display.readerFontSize).coerceAtLeast(2),
+                ) ?: return@launch
+                config.display.readerFontSize = sizes[sizeIndex]
+                val fonts = info.plateaukao.einkbro.preference.FontType.entries
+                val fontIndex = dialogManager.getSelectedOptionWithString(
+                    Res.string.font_type,
+                    fonts.map { info.plateaukao.einkbro.util.blockingString(it.resId) },
+                    config.display.readerFontType.ordinal,
+                ) ?: return@launch
+                config.display.readerFontType = fonts[fontIndex]
+            }
         },
         ListSettingWithEnumItem(
             Res.string.dark_mode,

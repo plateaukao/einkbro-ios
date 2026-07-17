@@ -38,6 +38,11 @@ class WebContentHelper(
         verticalLineAdvanceCssPx = 0f
         isTranslateByParagraph = false
         updateCssStyle()
+        // Android WebContentPostProcessor: reflow text to the viewport width
+        // after a pinch zoom (github.com/plateaukao/einkbro/issues/537).
+        if (config.display.enableZoomTextWrapReflow) {
+            evaluateJsFile("zoom-text-wrap-reflow.js")
+        }
     }
 
     // --- CSS slots -------------------------------------------------------

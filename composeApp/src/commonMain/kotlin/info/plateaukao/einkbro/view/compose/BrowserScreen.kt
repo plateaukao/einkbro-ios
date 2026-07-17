@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -1103,6 +1104,9 @@ fun BrowserScreen(
                         // input bar's suggestion list.
                         bookmarkManager = if (config.browser.showBookmarksInInputBar)
                             AppServices.bookmarkManager else null,
+                        // Android InputBarDelegate: the text field sits at the
+                        // toolbar's edge — bottom toolbar puts the input bottom.
+                        shouldReverse = !config.ui.isToolbarOnTop,
                         showHistoryThumbnailGrid = config.ui.showHistoryThumbnailGrid,
                         text = text,
                         recordList = recordsState,
@@ -1128,7 +1132,8 @@ fun BrowserScreen(
         val renderToolbar: @Composable () -> Unit = {
             if (!isFullscreen && !toolbarHiddenByScroll) {
                 ComposedToolbar(
-                    showTabs = showTabStrip,
+                    isVertical = config.ui.isVerticalToolbar,
+                    showTabs = showTabStrip && !config.ui.isVerticalToolbar,
                     toolbarActionInfos = remember(toolbarRefreshTick) {
                         config.ui.toolbarActions.map { ToolbarActionInfo(it, false) }
                     },
@@ -1154,7 +1159,7 @@ fun BrowserScreen(
                 )
             }
         }
-        if (toolbarAtTop) renderToolbar()
+        if (toolbarAtTop && !config.ui.isVerticalToolbar) renderToolbar()
         if (config.ui.statusbarEnabled &&
             config.ui.statusbarPosition ==
             info.plateaukao.einkbro.view.statusbar.StatusbarPosition.Top
@@ -1164,21 +1169,36 @@ fun BrowserScreen(
 
         // Split screen (parity Phase G): the second pane sits beside the main one,
         // horizontally (side-by-side) or vertically (stacked) per orientation.
-        val splitAlbumG = browserViewModel.splitAlbum.value
-        if (splitAlbumG == null) {
-            renderMainPane(Modifier.weight(1f).fillMaxWidth())
-        } else if (browserViewModel.splitOrientation.value ==
-            info.plateaukao.einkbro.view.Orientation.Vertical
-        ) {
-            Column(Modifier.weight(1f).fillMaxWidth()) {
+        val renderPaneArea: @Composable ColumnScope.() -> Unit = {
+            val splitAlbumG = browserViewModel.splitAlbum.value
+            if (splitAlbumG == null) {
                 renderMainPane(Modifier.weight(1f).fillMaxWidth())
-                SplitPane(Modifier.weight(1f).fillMaxWidth(), browserViewModel, statusBarSuppressed)
+            } else if (browserViewModel.splitOrientation.value ==
+                info.plateaukao.einkbro.view.Orientation.Vertical
+            ) {
+                Column(Modifier.weight(1f).fillMaxWidth()) {
+                    renderMainPane(Modifier.weight(1f).fillMaxWidth())
+                    SplitPane(Modifier.weight(1f).fillMaxWidth(), browserViewModel, statusBarSuppressed)
+                }
+            } else {
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    renderMainPane(Modifier.weight(1f).fillMaxHeight())
+                    SplitPane(Modifier.weight(1f).fillMaxHeight(), browserViewModel, statusBarSuppressed)
+                }
+            }
+        }
+        if (config.ui.isVerticalToolbar) {
+            // Left/Right toolbarPosition: the toolbar is a vertical rail beside
+            // the page (Android isVerticalToolbar; tab strip is suppressed).
+            val onLeft = config.ui.toolbarPosition ==
+                info.plateaukao.einkbro.preference.ToolbarPosition.Left
+            Row(Modifier.weight(1f).fillMaxWidth()) {
+                if (onLeft) renderToolbar()
+                Column(Modifier.weight(1f).fillMaxHeight()) { renderPaneArea() }
+                if (!onLeft) renderToolbar()
             }
         } else {
-            Row(Modifier.weight(1f).fillMaxWidth()) {
-                renderMainPane(Modifier.weight(1f).fillMaxHeight())
-                SplitPane(Modifier.weight(1f).fillMaxHeight(), browserViewModel, statusBarSuppressed)
-            }
+            renderPaneArea()
         }
 
         if (progress < 1f) {
@@ -1220,7 +1240,7 @@ fun BrowserScreen(
         ) {
             renderStatusbar()
         }
-        if (!toolbarAtTop) renderToolbar()
+        if (!toolbarAtTop && !config.ui.isVerticalToolbar) renderToolbar()
     }
 
     if (isFullscreen) {

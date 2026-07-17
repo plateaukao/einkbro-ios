@@ -529,11 +529,18 @@ private class NavigationDelegate(
         val url = decidePolicyForNavigationAction.request.URL
         val scheme = url?.scheme?.lowercase()
         if (url != null && scheme != null && scheme !in WEB_SCHEMES) {
-            // mailto:, tel:, app store, custom app schemes → hand off to the OS.
-            UIApplication.sharedApplication.openURL(
-                url, options = emptyMap<Any?, Any?>(), completionHandler = null,
-            )
+            // mailto:, tel:, app store, custom app schemes: never leave the
+            // app silently — sites (e.g. x.com) redirect through app schemes
+            // and would bounce the user out. Ask first.
             decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
+            AppServices.dialogManager.showOkCancelDialog(
+                message = "Leave EinkBro and open this link externally?\n${url.absoluteString}",
+                okAction = {
+                    UIApplication.sharedApplication.openURL(
+                        url, options = emptyMap<Any?, Any?>(), completionHandler = null,
+                    )
+                },
+            )
             return
         }
         // *.user.js → offer to install as a userscript instead of navigating

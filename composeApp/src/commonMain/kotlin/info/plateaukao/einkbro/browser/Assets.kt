@@ -25,6 +25,7 @@ object Assets {
 
     private val NAMES = listOf(
         "recent_bookmarks.html",
+        "zoom-text-wrap-reflow.js",
         "MozReadability.js",
         "jsonld_article.js",
         "readerview.css",
