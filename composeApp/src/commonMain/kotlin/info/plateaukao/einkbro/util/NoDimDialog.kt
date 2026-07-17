@@ -64,7 +64,14 @@ fun NoDimAlertDialog(
     backgroundColor: Color = MaterialTheme.colors.surface,
     contentColor: Color = contentColorFor(backgroundColor),
 ) {
-    NoDimDialog(onDismissRequest = onDismissRequest) {
+    NoDimDialog(
+        onDismissRequest = onDismissRequest,
+        // dismissOnClickOutside stays off: with the software-keyboard inset
+        // shifting the dialog, CMP's outside-click detection misfires on the
+        // very tap that focuses a text field, dismissing the dialog instantly.
+        // AlertDialogs always have explicit Cancel/OK buttons anyway.
+        properties = DialogProperties(dismissOnClickOutside = false),
+    ) {
         Surface(
             modifier = modifier,
             shape = shape,
