@@ -27,6 +27,7 @@ object Assets {
         "recent_bookmarks.html",
         "zoom-text-wrap-reflow.js",
         "force_viewport_width.js",
+        "error_page.html",
         "MozReadability.js",
         "jsonld_article.js",
         "readerview.css",

@@ -184,6 +184,29 @@ class WKWebViewEngine(
         notifyStarted()
     }
 
+    // Failed main-frame URL, so einkbro://retry can re-fetch it.
+    private var errorPageFailedUrl: String? = null
+
+    internal fun showErrorPage(failedUrl: String, reason: String) {
+        errorPageFailedUrl = failedUrl
+        val html = Assets.get("error_page.html")
+        // The page reads ?url=/&reason= from location.search; a custom-scheme
+        // base URL carries them and lets location.href='einkbro://retry' fire
+        // the navigation delegate (which re-fetches errorPageFailedUrl).
+        val base = NSURL.URLWithString(
+            "einkbro://error/?url=" + failedUrl.encodeForQuery() +
+                "&reason=" + friendlyReason(reason).encodeForQuery()
+        )
+        webView.loadHTMLString(html, baseURL = base)
+    }
+
+    internal fun retryErrorPage(): Boolean {
+        val url = errorPageFailedUrl ?: return false
+        errorPageFailedUrl = null
+        loadUrl(url)
+        return true
+    }
+
     override fun loadFile(path: String) {
         val fileUrl = NSURL.fileURLWithPath(path)
         // Grant read access to the containing directory (webarchive/resources).
@@ -526,7 +549,14 @@ private class NavigationDelegate(
         // -999 = cancelled (new load superseding), 102 = frame load interrupted
         // (fires when a response is diverted to a download) — neither is an error.
         if (withError.code != -999L && withError.code != 102L) {
+            val failingUrl = withError.userInfo["NSErrorFailingURLStringKey"] as? String
+                ?: webView.URL?.absoluteString
             engine.reportLoadError(withError.localizedDescription)
+            // Offline/DNS/refused main-frame failures show the error page with a
+            // retry button (Android WebErrorPagePresenter).
+            if (failingUrl != null && failingUrl.startsWith("http")) {
+                engine.showErrorPage(failingUrl, withError.localizedDescription)
+            }
         }
     }
 
@@ -537,6 +567,18 @@ private class NavigationDelegate(
     ) {
         val url = decidePolicyForNavigationAction.request.URL
         val scheme = url?.scheme?.lowercase()
+        // Error-page retry button: re-fetch the failed URL, never leave the app.
+        if (url?.absoluteString?.startsWith("einkbro://retry") == true) {
+            decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
+            if (!engine.retryErrorPage()) engine.reload()
+            return
+        }
+        // Internal einkbro:// (the error page's own base URL): render it, never
+        // hand it to the OS or show the leave-app dialog.
+        if (scheme == "einkbro") {
+            decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyAllow)
+            return
+        }
         if (url != null && scheme != null && scheme !in WEB_SCHEMES) {
             // mailto:, tel:, app store, custom app schemes: never leave the
             // app silently — sites (e.g. x.com) redirect through app schemes
@@ -663,6 +705,34 @@ private class NavigationDelegate(
 }
 
 private val WEB_SCHEMES = setOf("http", "https", "file", "about", "blob", "data")
+
+// Minimal percent-encoding for the error-page query values.
+private fun String.encodeForQuery(): String = buildString {
+    for (c in this@encodeForQuery) {
+        if (c.isLetterOrDigit() || c in "-_.~") append(c)
+        else for (b in c.toString().encodeToByteArray()) {
+            append('%'); append(((b.toInt() and 0xFF) shr 4).toString(16).uppercase())
+            append((b.toInt() and 0x0F).toString(16).uppercase())
+        }
+    }
+}
+
+// WebErrorPagePresenter.friendlyReason, condensed for NSError descriptions.
+private fun friendlyReason(raw: String?): String {
+    if (raw.isNullOrBlank()) return "Check your connection and try again."
+    val r = raw.lowercase()
+    return when {
+        "offline" in r || "not connected to the internet" in r ->
+            "You appear to be offline. Check your Wi-Fi or mobile data."
+        "hostname could not be found" in r || "not be found" in r ->
+            "Couldn't find this site. Check the address and try again."
+        "timed out" in r -> "The connection timed out."
+        "connection was lost" in r || "reset" in r ->
+            "The connection was interrupted."
+        "refused" in r -> "The server refused the connection."
+        else -> "Check your connection and try again."
+    }
+}
 
 // navigator.geolocation stub: every request fails with PERMISSION_DENIED.
 private val GEOLOCATION_BLOCK_JS = """
