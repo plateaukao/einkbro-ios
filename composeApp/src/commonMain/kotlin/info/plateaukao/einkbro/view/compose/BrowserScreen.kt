@@ -1569,7 +1569,12 @@ fun BrowserScreen(
     }
 
     if (showTranslateDialog) {
-        Dialog(onDismissRequest = { showTranslateDialog = false }) {
+        Dialog(
+            onDismissRequest = { showTranslateDialog = false },
+            // Full-width window so the result card sizes itself: near the screen
+            // edge on phones, fixed 600dp on tablets (see TranslateResponse).
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
             DialogFrame(onDismiss = { showTranslateDialog = false }) {
                 TranslateDialogContent(
                     translationViewModel = translationViewModel,

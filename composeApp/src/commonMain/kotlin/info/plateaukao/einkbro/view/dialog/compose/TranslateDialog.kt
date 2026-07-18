@@ -138,6 +138,9 @@ private fun TranslateResponse(
     val translateNaver = remember { { viewModel.translate(TRANSLATE_API.NAVER) } }
 
     val maxHeight = (screenHeightDp() * 0.8).dp
+    // Wide result card: tablets get a fixed 600dp; phones stretch to the dialog
+    // frame's edge margins (the host turns off usePlatformDefaultWidth).
+    val isTablet = ViewUnit.isTablet(LocalContext.current)
 
     Column(
         modifier = Modifier
@@ -148,7 +151,7 @@ private fun TranslateResponse(
                         .height(400.dp)
                         .rotate(-90f)
                 } else {
-                    wrapContentWidth()
+                    (if (isTablet) width(600.dp) else fillMaxWidth())
                         .heightIn(max = maxHeight)
                 }
             }
