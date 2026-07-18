@@ -437,7 +437,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             ?: info.plateaukao.einkbro.search.SearchEngine.GOOGLE.ordinal
         return info.plateaukao.einkbro.search.SearchEngineUrls.searchUrl(
             ordinal = ordinal,
-            encodedQuery = percentEncode(query),
+            encodedQuery = info.plateaukao.einkbro.search.SearchEngineUrls.percentEncodeQuery(query),
             customTemplate = config.browser.searchEngineUrl
                 .ifBlank { "https://www.google.com/search?q=%s" },
         )
@@ -781,14 +781,6 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         currentTitle.value = currentAlbum?.albumTitle.orEmpty()
         currentUrl.value = currentEngine?.currentUrl().orEmpty()
         progress.value = 1f
-    }
-
-    private fun percentEncode(s: String): String = buildString {
-        for (b in s.encodeToByteArray()) {
-            val c = b.toInt().toChar()
-            if (c.isLetterOrDigit() || c in "-._~") append(c)
-            else append('%').append(b.toUByte().toString(16).uppercase().padStart(2, '0'))
-        }
     }
 
     companion object {

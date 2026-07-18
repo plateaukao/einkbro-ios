@@ -39,4 +39,21 @@ object SearchEngineUrls {
             10 -> YANDEX + encodedQuery
             else -> GOOGLE + encodedQuery
         }
+
+    /**
+     * RFC 3986 percent-encoding of a query over its UTF-8 bytes (Android's
+     * URLEncoder.encode equivalent). Only ASCII unreserved characters pass
+     * through; every other byte — including all multi-byte UTF-8 (CJK etc.) —
+     * becomes %XX. The byte must be checked as an unsigned value: mapping it
+     * through Char first puts 0x80..0xFF into U+FF80..U+FFFF, where halfwidth
+     * katakana/hangul count as letters and would leak through raw.
+     */
+    fun percentEncodeQuery(s: String): String = buildString {
+        for (b in s.encodeToByteArray()) {
+            val i = b.toInt() and 0xFF
+            val c = i.toChar()
+            if (i < 0x80 && (c.isLetterOrDigit() || c in "-._~")) append(c)
+            else append('%').append(i.toString(16).uppercase().padStart(2, '0'))
+        }
+    }
 }

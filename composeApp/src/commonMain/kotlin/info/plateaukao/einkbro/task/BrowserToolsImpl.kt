@@ -117,7 +117,7 @@ class BrowserToolsImpl(
         val ordinal = config.browser.searchEngine.toIntOrNull() ?: SearchEngine.GOOGLE.ordinal
         val searchUrl = SearchEngineUrls.searchUrl(
             ordinal = ordinal,
-            encodedQuery = percentEncode(query),
+            encodedQuery = SearchEngineUrls.percentEncodeQuery(query),
             customTemplate = config.browser.searchEngineUrl
                 .ifBlank { "https://www.google.com/search?q=%s" },
         )
@@ -390,14 +390,6 @@ class BrowserToolsImpl(
         bgHelper = null
         currentLoadDeferred?.complete(false)
         currentLoadDeferred = null
-    }
-
-    private fun percentEncode(s: String): String = buildString {
-        for (b in s.encodeToByteArray()) {
-            val c = b.toInt().toChar()
-            if (c.isLetterOrDigit() || c in "-._~") append(c)
-            else append('%').append(b.toUByte().toString(16).uppercase().padStart(2, '0'))
-        }
     }
 
     companion object {
