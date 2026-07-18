@@ -684,4 +684,10 @@
     <string name="task_run">Run</string>
     <string name="task_requires_openai">Custom tasks require OpenAI (not Gemini).</string>
     <string name="task_unknown">Unknown task.</string>
+    <string name="setting_title_gdrive_sync">Sync with Google Drive</string>
+    <string name="setting_summary_gdrive_sync">Back up or restore app data in your Google Drive</string>
+    <string name="drive_upload_backup">Upload backup to Google Drive</string>
+    <string name="drive_restore_backup">Restore backup from %1$s</string>
+    <string name="drive_sign_out">Sign out (%1$s)</string>
+    <string name="drive_sign_in_failed">Google sign-in failed</string>
 </resources>

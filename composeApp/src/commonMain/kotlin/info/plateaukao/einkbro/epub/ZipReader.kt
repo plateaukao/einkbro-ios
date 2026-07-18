@@ -1,15 +1,17 @@
 package info.plateaukao.einkbro.epub
 
 /**
- * Minimal ZIP reader for STORED (uncompressed) entries — the counterpart to
- * [ZipWriter]. It only needs to read back EinkBro's own EPUBs (all stored) to
- * support "append a chapter"; entries using any compression method are skipped,
- * so a deflated third-party EPUB simply yields no usable EinkBro sidecar and
- * append falls back to creating a new book.
+ * Minimal ZIP reader — the counterpart to [ZipWriter]. STORED entries are read
+ * directly; DEFLATE entries are inflated through [inflateRaw] so Android-made
+ * backup zips (ZipOutputStream deflates everything) restore on iOS. Entries
+ * using any other method are skipped, so an exotic third-party EPUB simply
+ * yields no usable EinkBro sidecar and append falls back to a new book.
+ * Entry data is located via the central directory, which also keeps sizes
+ * correct for streamed zips that use data descriptors (Android's do).
  */
 object ZipReader {
 
-    /** name -> bytes for every stored entry, or null if the archive is unreadable. */
+    /** name -> bytes for every readable entry, or null if the archive is unreadable. */
     fun read(data: ByteArray): Map<String, ByteArray>? {
         val eocd = findEocd(data) ?: return null
         val count = u16(data, eocd + 10)
@@ -19,17 +21,20 @@ object ZipReader {
             if (p + 46 > data.size || u32(data, p) != CENTRAL_SIG) return map.ifEmpty { null }
             val method = u16(data, p + 10)
             val compSize = u32(data, p + 20)
+            val uncompSize = u32(data, p + 24)
             val nameLen = u16(data, p + 28)
             val extraLen = u16(data, p + 30)
             val commentLen = u16(data, p + 32)
             val localOffset = u32(data, p + 42)
             val name = data.decodeToString(p + 46, p + 46 + nameLen)
-            if (method == 0 && localOffset + 30 <= data.size) {
+            if ((method == 0 || method == 8) && localOffset + 30 <= data.size) {
                 val lhNameLen = u16(data, localOffset + 26)
                 val lhExtraLen = u16(data, localOffset + 28)
                 val start = localOffset + 30 + lhNameLen + lhExtraLen
                 if (start + compSize <= data.size) {
-                    map[name] = data.copyOfRange(start, start + compSize)
+                    val raw = data.copyOfRange(start, start + compSize)
+                    if (method == 0) map[name] = raw
+                    else inflateRaw(raw, uncompSize)?.let { map[name] = it }
                 }
             }
             p += 46 + nameLen + extraLen + commentLen

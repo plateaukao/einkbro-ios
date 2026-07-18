@@ -79,7 +79,9 @@ import info.plateaukao.einkbro.setting.screens.buildUiSettingItems
 import info.plateaukao.einkbro.setting.screens.buildUserAgentSettingItems
 import info.plateaukao.einkbro.unit.IntentUnit
 import info.plateaukao.einkbro.util.LocalContext
+import info.plateaukao.einkbro.util.blockingString
 import info.plateaukao.einkbro.view.EBToast
+import kotlinx.datetime.toLocalDateTime
 import info.plateaukao.einkbro.view.dialog.DialogManager
 import info.plateaukao.einkbro.view.compose.MyTheme
 import android.content.Context
@@ -178,6 +180,77 @@ private class RealBackupOps(
             okAction = { info.plateaukao.einkbro.util.LanShare.stop() },
             showNegativeButton = false,
         )
+    }
+
+    override fun syncWithGoogleDrive() = launchDriveOp {
+        val repo = info.plateaukao.einkbro.data.remote.GoogleDriveRepository
+        if (repo.email == null && !repo.signIn()) {
+            EBToast.show(context, Res.string.drive_sign_in_failed)
+            return@launchDriveOp
+        }
+        driveSyncDialog()
+    }
+
+    /** Run a Drive operation; an expired/revoked session triggers an interactive
+     *  re-sign-in, any other failure shows an error toast. */
+    private fun launchDriveOp(block: suspend () -> Unit) {
+        scope.launch {
+            try {
+                block()
+            } catch (e: info.plateaukao.einkbro.data.remote.DriveReauthRequiredException) {
+                if (info.plateaukao.einkbro.data.remote.GoogleDriveRepository.signIn()) driveSyncDialog()
+                else EBToast.show(context, Res.string.drive_sign_in_failed)
+            } catch (e: Exception) {
+                EBToast.show(context, "Google Drive sync failed")
+            }
+        }
+    }
+
+    private suspend fun driveSyncDialog() {
+        val repo = info.plateaukao.einkbro.data.remote.GoogleDriveRepository
+        val remotes = repo.getRemoteBackups()
+        val iosBackup = remotes.firstOrNull { it.name == repo.IOS_BACKUP_FILE_NAME }
+
+        val options = mutableListOf<Pair<String, suspend () -> Unit>>(
+            blockingString(Res.string.drive_upload_backup) to {
+                val bytes = info.plateaukao.einkbro.backup.BackupManager.exportBackupZip()
+                repo.uploadBackup(bytes, iosBackup?.id)
+                EBToast.show(context, "Backup uploaded to Google Drive")
+            }
+        )
+        remotes.forEach { remote ->
+            val platform = if (remote.name == repo.BACKUP_FILE_NAME) "Android" else "iOS"
+            options += blockingString(
+                Res.string.drive_restore_backup,
+                "${formatDriveTime(remote.modifiedTime)} ($platform)",
+            ) to {
+                val bytes = repo.downloadBackup(remote.id)
+                val ok = info.plateaukao.einkbro.backup.BackupManager.importBackupZip(bytes)
+                EBToast.show(
+                    context,
+                    if (ok) "Backup restored — relaunch to apply all settings"
+                    else "Not a valid EinkBro backup",
+                )
+            }
+        }
+        options += blockingString(Res.string.drive_sign_out, repo.email.orEmpty()) to {
+            repo.signOut()
+        }
+
+        val selected = AppServices.dialogManager.getSelectedOptionWithString(
+            Res.string.setting_title_gdrive_sync, options.map { it.first }, -1
+        ) ?: return
+        options[selected].second()
+    }
+
+    /** Drive's RFC3339 modifiedTime (UTC) as a local "yyyy-MM-dd HH:mm". */
+    private fun formatDriveTime(modifiedTime: String?): String {
+        modifiedTime ?: return ""
+        return runCatching {
+            val local = kotlinx.datetime.Instant.parse(modifiedTime)
+                .toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+            "${local.date} ${local.hour.toString().padStart(2, '0')}:${local.minute.toString().padStart(2, '0')}"
+        }.getOrDefault(modifiedTime)
     }
 
     override fun exportBookmarks() {
