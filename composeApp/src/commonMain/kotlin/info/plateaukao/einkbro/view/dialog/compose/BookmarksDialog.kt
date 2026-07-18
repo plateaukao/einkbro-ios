@@ -65,7 +65,6 @@ import info.plateaukao.einkbro.resources.ic_hamburger
 import info.plateaukao.einkbro.resources.ic_sort
 import info.plateaukao.einkbro.resources.icon_arrow_down_gest
 import info.plateaukao.einkbro.resources.icon_arrow_left_gest
-import info.plateaukao.einkbro.resources.icon_earth
 import info.plateaukao.einkbro.resources.icon_list
 import info.plateaukao.einkbro.resources.no_bookmarks
 import info.plateaukao.einkbro.unit.ViewUnit
@@ -522,17 +521,27 @@ fun BookmarkGridItem(
                 bitmap = bitmap,
                 contentDescription = null,
             )
-        } else {
+        } else if (bookmark.isDirectory) {
             Icon(
                 modifier = Modifier
                     .then(iconDragModifier)
                     .size(48.dp)
                     .padding(4.dp),
-                imageVector = vectorResource(
-                    if (bookmark.isDirectory) Res.drawable.ic_folder else Res.drawable.icon_earth
-                ),
+                imageVector = vectorResource(Res.drawable.ic_folder),
                 contentDescription = null,
                 tint = MaterialTheme.colors.onBackground,
+            )
+        } else {
+            // Same fallback as Android: the app launcher icon.
+            Image(
+                modifier = Modifier
+                    .then(iconDragModifier)
+                    .size(48.dp)
+                    .padding(4.dp),
+                painter = org.jetbrains.compose.resources.painterResource(
+                    Res.drawable.ic_launcher
+                ),
+                contentDescription = null,
             )
         }
         Text(

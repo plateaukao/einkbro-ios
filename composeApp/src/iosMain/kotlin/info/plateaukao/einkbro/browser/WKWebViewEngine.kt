@@ -195,6 +195,10 @@ class WKWebViewEngine(
 
     override fun loadUrl(url: String) {
         val nsUrl = NSURL.URLWithString(url) ?: return
+        // Pre-redirect host of this load; fetchFavicon consumes it so the icon
+        // is also keyed the way Android keys it (originalUrl.host — the host a
+        // bookmark stores). See fetchFavicon.
+        requestedHost = Uri.parse(url).host
         // webLoadCacheFirst: serve from cache when available, else hit the network.
         val request = if (AppServices.config.browser.webLoadCacheFirst) {
             NSMutableURLRequest.requestWithURL(nsUrl, NSURLRequestReturnCacheDataElseLoad, 60.0)
@@ -513,21 +517,32 @@ class WKWebViewEngine(
         fetchFavicon()
     }
 
+    // Set by loadUrl, consumed by fetchFavicon: the host of the URL the load
+    // was asked for, before any server redirect.
+    private var requestedHost: String? = null
+
     // Android gets favicons pushed via WebChromeClient.onReceivedIcon and routes
     // them through setAlbumCoverAndSyncDb (album cover + favicons table).
-    // WKWebView never pushes icons, so resolve the page's icon URL via JS,
-    // fetch it, and feed the same two sinks.
+    // WKWebView never pushes icons, so resolve candidate icon URLs via JS,
+    // fetch the first one that decodes, and feed the same two sinks.
     private fun fetchFavicon() {
         val pageUrl = webView.URL?.absoluteString ?: return
         if (!pageUrl.startsWith("http")) return
         val host = Uri.parse(pageUrl).host ?: return
+        // Android keys the favicon by originalUrl.host — the PRE-redirect host,
+        // which is what a bookmark's URL holds. webView.URL is post-redirect,
+        // so a site that redirects (example.com -> www.example.com) would store
+        // the icon under a host the bookmark lookup never asks for. Persist
+        // under both. Consumed here so a later cross-site link click can't
+        // file another site's icon under this host.
+        val preRedirectHost = requestedHost.takeIf { it != host }
+        requestedHost = null
         evaluateJavascript(FAVICON_URL_JS) { result ->
-            val iconUrl = result?.trim('"')?.takeIf { it.startsWith("http") }
-                ?: return@evaluateJavascript
-            val nsUrl = NSURL.URLWithString(iconUrl) ?: return@evaluateJavascript
-            NSURLSession.sharedSession.dataTaskWithURL(nsUrl) { data, _, _ ->
-                val bytes = data?.toByteArray() ?: return@dataTaskWithURL
-                val bitmap = decodeImageBitmap(bytes) ?: return@dataTaskWithURL
+            val candidates = result.orEmpty().trim('"')
+                .split('\n')
+                .filter { it.startsWith("http") }
+                .distinct()
+            tryFetchIcon(candidates, 0) { bytes, bitmap ->
                 dispatch_async(dispatch_get_main_queue()) {
                     album.setAlbumCover(bitmap)
                     // Divergence from Android (which always persists): incognito
@@ -536,10 +551,38 @@ class WKWebViewEngine(
                         AppServices.bookmarkManager.insertFaviconAsync(
                             FaviconInfo(domain = host, icon = bytes)
                         )
+                        preRedirectHost?.let {
+                            AppServices.bookmarkManager.insertFaviconAsync(
+                                FaviconInfo(domain = it, icon = bytes)
+                            )
+                        }
                     }
                 }
-            }.resume()
+            }
         }
+    }
+
+    /** Fetches candidate icon URLs in order until one decodes to a bitmap. */
+    private fun tryFetchIcon(
+        candidates: List<String>,
+        index: Int,
+        onDecoded: (ByteArray, androidx.compose.ui.graphics.ImageBitmap) -> Unit,
+    ) {
+        if (index >= candidates.size) return
+        val nsUrl = NSURL.URLWithString(candidates[index])
+            ?: return tryFetchIcon(candidates, index + 1, onDecoded)
+        NSURLSession.sharedSession.dataTaskWithURL(nsUrl) { data, response, _ ->
+            // A 404 body is HTML and wouldn't decode anyway; checking status
+            // just skips the pointless decode attempt.
+            val ok = (response as? NSHTTPURLResponse)?.let { it.statusCode in 200..299 } ?: true
+            val bytes = if (ok) data?.toByteArray() else null
+            val bitmap = bytes?.let { decodeImageBitmap(it) }
+            if (bytes != null && bitmap != null) {
+                onDecoded(bytes, bitmap)
+            } else {
+                tryFetchIcon(candidates, index + 1, onDecoded)
+            }
+        }.resume()
     }
 
     internal fun notifyFailed() {
@@ -873,14 +916,28 @@ private class EBWKWebView(
 
 }
 
-// Last matching link wins, same as Android WebView's icon pick; absolute href
-// courtesy of the DOM. Falls back to the conventional /favicon.ico.
+// Newline-joined candidate list, best first; Kotlin fetches until one decodes.
+// Prefer rel=icon links (last one wins, same as Android WebView's
+// onReceivedIcon, which never delivers touch icons). Apple touch icons are
+// opaque by convention (white background baked in), so they are only a last
+// resort before the conventional /favicon.ico. SVG icons are skipped — neither
+// Skia nor ImageIO decodes them. Absolute href courtesy of DOM.
 private val FAVICON_URL_JS = """
     (function() {
-      var links = document.querySelectorAll(
-        "link[rel~='icon'], link[rel='shortcut icon'], link[rel='apple-touch-icon']");
-      if (links.length > 0) return links[links.length - 1].href;
-      return location.origin + '/favicon.ico';
+      var out = [];
+      var push = function(links) {
+        for (var i = links.length - 1; i >= 0; i--) {
+          var link = links[i];
+          var path = (link.href || '').split('#')[0].split('?')[0].toLowerCase();
+          if (link.type === 'image/svg+xml' || path.slice(-4) === '.svg') continue;
+          out.push(link.href);
+        }
+      };
+      push(document.querySelectorAll("link[rel~='icon']"));
+      push(document.querySelectorAll(
+        "link[rel='apple-touch-icon'], link[rel='apple-touch-icon-precomposed']"));
+      out.push(location.origin + '/favicon.ico');
+      return out.join('\n');
     })()
 """.trimIndent()
 
