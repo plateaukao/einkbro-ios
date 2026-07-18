@@ -78,6 +78,10 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     val currentEngine: WebViewEngine? get() = currentAlbum?.let { engines[it.id] }
     val currentHelper: WebContentHelper? get() = currentAlbum?.let { helpers[it.id] }
 
+    /** Live engine for a tab by album id — null once that tab is closed. Agent tasks
+     *  resolve the originating tab through this (Android used a WeakReference). */
+    fun engineForAlbumId(albumId: Int): WebViewEngine? = engines[albumId]
+
     // Split screen (parity Phase G): a second engine shown beside the current
     // tab. Held OUTSIDE `albums` so it is not a tab-strip entry; its listener
     // callbacks are naturally ignored for the main URL bar (filtered by

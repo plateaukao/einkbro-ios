@@ -380,10 +380,22 @@ fun BrowserScreen(
             EBToast.show(AppServices.context, "Add OpenAI key in Settings")
             return
         }
-        taskRunner.run(info.plateaukao.einkbro.task.FreeFormAgentTask(prompt))
-        translationViewModel.setupTaskStream(taskRunner.progress)
-        translateDialogWholePage = true
-        showTranslateDialog = true
+        // Snapshot the page being viewed BEFORE starting (Android
+        // TaskMenuDelegate.runCustomTask): the agent's initial-page tools,
+        // live-tab javascript, and domain-config host all key off it.
+        scope.launch {
+            val originEngine = browserViewModel.currentEngine
+            val snapshot = originEngine?.let { origin ->
+                val albumId = origin.album.id
+                info.plateaukao.einkbro.task.SnapshotCapture.capture(origin) {
+                    browserViewModel.engineForAlbumId(albumId)
+                }
+            }
+            taskRunner.run(info.plateaukao.einkbro.task.FreeFormAgentTask(prompt), snapshot)
+            translationViewModel.setupTaskStream(taskRunner.progress)
+            translateDialogWholePage = true
+            showTranslateDialog = true
+        }
     }
 
     fun translateWithMode(mode: TranslationMode) {
