@@ -50,6 +50,7 @@ fun PageAiActionDialogContent(
     onChatWithWebClicked: (() -> Unit)? = {},
     onChatWithWebLongClicked: (() -> Unit)? = null,
     onTaskRunnerClicked: (() -> Unit)? = {},
+    onSettingsClicked: (() -> Unit)? = null,
     onDismiss: () -> Unit = {},
 ) {
         val context = LocalContext.current
@@ -74,7 +75,10 @@ fun PageAiActionDialogContent(
                     contentDescription = stringResource(Res.string.settings),
                     tint = MaterialTheme.colors.onBackground,
                     modifier = Modifier.clickable {
-                        EBToast.show(context, "would open GPT actions settings")
+                        // Android opens GptActionsActivity; catalog previews
+                        // have no host to navigate, so fall back to a toast.
+                        onSettingsClicked?.invoke()
+                            ?: EBToast.show(context, "would open GPT actions settings")
                         onDismiss()
                     }
                 )

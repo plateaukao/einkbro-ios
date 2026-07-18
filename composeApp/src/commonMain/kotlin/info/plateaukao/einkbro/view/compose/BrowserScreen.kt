@@ -65,6 +65,7 @@ import info.plateaukao.einkbro.browser.WebViewHost
 import info.plateaukao.einkbro.catalog.DialogFrame
 import info.plateaukao.einkbro.database.Bookmark
 import info.plateaukao.einkbro.preference.ChatGPTActionInfo
+import info.plateaukao.einkbro.preference.GptActionScope
 import info.plateaukao.einkbro.preference.ShareLongPressAction
 import info.plateaukao.einkbro.preference.TranslationMode
 import info.plateaukao.einkbro.resources.Res
@@ -1065,7 +1066,9 @@ fun BrowserScreen(
                             MenuInfo("Share", imageVector = Icons.Outlined.Share, action = {
                                 PlatformActions.share(selection.text)
                             }),
-                        ) + config.ai.gptActionList.map { gptAction ->
+                        ) + config.ai.gptActionList
+                            .filter { it.scope == GptActionScope.TextSelection }
+                            .map { gptAction ->
                             // Android's ActionModeMenuViewModel appends the GPT
                             // actions to the selection menu.
                             MenuInfo(
@@ -1691,7 +1694,8 @@ fun BrowserScreen(
         ) {
             AnchoredDialogFrame(onDismiss = { showPageAiActions = false }, scrollable = false) {
                 PageAiActionDialogContent(
-                    actions = config.ai.gptActionList,
+                    actions = config.ai.gptActionList
+                        .filter { it.scope == GptActionScope.WholePage },
                     onActionClicked = { gptAction ->
                         showPageAiActions = false
                         // Android runPageAiAction: the action's display decides
@@ -1724,6 +1728,10 @@ fun BrowserScreen(
                     onTaskRunnerClicked = {
                         showPageAiActions = false
                         showTaskMenu = true
+                    },
+                    onSettingsClicked = {
+                        showPageAiActions = false
+                        showGptActions = true
                     },
                     onDismiss = { showPageAiActions = false },
                 )
