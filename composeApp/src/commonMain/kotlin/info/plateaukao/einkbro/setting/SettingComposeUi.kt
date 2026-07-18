@@ -954,7 +954,7 @@ fun SearchSettingScreen(
                     is VersionSettingItem -> {
                         val version = " v${BuildConfig.VERSION_NAME}"
                         SettingItemUi(setting, false, version, showBorder) {
-                            navController.navigate(setting.destination.name)
+                            setting.destination?.let { navController.navigate(it.name) }
                         }
                     }
 
@@ -1053,7 +1053,7 @@ fun SettingScreen(
                     is VersionSettingItem -> {
                         val version = " v${BuildConfig.VERSION_NAME}"
                         SettingItemUi(setting, false, version, showBorder) {
-                            navController.navigate(setting.destination.name)
+                            setting.destination?.let { navController.navigate(it.name) }
                         }
                     }
                 }

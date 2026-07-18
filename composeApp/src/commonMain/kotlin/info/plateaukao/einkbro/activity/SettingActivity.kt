@@ -39,7 +39,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import info.plateaukao.einkbro.AppServices
-import info.plateaukao.einkbro.activity.SettingRoute.About
 import info.plateaukao.einkbro.activity.SettingRoute.Backup
 import info.plateaukao.einkbro.activity.SettingRoute.Behavior
 import info.plateaukao.einkbro.activity.SettingRoute.ChatGPT
@@ -61,7 +60,6 @@ import info.plateaukao.einkbro.setting.SettingItemInterface
 import info.plateaukao.einkbro.setting.SettingScreen
 import info.plateaukao.einkbro.setting.screens.BackupOps
 import info.plateaukao.einkbro.setting.screens.SettingScreenDeps
-import info.plateaukao.einkbro.setting.screens.buildAboutSettingItems
 import info.plateaukao.einkbro.setting.screens.buildBackupSettingItems
 import info.plateaukao.einkbro.setting.screens.buildBehaviorSettingItems
 import info.plateaukao.einkbro.setting.screens.buildChatGptSettingItems
@@ -99,7 +97,6 @@ enum class SettingRoute(val titleId: StringResource) {
     DataControl(Res.string.setting_title_clear_control),
     UserAgent(Res.string.setting_title_userAgent),
     Search(Res.string.setting_title_search),
-    About(Res.string.title_about),
     ChatGPT(Res.string.setting_title_chat_gpt),
     GptOpenAi(Res.string.openai),
     GptSelfHosted(Res.string.openai_compatible_server),
@@ -447,9 +444,6 @@ fun SettingsScreen(
                 }
                 composable(Search.name) {
                     SettingScreen(navController, searchSettingItems, dialogManager, action, 1)
-                }
-                composable(About.name) {
-                    SettingScreen(navController, buildAboutSettingItems(deps), dialogManager, action, 2)
                 }
             }
         }

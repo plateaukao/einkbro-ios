@@ -144,7 +144,7 @@ class VersionSettingItem(
     override val iconId: DrawableResource? = null,
     override val summaryResId: StringResource? = null,
     override val span: Int = 1,
-    val destination: SettingRoute,
+    val destination: SettingRoute? = null,
 ) : SettingItemInterface
 
 class ValueSettingItem<T>(

@@ -1,6 +1,5 @@
 package info.plateaukao.einkbro.setting.screens
 
-import info.plateaukao.einkbro.activity.SettingRoute.About
 import info.plateaukao.einkbro.activity.SettingRoute.Backup
 import info.plateaukao.einkbro.activity.SettingRoute.Behavior
 import info.plateaukao.einkbro.activity.SettingRoute.ChatGPT
@@ -69,9 +68,11 @@ fun buildMainSettingItems(): List<SettingItemInterface> = listOf(
         destination = ChatGPT
     ),
     LinkSettingItem.Manual,
+    // No destination: the Android About screen only holds links to the
+    // open-source project (site, releases, contributors, ...) and APK update
+    // actions, none of which apply to the iOS build.
     VersionSettingItem(
         Res.string.menu_other_info,
         Res.drawable.icon_info,
-        destination = About,
     ),
 )
