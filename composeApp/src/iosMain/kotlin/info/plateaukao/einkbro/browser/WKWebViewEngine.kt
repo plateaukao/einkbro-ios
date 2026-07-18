@@ -49,6 +49,7 @@ import platform.Foundation.credentialWithUser
 import platform.Foundation.serverTrust
 import platform.Security.SecTrustEvaluateWithError
 import platform.UIKit.UIApplication
+import platform.UIKit.UIDevice
 import platform.UIKit.UIImage
 import platform.UIKit.UIImageJPEGRepresentation
 import platform.UIKit.UIControlEventValueChanged
@@ -106,6 +107,13 @@ class WKWebViewEngine(
     val webView: WKWebView = EBWKWebView(
         frame = CGRectZero.readValue(),
         configuration = WKWebViewConfiguration().apply {
+            // Safari-complete UA: the default WKWebView UA carries no
+            // "Version/x … Safari/x" suffix, which sites (x.com) read as an
+            // in-app browser and escape via x-safari-https:// redirects. Only
+            // the app-name part is replaced, so the platform token (iPhone vs
+            // iPad) stays correct.
+            applicationNameForUserAgent = "Version/" +
+                UIDevice.currentDevice.systemVersion + " Mobile/15E148 Safari/604.1"
             // Video prefs (parity Phase D): auto-fullscreen forces non-inline
             // playback; PiP is opt-in.
             allowsInlineMediaPlayback = !browserConfig.enableVideoAutoFullscreen
@@ -610,6 +618,16 @@ private class NavigationDelegate(
         // hand it to the OS or show the leave-app dialog.
         if (scheme == "einkbro") {
             decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyAllow)
+            return
+        }
+        // x.com's in-app-browser escape: it rewrites navigation to
+        // x-safari-https://… so Safari opens it. Strip the prefix and load the
+        // real URL in this tab instead of bouncing the user out of the app.
+        if (scheme != null && scheme.startsWith("x-safari-")) {
+            decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
+            url?.absoluteString?.removePrefix("x-safari-")
+                ?.takeIf { it.startsWith("http") }
+                ?.let { engine.loadUrl(it) }
             return
         }
         if (url != null && scheme != null && scheme !in WEB_SCHEMES) {
