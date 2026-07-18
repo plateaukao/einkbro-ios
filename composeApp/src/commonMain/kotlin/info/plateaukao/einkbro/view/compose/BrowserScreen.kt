@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
@@ -41,6 +43,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -867,9 +870,17 @@ fun BrowserScreen(
 
     // Auto-hide toolbar on scroll (shouldHideToolbar): hide after a clear
     // downward scroll away from the top; restore on scroll-up or at the top.
+    // Scrolls while the keyboard is up are WKWebView revealing the caret, not
+    // user intent — reacting to them resizes the webview, which re-triggers
+    // the caret-reveal scroll: an endless show/hide oscillation (visible as
+    // the page shaking).
+    val imeVisible by rememberUpdatedState(
+        WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+    )
     LaunchedEffect(engine) {
         engine?.setScrollChangeHandler { dy, y ->
             when {
+                imeVisible -> Unit
                 !config.ui.shouldHideToolbar -> toolbarHiddenByScroll = false
                 dy > 12 && y > 100 -> toolbarHiddenByScroll = true
                 dy < -12 || y <= 0 -> toolbarHiddenByScroll = false
@@ -1195,7 +1206,13 @@ fun BrowserScreen(
                         recordsState.value = fromEngine + filtered
                     }
                 }
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+                // imePadding: with onFocusBehavior=DoNothing the scene is not
+                // panned for the keyboard, so the reversed (bottom-toolbar)
+                // input row must lift itself above the ime.
+                Surface(
+                    Modifier.fillMaxSize().imePadding(),
+                    color = MaterialTheme.colors.background,
+                ) {
                     AutoCompleteTextField(
                         focusRequester = urlFocusRequester,
                         // Behavior pref: surface bookmarks (with favicons) in the
@@ -1314,6 +1331,7 @@ fun BrowserScreen(
             }
             val searchFocus = remember { FocusRequester() }
             LaunchedEffect(Unit) { searchFocus.requestFocus() }
+            Box(Modifier.imePadding()) {
             ComposedSearchBar(
                 focusRequester = searchFocus,
                 onTextChanged = { q ->
@@ -1328,6 +1346,7 @@ fun BrowserScreen(
                 },
                 resultInfo = searchResultInfo,
             )
+            }
         }
 
         // Fullscreen (parity Phase D) hides the toolbar; a small exit chip

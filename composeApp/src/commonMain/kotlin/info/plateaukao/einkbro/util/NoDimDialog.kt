@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.ContentAlpha
 import androidx.compose.material.LocalContentAlpha
@@ -73,7 +74,10 @@ fun NoDimAlertDialog(
         properties = DialogProperties(dismissOnClickOutside = false),
     ) {
         Surface(
-            modifier = modifier,
+            // imePadding: with onFocusBehavior=DoNothing the scene is not
+            // panned for the keyboard; padding the centered dialog re-centers
+            // it in the space left above the ime.
+            modifier = Modifier.imePadding().then(modifier),
             shape = shape,
             color = backgroundColor,
             contentColor = contentColor,
