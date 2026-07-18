@@ -4,6 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitView
 import info.plateaukao.einkbro.AppServices
+import info.plateaukao.einkbro.view.EBToast
+import platform.Foundation.NSDate
+import platform.Foundation.timeIntervalSince1970
 import info.plateaukao.einkbro.util.FileStore
 import info.plateaukao.einkbro.view.Album
 import kotlin.math.abs
@@ -577,6 +580,12 @@ private class NavigationDelegate(
     private val engine: WKWebViewEngine,
 ) : NSObject(), WKNavigationDelegateProtocol {
 
+    // x-safari escape loop guard: stale x.com state (mx cookie / cached service
+    // worker) can re-issue the escape right after every strip-and-reload, which
+    // would otherwise ping-pong forever. Timestamps are epoch seconds.
+    private var lastEscapeSeenAt = 0.0
+    private var escapeSwallowCount = 0
+
     override fun webView(webView: WKWebView, didFinishNavigation: WKNavigation?) {
         engine.notifyFinished()
     }
@@ -623,8 +632,21 @@ private class NavigationDelegate(
         // x.com's in-app-browser escape: it rewrites navigation to
         // x-safari-https://… so Safari opens it. Strip the prefix and load the
         // real URL in this tab instead of bouncing the user out of the app.
+        // If the page re-escapes right away (sticky x.com app-preference state),
+        // swallow it and stay on the rendered page instead of reload-looping.
         if (scheme != null && scheme.startsWith("x-safari-")) {
             decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
+            val now = NSDate().timeIntervalSince1970
+            val bouncing = now - lastEscapeSeenAt < ESCAPE_LOOP_WINDOW_S
+            lastEscapeSeenAt = now
+            if (bouncing) {
+                escapeSwallowCount++
+                if (escapeSwallowCount == 1) {
+                    EBToast.show(AppServices.context, "Blocked a reload loop (open-in-app redirect)")
+                }
+                return
+            }
+            escapeSwallowCount = 0
             url?.absoluteString?.removePrefix("x-safari-")
                 ?.takeIf { it.startsWith("http") }
                 ?.let { engine.loadUrl(it) }
@@ -756,6 +778,10 @@ private class NavigationDelegate(
 }
 
 private val WEB_SCHEMES = setOf("http", "https", "file", "about", "blob", "data")
+
+/** Re-escape within this many seconds of the last x-safari sighting = a bounce
+ *  loop; swallow instead of reloading. Sliding — each sighting extends it. */
+private const val ESCAPE_LOOP_WINDOW_S = 5.0
 
 // Minimal percent-encoding for the error-page query values.
 private fun String.encodeForQuery(): String = buildString {
