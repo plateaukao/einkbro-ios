@@ -60,9 +60,12 @@
     <string>EinkBro shares links and app data with other EinkBro devices on your local network.</string>
     <key>UILaunchScreen</key>
     <dict/>
+    <!-- All four orientations: App Store validation requires
+         PortraitUpsideDown too for iPad multitasking support. -->
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
