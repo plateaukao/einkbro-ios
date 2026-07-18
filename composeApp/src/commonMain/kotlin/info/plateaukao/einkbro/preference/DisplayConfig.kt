@@ -59,7 +59,9 @@ class DisplayConfig(private val sp: SharedPreferences) {
     var customFontChanged by BooleanPreference(sp, K_CUSTOM_FONT_CHANGED, false)
 
     var darkMode: DarkMode
-        get() = DarkMode.entries[sp.getString(K_DARK_MODE, "2")?.toInt() ?: 2]
+        // Android defaults to DISABLED (e-ink devices); on iOS the app chrome
+        // always follows the system appearance, so web content does too.
+        get() = DarkMode.entries[sp.getString(K_DARK_MODE, "0")?.toInt() ?: 0]
         set(value) = sp.edit { putString(K_DARK_MODE, value.ordinal.toString()) }
 
     var einkImageAdjustment: EinkImageAdjustment

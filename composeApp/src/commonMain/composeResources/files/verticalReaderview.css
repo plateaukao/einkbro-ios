@@ -288,3 +288,45 @@ ol.cjk li:before {
   -webkit-text-combine: horizontal;
   text-combine-upright: all;
 }
+
+/* iOS addition: Android darkens the reader via WebView FORCE_DARK, which
+ * WKWebView lacks, so the reader restyles itself here instead. The engine's
+ * overrideUserInterfaceStyle drives prefers-color-scheme from the darkMode
+ * pref, so this block tracks the app's dark mode (palette from the .dark
+ * class rules above, on the app's black background). */
+@media (prefers-color-scheme: dark) {
+  .mozac-readerview-body {
+    color-scheme: dark;
+    background-color: #000000 !important;
+    color: #dddddd !important;
+  }
+
+  .mozac-readerview-body * {
+    background-color: #000000 !important;
+    color: #dddddd !important;
+  }
+
+  .mozac-readerview-body > .container > .header > .domain {
+    color: #ff9400 !important;
+    border-left-color: #777777;
+  }
+
+  .mozac-readerview-body > .container > .header > h1 {
+    color: #eeeeee !important;
+  }
+
+  .mozac-readerview-body > .container > .header > .credits {
+    color: #aaaaaa !important;
+  }
+
+  .mozac-readerview-body > .container > .content .caption,
+  .mozac-readerview-body > .container > .content .wp-caption-text,
+  .mozac-readerview-body > .container > .content figcaption {
+    color: #aaaaaa !important;
+  }
+
+  .mozac-readerview-body > .container > .content blockquote {
+    color: #aaaaaa !important;
+    border-left-color: #777777 !important;
+  }
+}
