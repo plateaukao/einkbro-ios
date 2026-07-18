@@ -95,6 +95,8 @@ class TranslationViewModel(
     }
 
     fun updateInputMessage(userMessage: String) {
+        // A fresh translate/summary flow takes the dialog back from any task.
+        isTaskStreamActive = false
         _inputMessage.value = userMessage.unescape()
         _responseMessage.value = AnnotatedString("...")
     }
@@ -392,9 +394,16 @@ class TranslationViewModel(
 
     private var taskStreamJob: kotlinx.coroutines.Job? = null
 
+    /** True while the result dialog streams a task's progress. The dialog's
+     *  open-time auto-translate must not fire then — it would race the stream
+     *  for the response text and flash an unrelated translation first. */
+    var isTaskStreamActive = false
+        private set
+
     fun setupTaskStream(
         progressFlow: StateFlow<info.plateaukao.einkbro.task.TaskProgress?>,
     ) {
+        isTaskStreamActive = true
         updateTranslateMethod(TRANSLATE_API.LLM)
         _inputMessage.value = ""
         _responseMessage.value = AnnotatedString("…")

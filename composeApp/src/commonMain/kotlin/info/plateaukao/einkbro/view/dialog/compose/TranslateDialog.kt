@@ -88,7 +88,9 @@ fun TranslateDialogContent(
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
-        translationViewModel.translate()
+        // Task mode streams its own content; auto-translating here would race
+        // the task stream and show an unrelated translation first.
+        if (!translationViewModel.isTaskStreamActive) translationViewModel.translate()
     }
 
     TranslateResponse(
