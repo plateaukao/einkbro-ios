@@ -16,6 +16,7 @@ import info.plateaukao.einkbro.preference.AlbumInfo
 import info.plateaukao.einkbro.preference.SaveHistoryMode
 import info.plateaukao.einkbro.util.System
 import info.plateaukao.einkbro.view.Album
+import info.plateaukao.einkbro.view.AlbumType
 import info.plateaukao.einkbro.view.EBToast
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -58,6 +59,9 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     private val engines = LinkedHashMap<Int, WebViewEngine>()
     private val helpers = LinkedHashMap<Int, WebContentHelper>()
+    // Native chat tabs (AlbumType.Chat): album id → conversation session. A chat
+    // album has an entry here instead of in `engines`.
+    private val chatSessions = LinkedHashMap<Int, ChatSession>()
     // Background tabs whose load was deferred (enableWebBkgndLoad off); the
     // URL loads the first time the tab is activated.
     private val pendingLoads = LinkedHashMap<Int, String>()
@@ -77,6 +81,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     val currentAlbum: Album? get() = albums.value.getOrNull(focusIndex.value)
     val currentEngine: WebViewEngine? get() = currentAlbum?.let { engines[it.id] }
     val currentHelper: WebContentHelper? get() = currentAlbum?.let { helpers[it.id] }
+    val currentChatSession: ChatSession? get() = currentAlbum?.let { chatSessions[it.id] }
 
     /** Live engine for a tab by album id — null once that tab is closed. Agent tasks
      *  resolve the originating tab through this (Android used a WeakReference). */
@@ -165,6 +170,30 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
                 pendingLoads[album.id] = url
             }
         }
+        persistTabs()
+    }
+
+    /**
+     * Opens a native chat tab (chat-with-web / agent chat). The [session] is
+     * built by the host (it needs TTS + tools wiring the view model doesn't
+     * own) and is disposed when the tab closes. Android's equivalent is
+     * addAlbum("Chat With Web"/"Agent Chat") + chat.html; here the tab renders
+     * ChatTabContent instead of a web engine.
+     */
+    fun newChatTab(title: String, session: ChatSession) {
+        selectionInfo.value = null
+        contextMenuLink.value = null
+        val album = Album(
+            title = title,
+            type = AlbumType.Chat,
+            onShow = { switchTab(it) },
+            onRemove = { closeTab(it) },
+        )
+        chatSessions[album.id] = session
+        albums.value = albums.value + album
+        currentEngine?.pause()
+        focusIndex.value = albums.value.lastIndex
+        syncCurrentState()
         persistTabs()
     }
 
@@ -504,6 +533,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         }
         engines.remove(album.id)?.destroy()
         helpers.remove(album.id)
+        chatSessions.remove(album.id)?.dispose()
         pendingLoads.remove(album.id)
         list.removeAt(index)
         albums.value = list
@@ -765,6 +795,9 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         // Incognito tabs leave no trace, so they never persist across launches.
         config.tab.savedAlbumInfoList = albums.value
             .filterNot { it.incognito }
+            // Chat tabs are conversation state, not URLs — they don't survive
+            // relaunch (Android's chat.html tabs restore as blanks; we skip them).
+            .filterNot { it.type == AlbumType.Chat }
             .map { album ->
                 AlbumInfo(
                     title = album.albumTitle,

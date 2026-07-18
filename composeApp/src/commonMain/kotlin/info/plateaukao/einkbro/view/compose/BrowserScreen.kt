@@ -64,6 +64,7 @@ import info.plateaukao.einkbro.browser.MultitouchDirection
 import info.plateaukao.einkbro.browser.WebViewHost
 import info.plateaukao.einkbro.catalog.DialogFrame
 import info.plateaukao.einkbro.database.Bookmark
+import info.plateaukao.einkbro.preference.ChatGPTActionInfo
 import info.plateaukao.einkbro.preference.ShareLongPressAction
 import info.plateaukao.einkbro.preference.TranslationMode
 import info.plateaukao.einkbro.resources.Res
@@ -148,7 +149,6 @@ fun BrowserScreen(
     var showUserScripts by remember { mutableStateOf(false) }
     var showEpubDialog by remember { mutableStateOf(false) }
     var showInstapaperConfig by remember { mutableStateOf(false) }
-    var showChatWithWeb by remember { mutableStateOf(false) }
     var showGptActions by remember { mutableStateOf(false) }
     var showGptQueries by remember { mutableStateOf(false) }
     // Settings sub-editors reachable from the settings screen (parity Phase N).
@@ -230,7 +230,6 @@ fun BrowserScreen(
         )
     }
     val translationViewModel = remember { TranslationViewModel() }
-    val chatWithWebViewModel = remember { info.plateaukao.einkbro.viewmodel.ChatWithWebViewModel() }
 
     LaunchedEffect(Unit) {
         info.plateaukao.einkbro.browser.Assets.preload()
@@ -370,6 +369,19 @@ fun BrowserScreen(
         showTranslateDialog = true
     }
 
+    /** Opens a plain chat-with-web tab seeded with [content] (Android's
+     *  addAlbum("Chat With Web") + chat.html; here a native chat tab). */
+    fun openChatWithWebTab(content: String, runAction: ChatGPTActionInfo?) {
+        val session = info.plateaukao.einkbro.viewmodel.ChatSession(agentMode = false)
+        session.startChat(
+            content,
+            browserViewModel.currentTitle.value,
+            browserViewModel.currentUrl.value,
+        )
+        browserViewModel.newChatTab("Chat With Web", session)
+        runAction?.let { session.runInitialAction(it) }
+    }
+
     fun runCustomTask(prompt: String) {
         if (prompt.isBlank()) return
         if (config.ai.useGeminiApi) {
@@ -380,9 +392,11 @@ fun BrowserScreen(
             EBToast.show(AppServices.context, "Add OpenAI key in Settings")
             return
         }
-        // Snapshot the page being viewed BEFORE starting (Android
-        // TaskMenuDelegate.runCustomTask): the agent's initial-page tools,
-        // live-tab javascript, and domain-config host all key off it.
+        // Snapshot the page being viewed BEFORE the chat tab replaces it as the
+        // active tab (Android TaskMenuDelegate.runCustomTask): the agent's
+        // initial-page tools, live-tab javascript, and domain-config host all
+        // key off it. The conversation then continues in an agent chat tab —
+        // the user can reply to steer the agent (Android's chatWithWebAgent).
         scope.launch {
             val originEngine = browserViewModel.currentEngine
             val snapshot = originEngine?.let { origin ->
@@ -391,10 +405,14 @@ fun BrowserScreen(
                     browserViewModel.engineForAlbumId(albumId)
                 }
             }
-            taskRunner.run(info.plateaukao.einkbro.task.FreeFormAgentTask(prompt), snapshot)
-            translationViewModel.setupTaskStream(taskRunner.progress)
-            translateDialogWholePage = true
-            showTranslateDialog = true
+            val session = info.plateaukao.einkbro.viewmodel.ChatSession(agentMode = true)
+            browserViewModel.newChatTab("Agent Chat", session)
+            session.startAgent(
+                ttsViewModel = ttsViewModel,
+                snapshot = snapshot,
+                activeEngineProvider = { browserViewModel.currentEngine },
+                initialPrompt = prompt,
+            )
         }
     }
 
@@ -718,18 +736,14 @@ fun BrowserScreen(
                 ) {
                     EBToast.show(AppServices.context, "Set an AI API key in Settings first")
                 } else {
+                    // Both variants open a native chat tab (Android: new tab vs
+                    // split screen; the split-pane chat variant is deferred).
                     val runAction = action.runWithAction
                     val presetContent = action.content
                     currentHelper?.getRawText { text ->
                         val content = presetContent ?: text
                         if (content.isNotBlank()) {
-                            chatWithWebViewModel.start(
-                                content,
-                                browserViewModel.currentTitle.value,
-                                browserViewModel.currentUrl.value,
-                            )
-                            showChatWithWeb = true
-                            runAction?.let { chatWithWebViewModel.runInitialAction(it) }
+                            openChatWithWebTab(content, runAction)
                         }
                     } ?: Unit
                 }
@@ -969,7 +983,21 @@ fun BrowserScreen(
         // split layout gives it (parity Phase G wraps it beside the second pane).
         val renderMainPane: @Composable (Modifier) -> Unit = { paneModifier ->
         BoxWithConstraints(paneModifier) {
-            if (engine != null) {
+            val chatAlbum = browserViewModel.currentAlbum
+                ?.takeIf { it.type == info.plateaukao.einkbro.view.AlbumType.Chat }
+            if (chatAlbum != null) {
+                // A chat tab mounts the native conversation pane instead of a
+                // web engine (Android renders chat.html in the tab's WebView).
+                browserViewModel.currentChatSession?.let { session ->
+                    key(chatAlbum.id) {
+                        ChatTabContent(
+                            session = session,
+                            onClose = { chatAlbum.remove() },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+            } else if (engine != null) {
                 // Key by tab id so UIKitView re-embeds the current tab's
                 // WKWebView when the active tab changes (its factory runs once).
                 key(browserViewModel.currentAlbum?.id) {
@@ -978,15 +1006,16 @@ fun BrowserScreen(
             }
 
             // Touch-area page-turn zones (parity Phase F). Hidden while the URL
-            // input is up when hideTouchAreaWhenInput is set.
-            if (touchPagingEnabled &&
+            // input is up when hideTouchAreaWhenInput is set. A chat tab owns
+            // its whole pane — no page-turn overlays over it.
+            if (chatAlbum == null && touchPagingEnabled &&
                 !(config.touch.hideTouchAreaWhenInput && showUrlInput)
             ) {
                 TouchAreaZones(onGesture = { runTouchGesture(it) })
             }
 
             // Nav-gesture FAB (parity Phase F, enableNavButtonGesture).
-            if (config.touch.enableNavButtonGesture) {
+            if (chatAlbum == null && config.touch.enableNavButtonGesture) {
                 NavGestureFab(onGesture = { runTouchGesture(it) })
             }
 
@@ -1665,7 +1694,14 @@ fun BrowserScreen(
                     actions = config.ai.gptActionList,
                     onActionClicked = { gptAction ->
                         showPageAiActions = false
-                        helper?.getRawText { text ->
+                        // Android runPageAiAction: the action's display decides
+                        // popup vs chat tab (NewTab/SplitScreen both map to a
+                        // native chat tab here — split-pane chat is deferred).
+                        if (gptAction.display != info.plateaukao.einkbro.preference.GptActionDisplay.Popup) {
+                            handleBrowserAction(
+                                BrowserAction.ChatWithWeb(runWithAction = gptAction)
+                            )
+                        } else helper?.getRawText { text ->
                             if (text.isNotBlank()) {
                                 translationViewModel.url = browserViewModel.currentUrl.value
                                 translationViewModel.pageTitle =
@@ -1759,16 +1795,6 @@ fun BrowserScreen(
                 if (browserViewModel.hasInstapaperCredentials()) browserViewModel.addToInstapaper()
             },
             onDismiss = { showInstapaperConfig = false },
-        )
-    }
-
-    if (showChatWithWeb) {
-        info.plateaukao.einkbro.view.dialog.compose.ChatWithWebDialog(
-            viewModel = chatWithWebViewModel,
-            onDismiss = {
-                chatWithWebViewModel.cancel()
-                showChatWithWeb = false
-            },
         )
     }
 

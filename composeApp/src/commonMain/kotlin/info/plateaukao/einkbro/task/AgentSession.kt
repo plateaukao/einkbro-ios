@@ -21,25 +21,34 @@ import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * The free-form browser agent (Android ChatWebInterface.agentLoop): an LLM
- * tool-calling loop over the [BrowserTools] surface, driven by a user prompt.
- * Progress lines and the final summary flow through the tools' progress sinks
- * (which the TaskRunner streams to the UI), replacing Android's chat bubbles.
+ * tool-calling loop over the [BrowserTools] surface. Unlike the one-shot task
+ * it replaced, the [history] lives for the whole conversation — each
+ * [runTurn] appends the user's message and loops until the model answers in
+ * plain text or calls `finish`, so the user can keep replying (parity with
+ * Android's agent chat tab). Output flows through the tools' progress/finish
+ * sinks, which the owning chat session renders as bubbles.
  */
-class FreeFormAgentTask(private val prompt: String) : BrowserTask {
-    override val id: String = "custom_agent"
-    override val displayName: String = "Custom task"
+class AgentSession(private val tools: BrowserTools) {
 
     private val json = Json { ignoreUnknownKeys = true }
     private val openAi = OpenAiRepository()
     private val config = AppServices.config
 
-    override suspend fun run(tools: BrowserTools) {
-        val history = mutableListOf<ToolChatMessage>()
-        history += ToolChatMessage(
-            role = "system",
-            content = AgentToolSchema.SYSTEM_PROMPT + buildSnapshotHint(tools),
-        )
-        history += ToolChatMessage(role = "user", content = prompt)
+    // Whole-conversation tool-calling transcript (Android's toolHistory field).
+    private val history = mutableListOf<ToolChatMessage>()
+
+    fun dispose() = tools.dispose()
+
+    suspend fun runTurn(userMessage: String) {
+        // First turn seeds the system prompt with the originating-page hint so
+        // the model can orient itself without a tool call.
+        if (history.isEmpty()) {
+            history += ToolChatMessage(
+                role = "system",
+                content = AgentToolSchema.SYSTEM_PROMPT + buildSnapshotHint(tools),
+            )
+        }
+        history += ToolChatMessage(role = "user", content = userMessage)
 
         val actionInfo = agentActionInfo()
 
@@ -48,14 +57,12 @@ class FreeFormAgentTask(private val prompt: String) : BrowserTask {
             iter++
             val resp = openAi.chatWithTools(history, AgentToolSchema.tools, actionInfo)
             if (resp == null) {
-                tools.error("LLM call failed on turn $iter")
-                tools.finish("")
+                tools.error("LLM call failed on step $iter")
                 return
             }
             val msg = resp.choices.firstOrNull()?.message
             if (msg == null) {
                 tools.error("empty response")
-                tools.finish("")
                 return
             }
             val toolCalls = msg.toolCalls.orEmpty()
@@ -82,7 +89,7 @@ class FreeFormAgentTask(private val prompt: String) : BrowserTask {
                 if (call.function.name == "finish") return
             }
         }
-        tools.finish("(task did not complete within $MAX_AGENT_ITERATIONS turns)")
+        tools.finish("(turn did not complete within $MAX_AGENT_ITERATIONS steps)")
     }
 
     private suspend fun dispatch(call: ToolCall, tools: BrowserTools): String { return try {

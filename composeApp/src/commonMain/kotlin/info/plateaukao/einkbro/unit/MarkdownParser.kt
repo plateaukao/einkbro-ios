@@ -3,6 +3,7 @@ package info.plateaukao.einkbro.unit
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -147,6 +148,7 @@ object MarkdownParser {
         fontSize: TextUnit,
         fontWeight: FontWeight = FontWeight.Normal,
     ) {
+        val codePattern = Regex("`([^`\n]+)`")
         val boldItalicPattern = Regex("\\*\\*[*_](.*?)[*_]\\*\\*")
         val boldPattern = Regex("\\*\\*(.*?)\\*\\*")
         val italicPattern = Regex("[*_](.*?)[*_]")
@@ -155,12 +157,16 @@ object MarkdownParser {
         var currentIndex = 0
 
         while (currentIndex < inputText.length) {
+            val nextCode = codePattern.find(inputText, startIndex = currentIndex)
             val nextBoldItalic = boldItalicPattern.find(inputText, startIndex = currentIndex)
             val nextBold = boldPattern.find(inputText, startIndex = currentIndex)
             val nextItalic = italicPattern.find(inputText, startIndex = currentIndex)
             val nextStrikethrough = strikethroughPattern.find(inputText, startIndex = currentIndex)
 
+            // Code first so a span like `a_b_c` wins ties and its content is
+            // never re-parsed as emphasis.
             val nextMarkDown = listOfNotNull(
+                nextCode,
                 nextBoldItalic,
                 nextBold,
                 nextItalic,
@@ -178,6 +184,11 @@ object MarkdownParser {
                 val matchText = nextMarkDown.groupValues.getOrNull(1).orEmpty()
 
                 val style = when (nextMarkDown) {
+                    nextCode -> SpanStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = (DEFAULT_FONT_SIZE - 2).sp
+                    )
+
                     nextBoldItalic -> SpanStyle(
                         fontWeight = FontWeight.Bold,
                         fontStyle = FontStyle.Italic,
