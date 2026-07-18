@@ -216,9 +216,16 @@ fun BrowserScreen(
     LaunchedEffect(config.ui.keepAwake) {
         info.plateaukao.einkbro.util.HostBridge.setKeepAwake(config.ui.keepAwake)
     }
-    // Status-bar hide / fullscreen: the Compose root goes edge-to-edge under
-    // the status bar (pixel-true hiding needs a Swift VC override — deferred).
+    // Status-bar hide / fullscreen: hide the system overlay via the host and
+    // let the Compose root go edge-to-edge under the freed space. Keyed on the
+    // pref tick (not the derived flag): hideStatusbar is a plain pref read, so
+    // the tick is what recomposes this scope when the setting changes.
     val statusBarSuppressed = config.ui.hideStatusbar || isFullscreen
+    LaunchedEffect(toolbarRefreshTick, isFullscreen) {
+        info.plateaukao.einkbro.util.HostBridge.setStatusBarHidden(
+            config.ui.hideStatusbar || isFullscreen
+        )
+    }
 
     // Session-scoped services (Phase 6): reading continues after the TTS
     // dialog closes, and translate results survive reopening the popup.

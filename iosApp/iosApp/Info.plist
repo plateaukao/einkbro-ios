@@ -26,8 +26,10 @@
     <true/>
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
+    <!-- Must stay true: SwiftUI's statusBar(hidden:) (the hide-statusbar
+         setting) rides the view-controller-based appearance mechanism. -->
     <key>UIViewControllerBasedStatusBarAppearance</key>
-    <false/>
+    <true/>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
