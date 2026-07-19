@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
@@ -986,8 +987,12 @@ fun BrowserScreen(
         }
     }
 
-    // The bottom safe-area inset is never reserved: the toolbar/webview always
-    // reaches the physical bottom edge (the home indicator overlays it).
+    // The bottom safe-area inset is not reserved at the root: the webview may
+    // run under the home indicator (fullscreen / toolbar hidden by scroll).
+    // Bottom chrome (toolbar/statusbar) instead pads itself above the home
+    // indicator — tapping at the physical edge triggers the system gesture, so
+    // interactive elements must stay out of that band (its background still
+    // paints to the edge, Safari-style).
     val rootInsets = when {
         // Fullscreen additionally runs under the status bar.
         isFullscreen || statusBarSuppressed ->
@@ -1246,6 +1251,20 @@ fun BrowserScreen(
         val toolbarAtTop = config.ui.isToolbarOnTop
         val renderToolbar: @Composable () -> Unit = {
             if (!isFullscreen && !toolbarHiddenByScroll) {
+                // Bottom toolbar (and the vertical rail, whose lowest icons also
+                // reach the edge) is lifted above the home-indicator band; the
+                // background fills the gap down to the physical edge.
+                val bottomInset =
+                    if (!toolbarAtTop || config.ui.isVerticalToolbar) {
+                        Modifier
+                            .background(MaterialTheme.colors.background)
+                            .windowInsetsPadding(
+                                WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)
+                            )
+                    } else {
+                        Modifier
+                    }
+                Box(bottomInset) {
                 ComposedToolbar(
                     isVertical = config.ui.isVerticalToolbar,
                     showTabs = showTabStrip && !config.ui.isVerticalToolbar,
@@ -1264,6 +1283,7 @@ fun BrowserScreen(
                     onAlbumClick = { browserViewModel.switchTab(it) },
                     onAlbumLongClick = { browserViewModel.closeTab(it) },
                 )
+                }
             }
         }
         val renderStatusbar: @Composable () -> Unit = {
@@ -1355,7 +1375,21 @@ fun BrowserScreen(
             config.ui.statusbarPosition ==
             info.plateaukao.einkbro.view.statusbar.StatusbarPosition.Bottom
         ) {
-            renderStatusbar()
+            // When no toolbar renders below it, the statusbar is the bottom-most
+            // chrome and takes the home-indicator padding itself.
+            val statusbarIsBottomMost =
+                toolbarAtTop || config.ui.isVerticalToolbar || toolbarHiddenByScroll
+            if (statusbarIsBottomMost && !isFullscreen) {
+                Box(
+                    Modifier
+                        .background(MaterialTheme.colors.background)
+                        .windowInsetsPadding(
+                            WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)
+                        )
+                ) { renderStatusbar() }
+            } else {
+                renderStatusbar()
+            }
         }
         if (!toolbarAtTop && !config.ui.isVerticalToolbar) renderToolbar()
     }
