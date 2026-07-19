@@ -1,7 +1,6 @@
 package info.plateaukao.einkbro.view.compose
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -10,104 +9,155 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
-import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.OpenWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.browser.BrowserAction
+import info.plateaukao.einkbro.preference.TouchAreaType
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
  * Touch-area page-turn zones (parity Phase F). Two tappable zones dispatch the
- * user's bound click/long-press gestures. Layout follows useUpDownPageTurn
- * (top/bottom vs left/right) and switchTouchAreaAction (which zone is "up").
- * touchAreaHint outlines the zones; disableLongPressTouchArea drops long-press.
+ * user's bound click/long-press gestures. Placement mirrors Android's
+ * TouchAreaViewController/MainContentLayout: touchAreaType picks one of the
+ * fixed-size zone layouts (150dp-wide boxes hugging the screen edges), and the
+ * dashed hint border is shown persistently when touchAreaHint is on, or
+ * flashed for one second when it is off — the zones themselves keep working
+ * invisibly, exactly like Android. Ebook mode has no overlay zones (Android
+ * drives that variant with JS inside the WebView).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BoxScope.TouchAreaZones(onGesture: (BrowserAction) -> Unit) {
     val touch = AppServices.config.touch
-    val upClick = touch.upClickGesture
-    val downClick = touch.downClickGesture
-    val upLong = touch.upLongClickGesture
-    val downLong = touch.downLongClickGesture
+    val type = touch.touchAreaType
+    if (type == TouchAreaType.Ebook || type == TouchAreaType.LongLeftRight) return
+
     val allowLong = !touch.disableLongPressTouchArea
-    val hint = touch.touchAreaHint
+    val switch = touch.switchTouchAreaAction
 
-    // switchTouchAreaAction swaps which physical zone plays the "up" gesture.
-    val (firstClick, firstLong, secondClick, secondLong) = if (touch.switchTouchAreaAction) {
-        Quad(downClick, downLong, upClick, upLong)
-    } else {
-        Quad(upClick, upLong, downClick, downLong)
+    // Android TouchAreaViewController: click plays the bound up/down gesture
+    // (switchTouchAreaAction swaps zones); long-press either plays the bound
+    // long gesture or sends an arrow key when longClickAsArrowKey is set.
+    val upZoneClick = { onGesture(if (!switch) touch.upClickGesture else touch.downClickGesture) }
+    val downZoneClick = { onGesture(if (!switch) touch.downClickGesture else touch.upClickGesture) }
+    val upZoneLong: (() -> Unit)? = if (!allowLong) null else {
+        {
+            if (touch.longClickAsArrowKey) onGesture(BrowserAction.SendLeftKey)
+            else onGesture(if (!switch) touch.upLongClickGesture else touch.downLongClickGesture)
+        }
+    }
+    val downZoneLong: (() -> Unit)? = if (!allowLong) null else {
+        {
+            if (touch.longClickAsArrowKey) onGesture(BrowserAction.SendRightKey)
+            else onGesture(if (!switch) touch.downLongClickGesture else touch.upLongClickGesture)
+        }
     }
 
-    if (touch.useUpDownPageTurn) {
-        ZoneBox(
-            Modifier.align(Alignment.TopCenter).fillMaxWidth().fillMaxHeight(0.35f),
-            "▲", hint, allowLong, firstClick, firstLong, onGesture,
-        )
-        ZoneBox(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.35f),
-            "▼", hint, allowLong, secondClick, secondLong, onGesture,
-        )
-    } else {
-        ZoneBox(
-            Modifier.align(Alignment.CenterStart).fillMaxWidth(0.18f).fillMaxHeight(0.7f),
-            "◀", hint, allowLong, firstClick, firstLong, onGesture,
-        )
-        ZoneBox(
-            Modifier.align(Alignment.CenterEnd).fillMaxWidth(0.18f).fillMaxHeight(0.7f),
-            "▶", hint, allowLong, secondClick, secondLong, onGesture,
-        )
+    // Android shows the dashed border on enable/type change, then hides it
+    // after one second unless the touchAreaHint pref keeps it on permanently.
+    val hintPref = touch.touchAreaHint
+    var hintVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(type, hintPref) {
+        hintVisible = true
+        if (!hintPref) {
+            delay(1000)
+            hintVisible = false
+        }
     }
+
+    // Zone geometry from Android MainContentLayout (dp sizes, edge-anchored).
+    val (upModifier, downModifier) = when (type) {
+        TouchAreaType.MiddleLeftRight ->
+            Modifier.align(Alignment.CenterStart).size(150.dp, 250.dp) to
+                Modifier.align(Alignment.CenterEnd).size(150.dp, 250.dp)
+
+        TouchAreaType.Left ->
+            Modifier.align(Alignment.BottomStart).offset(y = (-150).dp).size(150.dp, 150.dp) to
+                Modifier.align(Alignment.BottomStart).size(150.dp, 150.dp)
+
+        TouchAreaType.Right ->
+            Modifier.align(Alignment.BottomEnd).offset(y = (-150).dp).size(150.dp, 150.dp) to
+                Modifier.align(Alignment.BottomEnd).size(150.dp, 150.dp)
+
+        TouchAreaType.Long ->
+            Modifier.align(Alignment.CenterStart).width(150.dp).fillMaxHeight() to
+                Modifier.align(Alignment.CenterEnd).width(150.dp).fillMaxHeight()
+
+        else -> // BottomLeftRight (default)
+            Modifier.align(Alignment.BottomStart).size(150.dp, 250.dp) to
+                Modifier.align(Alignment.BottomEnd).size(150.dp, 250.dp)
+    }
+
+    ZoneBox(upModifier, hintVisible, upZoneClick, upZoneLong)
+    ZoneBox(downModifier, hintVisible, downZoneClick, downZoneLong)
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ZoneBox(
     modifier: Modifier,
-    glyph: String,
-    hint: Boolean,
-    allowLong: Boolean,
-    click: BrowserAction,
-    long: BrowserAction,
-    onGesture: (BrowserAction) -> Unit,
+    hintVisible: Boolean,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
 ) {
-    val hintColor = MaterialTheme.colors.onBackground.copy(alpha = 0.18f)
     Box(
         modifier
-            .then(if (hint) Modifier.border(1.dp, hintColor) else Modifier)
+            .touchAreaHintBorder(hintVisible)
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = { onGesture(click) },
-                onLongClick = if (allowLong) ({ onGesture(long) }) else null,
+                onClick = onClick,
+                onLongClick = onLongClick,
             ),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (hint) {
-            Text(glyph, color = hintColor, style = MaterialTheme.typography.h5)
-        }
-    }
+    )
+}
+
+/**
+ * Android's touch_area_border drawable: a dashed black outline with an inset
+ * dashed white outline, so the hint reads on both light and dark pages.
+ */
+private fun Modifier.touchAreaHintBorder(visible: Boolean): Modifier = drawBehind {
+    if (!visible) return@drawBehind
+    val dash = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 5.dp.toPx()))
+    drawRect(
+        color = Color.Black.copy(alpha = 0.75f),
+        style = Stroke(width = 2f, pathEffect = dash),
+    )
+    val inset = 2.dp.toPx()
+    drawRect(
+        color = Color.White.copy(alpha = 0.8f),
+        topLeft = Offset(inset, inset),
+        size = Size(size.width - inset * 2, size.height - inset * 2),
+        style = Stroke(width = 2f, pathEffect = dash),
+    )
 }
 
 /**
@@ -184,16 +234,3 @@ fun BoxScope.NavGestureFab(onGesture: (BrowserAction) -> Unit) {
         }
     }
 }
-
-/** Small 4-tuple to destructure the zone binding selection. */
-private data class Quad(
-    val a: BrowserAction,
-    val b: BrowserAction,
-    val c: BrowserAction,
-    val d: BrowserAction,
-)
-
-private operator fun Quad.component1() = a
-private operator fun Quad.component2() = b
-private operator fun Quad.component3() = c
-private operator fun Quad.component4() = d
