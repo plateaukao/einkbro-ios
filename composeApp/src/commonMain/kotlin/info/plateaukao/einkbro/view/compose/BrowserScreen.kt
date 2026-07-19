@@ -1286,20 +1286,34 @@ fun BrowserScreen(
                 }
             }
         }
+        // Android parity (StatusbarViewController): the custom statusbar is a
+        // stand-in info strip shown ONLY while the toolbar is hidden (fullscreen
+        // toggle or hide-on-scroll) and the statusbar setting is enabled; it is
+        // never rendered alongside a visible toolbar.
+        val statusbarVisible = config.ui.statusbarEnabled &&
+            (isFullscreen || toolbarHiddenByScroll)
         val renderStatusbar: @Composable () -> Unit = {
-            if (config.ui.statusbarEnabled && !isFullscreen) {
-                info.plateaukao.einkbro.view.statusbar.Statusbar(
-                    items = config.ui.statusbarItems,
-                    pageInfo = "",
-                )
-            }
+            info.plateaukao.einkbro.view.statusbar.Statusbar(
+                items = config.ui.statusbarItems,
+                pageInfo = "",
+            )
         }
         if (toolbarAtTop && !config.ui.isVerticalToolbar) renderToolbar()
-        if (config.ui.statusbarEnabled &&
+        if (statusbarVisible &&
             config.ui.statusbarPosition ==
             info.plateaukao.einkbro.view.statusbar.StatusbarPosition.Top
         ) {
-            renderStatusbar()
+            // Fullscreen reserves no top inset at the root, which would put the
+            // strip under the notch/Dynamic Island. windowInsetsPadding is
+            // consumption-aware: when the root already reserved the top this
+            // adds nothing.
+            Box(
+                Modifier
+                    .background(MaterialTheme.colors.background)
+                    .windowInsetsPadding(
+                        WindowInsets.statusBars.only(WindowInsetsSides.Top)
+                    )
+            ) { renderStatusbar() }
         }
 
         // Split screen (parity Phase G): the second pane sits beside the main one,
@@ -1371,25 +1385,20 @@ fun BrowserScreen(
 
         // Fullscreen (parity Phase D) hides the toolbar; a small exit chip
         // brings it back (iOS has no back key to restore it like Android).
-        if (config.ui.statusbarEnabled &&
+        if (statusbarVisible &&
             config.ui.statusbarPosition ==
             info.plateaukao.einkbro.view.statusbar.StatusbarPosition.Bottom
         ) {
-            // When no toolbar renders below it, the statusbar is the bottom-most
-            // chrome and takes the home-indicator padding itself.
-            val statusbarIsBottomMost =
-                toolbarAtTop || config.ui.isVerticalToolbar || toolbarHiddenByScroll
-            if (statusbarIsBottomMost && !isFullscreen) {
-                Box(
-                    Modifier
-                        .background(MaterialTheme.colors.background)
-                        .windowInsetsPadding(
-                            WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)
-                        )
-                ) { renderStatusbar() }
-            } else {
-                renderStatusbar()
-            }
+            // The toolbar is always hidden while the statusbar shows, so the
+            // statusbar is the bottom-most chrome: lift it above the
+            // home-indicator band, background filling down to the edge.
+            Box(
+                Modifier
+                    .background(MaterialTheme.colors.background)
+                    .windowInsetsPadding(
+                        WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)
+                    )
+            ) { renderStatusbar() }
         }
         if (!toolbarAtTop && !config.ui.isVerticalToolbar) renderToolbar()
     }
