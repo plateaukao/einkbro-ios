@@ -10,6 +10,7 @@
     if (article) {
         article.readingTime = getReadingTime(article.length, document.documentElement.lang.substring(0, 2));
         document.body.outerHTML = createHtmlBody(article);
+        disableSiteStyleSheets();
         var viewport = document.getElementsByName('viewport')[0];
         if (viewport) viewport.setAttribute('content', 'width=device-width');
     }
