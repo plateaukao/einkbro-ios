@@ -1303,17 +1303,9 @@ fun BrowserScreen(
             config.ui.statusbarPosition ==
             info.plateaukao.einkbro.view.statusbar.StatusbarPosition.Top
         ) {
-            // Fullscreen reserves no top inset at the root, which would put the
-            // strip under the notch/Dynamic Island. windowInsetsPadding is
-            // consumption-aware: when the root already reserved the top this
-            // adds nothing.
-            Box(
-                Modifier
-                    .background(MaterialTheme.colors.background)
-                    .windowInsetsPadding(
-                        WindowInsets.statusBars.only(WindowInsetsSides.Top)
-                    )
-            ) { renderStatusbar() }
+            // Deliberately NOT safe-area inset: the info bar has no tap targets,
+            // and fullscreen content should be full-bleed to the physical edges.
+            renderStatusbar()
         }
 
         // Split screen (parity Phase G): the second pane sits beside the main one,
@@ -1389,16 +1381,10 @@ fun BrowserScreen(
             config.ui.statusbarPosition ==
             info.plateaukao.einkbro.view.statusbar.StatusbarPosition.Bottom
         ) {
-            // The toolbar is always hidden while the statusbar shows, so the
-            // statusbar is the bottom-most chrome: lift it above the
-            // home-indicator band, background filling down to the edge.
-            Box(
-                Modifier
-                    .background(MaterialTheme.colors.background)
-                    .windowInsetsPadding(
-                        WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)
-                    )
-            ) { renderStatusbar() }
+            // Deliberately NOT safe-area inset (unlike the toolbar): the info
+            // bar has no tap targets, so it sits flush at the physical bottom
+            // with the home indicator overlaying it.
+            renderStatusbar()
         }
         if (!toolbarAtTop && !config.ui.isVerticalToolbar) renderToolbar()
     }
