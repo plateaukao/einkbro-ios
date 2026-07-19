@@ -88,6 +88,7 @@ import info.plateaukao.einkbro.view.dialog.compose.ContextMenuItemType
 import info.plateaukao.einkbro.view.dialog.compose.FastToggleDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.FontBoldnessContent
 import info.plateaukao.einkbro.view.dialog.compose.FontDialogContent
+import info.plateaukao.einkbro.view.dialog.compose.ReaderFontDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.LanguageSettingDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.AnchoredDialogFrame
 import info.plateaukao.einkbro.view.dialog.compose.MenuDialogContent
@@ -137,6 +138,9 @@ fun BrowserScreen(
         mutableStateOf(info.plateaukao.einkbro.activity.SettingRoute.Main)
     }
     var showFontDialog by remember { mutableStateOf(false) }
+    // Reader mode keeps its own font size/type prefs (Android
+    // DisplayConfigDelegate.showFontSizeChangeDialog); captured at open time.
+    var fontDialogForReader by remember { mutableStateOf(false) }
     var showFastToggle by remember { mutableStateOf(false) }
     var showSiteSettings by remember { mutableStateOf(false) }
     var showTouchAreaDialog by remember { mutableStateOf(false) }
@@ -580,14 +584,27 @@ fun BrowserScreen(
             BrowserAction.ToggleReaderMode -> currentHelper?.toggleReaderMode() ?: Unit
             BrowserAction.ToggleVerticalRead -> currentHelper?.toggleVerticalRead() ?: Unit
             BrowserAction.IncreaseFontSize -> {
-                config.display.fontSize = (config.display.fontSize + 20).coerceAtMost(300)
+                if (currentHelper?.isReaderModeOn == true) {
+                    config.display.readerFontSize =
+                        (config.display.readerFontSize + 20).coerceAtMost(300)
+                } else {
+                    config.display.fontSize = (config.display.fontSize + 20).coerceAtMost(300)
+                }
                 currentHelper?.updateCssStyle()
             }
             BrowserAction.DecreaseFontSize -> {
-                config.display.fontSize = (config.display.fontSize - 20).coerceAtLeast(50)
+                if (currentHelper?.isReaderModeOn == true) {
+                    config.display.readerFontSize =
+                        (config.display.readerFontSize - 20).coerceAtLeast(50)
+                } else {
+                    config.display.fontSize = (config.display.fontSize - 20).coerceAtLeast(50)
+                }
                 currentHelper?.updateCssStyle()
             }
-            BrowserAction.ShowFontSizeChangeDialog -> showFontDialog = true
+            BrowserAction.ShowFontSizeChangeDialog -> {
+                fontDialogForReader = currentHelper?.isReaderModeOn == true
+                showFontDialog = true
+            }
             BrowserAction.ShowFontBoldnessDialog -> showBoldnessDialog = true
             BrowserAction.ShowReaderSettingsDialog -> showReaderSettings = true
             BrowserAction.InvertColors -> currentHelper?.toggleInvertColor() ?: Unit
@@ -1463,13 +1480,23 @@ fun BrowserScreen(
                 showFontDialog = false
                 helper?.updateCssStyle()
             }) {
-                FontDialogContent(
-                    onFontTypeChanged = { helper?.updateCssStyle() },
-                    onDismiss = {
-                        showFontDialog = false
-                        helper?.updateCssStyle()
-                    },
-                )
+                if (fontDialogForReader) {
+                    ReaderFontDialogContent(
+                        onFontCustomizeClick = { helper?.updateCssStyle() },
+                        onDismiss = {
+                            showFontDialog = false
+                            helper?.updateCssStyle()
+                        },
+                    )
+                } else {
+                    FontDialogContent(
+                        onFontTypeChanged = { helper?.updateCssStyle() },
+                        onDismiss = {
+                            showFontDialog = false
+                            helper?.updateCssStyle()
+                        },
+                    )
+                }
             }
         }
     }
@@ -1722,7 +1749,10 @@ fun BrowserScreen(
                 ReaderSettingsDialogContent(
                     onSettingChanged = { helper?.updateReaderSettingsStyle() },
                     onKeepExtraContentChanged = { /* applies on next reader-mode entry */ },
-                    onFontConfigClick = { showFontDialog = true },
+                    onFontConfigClick = {
+                        fontDialogForReader = true
+                        showFontDialog = true
+                    },
                     onDismiss = { showReaderSettings = false },
                 )
             }
