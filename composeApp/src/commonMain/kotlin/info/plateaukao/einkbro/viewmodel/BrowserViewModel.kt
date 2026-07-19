@@ -130,11 +130,19 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             newTab(homeUrl)
             return
         }
-        saved.forEach { info ->
-            newTab(info.url, activate = false, title = info.title)
+        // Capture before the loop: newTab() -> persistTabs() rewrites currentAlbumIndex.
+        val savedIndex = config.tab.currentAlbumIndex.coerceIn(0, saved.lastIndex)
+        // Mirrors Android initSavedTabs: the previously-current tab comes back
+        // foreground and loads right away; the others restore lazily and only
+        // load when first shown.
+        saved.forEachIndexed { index, info ->
+            newTab(
+                info.url,
+                activate = index == savedIndex,
+                title = info.title,
+                lazyLoad = index != savedIndex,
+            )
         }
-        focusIndex.value = config.tab.currentAlbumIndex.coerceIn(0, albums.value.lastIndex)
-        syncCurrentState()
     }
 
     fun newTab(
@@ -142,6 +150,9 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         activate: Boolean = true,
         title: String = "New tab",
         incognito: Boolean = config.isIncognitoMode,
+        // A lazily restored tab defers its load until first shown, even when
+        // background loading is enabled (Android's lazyLoad in loadUrlInWebView).
+        lazyLoad: Boolean = false,
     ) {
         // Opening/activating a tab must not carry over the previous tab's
         // selection menu or link context menu.
@@ -174,7 +185,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         // Behavior pref: a background tab only preloads when background loading
         // is enabled; otherwise defer the load until the tab is first shown.
         if (url.isNotBlank()) {
-            if (activate || config.tab.enableWebBkgndLoad) {
+            if (activate || (config.tab.enableWebBkgndLoad && !lazyLoad)) {
                 engine.loadUrl(url)
             } else {
                 pendingLoads[album.id] = url
