@@ -99,6 +99,16 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     val splitHelper: WebContentHelper? get() = splitAlbum.value?.let { helpers[it.id] }
 
     init {
+        // Ebook touch mode must (dis)arm the current page live when the touch
+        // area type or the touch-turn toggle changes — no reload (the VM is a
+        // session singleton, so the listener is never unregistered).
+        config.registerOnSharedPreferenceChangeListener { _, key ->
+            if (key == info.plateaukao.einkbro.preference.TouchConfig.K_TOUCH_AREA_TYPE ||
+                key == info.plateaukao.einkbro.preference.TouchConfig.K_ENABLE_TOUCH
+            ) {
+                currentHelper?.updateEbookTouchMode()
+            }
+        }
         viewModelScope.launch { reloadRecords() }
         // Load installed userscripts so the first page can inject matching ones.
         viewModelScope.launch { AppServices.userScriptManager.reload() }
@@ -253,6 +263,16 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             else SelectionInfo(
                 payload.text, payload.left, payload.top, payload.right, payload.bottom
             )
+        }
+        // Ebook touch-area type: the page reports left/right-half taps (Android
+        // intercepts these natively in EBWebView.dispatchTouchEvent). The pref
+        // is re-checked here so a tab armed before the mode was switched off
+        // can't page.
+        engine.addMessageHandler("einkbroEbookTap") { side ->
+            if (engine !== currentEngine) return@addMessageHandler
+            if (!config.touch.isEbookModeActive) return@addMessageHandler
+            val pageUp = (side == "left") != config.touch.switchTouchAreaAction
+            if (pageUp) currentHelper?.pageUp() else currentHelper?.pageDown()
         }
         engine.addMessageHandler("einkbroLongPress") { body ->
             if (engine !== currentEngine) return@addMessageHandler
@@ -485,6 +505,9 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             // Stale selection/menu from the previous tab must not linger.
             selectionInfo.value = null
             contextMenuLink.value = null
+            // Pages loaded before ebook mode was toggled have no (or a stale)
+            // tap reporter — re-arm the newly shown tab.
+            helpers[album.id]?.updateEbookTouchMode()
             syncCurrentState()
             persistTabs()
         }

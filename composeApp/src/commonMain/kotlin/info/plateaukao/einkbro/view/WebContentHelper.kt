@@ -58,6 +58,21 @@ class WebContentHelper(
         if (config.display.enableZoom && !isReaderModeOn) {
             evaluateJsFile("force_zoom.js")
         }
+        updateEbookTouchMode()
+    }
+
+    /**
+     * Ebook touch-area type (Android intercepts taps natively in EBWebView):
+     * arm or disarm the in-page tap reporter. The einkbroEbookTap handler in
+     * BrowserViewModel re-checks the pref per message, so disarming is only
+     * cosmetic hygiene for pages that keep running.
+     */
+    fun updateEbookTouchMode() {
+        if (config.touch.isEbookModeActive) {
+            evaluateJsFile("ebook_touch.js")
+        } else {
+            engine.evaluateJavascript("window.__einkbroEbookTouchEnabled = false;")
+        }
     }
 
     // --- CSS slots -------------------------------------------------------

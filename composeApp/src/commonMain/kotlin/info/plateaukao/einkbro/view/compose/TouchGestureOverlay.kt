@@ -20,6 +20,7 @@ import androidx.compose.material.Surface
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.OpenWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,34 +57,61 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BoxScope.TouchAreaZones(onGesture: (BrowserAction) -> Unit) {
-    val touch = AppServices.config.touch
-    val type = touch.touchAreaType
-    if (type == TouchAreaType.Ebook || type == TouchAreaType.LongLeftRight) return
+    val config = AppServices.config
+    val touch = config.touch
 
-    val allowLong = !touch.disableLongPressTouchArea
-    val switch = touch.switchTouchAreaAction
+    // Prefs are plain NSUserDefaults reads, invisible to recomposition — the
+    // Android controller listens for pref changes and rebuilds its views, so
+    // mirror that here or the zones keep the old layout until something else
+    // recomposes the screen (the "have to reload to apply" bug).
+    var type by remember { mutableStateOf(touch.touchAreaType) }
+    var hintPref by remember { mutableStateOf(touch.touchAreaHint) }
+    var allowLong by remember { mutableStateOf(!touch.disableLongPressTouchArea) }
+    DisposableEffect(Unit) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            type = touch.touchAreaType
+            hintPref = touch.touchAreaHint
+            allowLong = !touch.disableLongPressTouchArea
+        }
+        config.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { config.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+
+    // Ebook mode pages via in-page tap reporting (see ebook_touch.js), not
+    // overlay zones — same as Android, which intercepts in EBWebView.
+    if (type == TouchAreaType.Ebook || type == TouchAreaType.LongLeftRight) return
 
     // Android TouchAreaViewController: click plays the bound up/down gesture
     // (switchTouchAreaAction swaps zones); long-press either plays the bound
     // long gesture or sends an arrow key when longClickAsArrowKey is set.
-    val upZoneClick = { onGesture(if (!switch) touch.upClickGesture else touch.downClickGesture) }
-    val downZoneClick = { onGesture(if (!switch) touch.downClickGesture else touch.upClickGesture) }
+    // Bindings are read at tap time so gesture-setting changes apply live.
+    val upZoneClick = {
+        onGesture(if (!touch.switchTouchAreaAction) touch.upClickGesture else touch.downClickGesture)
+    }
+    val downZoneClick = {
+        onGesture(if (!touch.switchTouchAreaAction) touch.downClickGesture else touch.upClickGesture)
+    }
     val upZoneLong: (() -> Unit)? = if (!allowLong) null else {
         {
             if (touch.longClickAsArrowKey) onGesture(BrowserAction.SendLeftKey)
-            else onGesture(if (!switch) touch.upLongClickGesture else touch.downLongClickGesture)
+            else onGesture(
+                if (!touch.switchTouchAreaAction) touch.upLongClickGesture
+                else touch.downLongClickGesture
+            )
         }
     }
     val downZoneLong: (() -> Unit)? = if (!allowLong) null else {
         {
             if (touch.longClickAsArrowKey) onGesture(BrowserAction.SendRightKey)
-            else onGesture(if (!switch) touch.downLongClickGesture else touch.upLongClickGesture)
+            else onGesture(
+                if (!touch.switchTouchAreaAction) touch.downLongClickGesture
+                else touch.upLongClickGesture
+            )
         }
     }
 
     // Android shows the dashed border on enable/type change, then hides it
     // after one second unless the touchAreaHint pref keeps it on permanently.
-    val hintPref = touch.touchAreaHint
     var hintVisible by remember { mutableStateOf(true) }
     LaunchedEffect(type, hintPref) {
         hintVisible = true

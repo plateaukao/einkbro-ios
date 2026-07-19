@@ -42,6 +42,7 @@ object Assets {
         "disable_video_autoplay.js",
         "audio_only_mode.js",
         "audio_only_mode_off.js",
+        "ebook_touch.js",
         "highlight.css",
         // Extracted inline JS (reader/vertical/paging), filled via __PLACEHOLDER__.
         "vertical_scroll_helpers.js",
