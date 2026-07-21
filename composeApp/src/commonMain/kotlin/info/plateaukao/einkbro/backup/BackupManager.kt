@@ -185,8 +185,12 @@ object BackupManager {
     // --- Android BackupUnit v2 compatibility ---
 
     // Never carry another device's Drive OAuth session across a restore.
+    // The e-ink image prefs are Android-only tuning for e-ink panels; iOS
+    // has no e-ink display and no UI for them, so importing them would
+    // silently distort image colors.
     private fun isPrivateKey(key: String) =
-        key == "sp_drive_auth_state" || key == "sp_drive_pending_auth"
+        key == "sp_drive_auth_state" || key == "sp_drive_pending_auth" ||
+                key == "sp_image_adjustment" || key == "sp_eink_image_mode"
 
     /** Android SharedPreferences XML (`<map><boolean name=… value=…/>…</map>`). */
     private fun importAndroidPrefsXml(xml: String): Boolean {

@@ -4,7 +4,6 @@ import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.browser.Assets
 import info.plateaukao.einkbro.browser.WebViewEngine
 import info.plateaukao.einkbro.preference.ConfigManager
-import info.plateaukao.einkbro.preference.EinkImageMode
 import info.plateaukao.einkbro.preference.FontType
 import info.plateaukao.einkbro.preference.HighlightStyle
 import info.plateaukao.einkbro.preference.TranslationTextStyle
@@ -271,7 +270,6 @@ class WebContentHelper(
                 (if (isBlackFont) MAKE_TEXT_BLACK_CSS else "") +
                 (if (config.whiteBackground(url)) WHITE_BACKGROUND_CSS else "") +
                 (if (isBoldFont) BOLD_FONT_CSS.replace("value", "$boldness") else "") +
-                einkImageFilterCss() +
                 (if (isInvertOn) INVERT_CSS else "") +
                 config.getCustomCss(url).orEmpty()
         // Empty blob clears the slot — that's how styles turn off without reload.
@@ -281,16 +279,6 @@ class WebContentHelper(
     fun toggleInvertColor() {
         isInvertOn = !isInvertOn
         updateCssStyle()
-    }
-
-    private fun einkImageFilterCss(): String {
-        if (config.display.einkImageMode != EinkImageMode.FAST) return ""
-        val strength = config.display.einkImageAdjustment.strength
-        if (strength <= 0) return ""
-        val t = strength / 100.0
-        return "img { filter: brightness(${formatThreeDecimals(1.0 + 0.15 * t)}) " +
-                "contrast(${formatThreeDecimals(1.0 + 0.2 * t)}) " +
-                "saturate(${formatThreeDecimals(1.0 + 0.8 * t)}) !important; }"
     }
 
     // --- text highlight (Phase 5) ----------------------------------------
@@ -505,11 +493,6 @@ class WebContentHelper(
     private fun formatOneDecimal(v: Double): String {
         val scaled = kotlin.math.round(v * 10).toInt()
         return "${scaled / 10}.${scaled % 10}"
-    }
-
-    private fun formatThreeDecimals(v: Double): String {
-        val scaled = kotlin.math.round(v * 1000).toInt()
-        return "${scaled / 1000}.${(scaled % 1000).toString().padStart(3, '0')}"
     }
 
     companion object {
