@@ -50,6 +50,7 @@ fun TranslationConfigDialogContent(
     val translationMode = remember { mutableStateOf(config.getTranslationMode(url)) }
     TranslationConfigScreen(
         translationMode = translationMode.value,
+        startExpanded = true,
         translationModeChanged = {
             val host = Uri.parse(url).host
             if (host != null) {
@@ -75,11 +76,12 @@ fun TranslationConfigDialogContent(
 @Composable
 fun TranslationConfigScreen(
     translationMode: TranslationMode = TranslationMode.GOOGLE_IN_PLACE,
+    startExpanded: Boolean = false,
     translationModeChanged: (TranslationMode) -> Unit = {},
     onSiteSettingsClicked: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    var actionExpanded by remember { mutableStateOf(false) }
+    var actionExpanded by remember { mutableStateOf(startExpanded) }
 
     val textLabel = "Mode: ${context.getString(translationMode.labelResId)}"
     Column(modifier = Modifier.width(IntrinsicSize.Max)) {

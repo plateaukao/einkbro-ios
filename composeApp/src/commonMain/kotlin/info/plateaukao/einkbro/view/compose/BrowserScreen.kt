@@ -619,13 +619,17 @@ fun BrowserScreen(
             }
             is BrowserAction.ToggleSplitScreen -> browserViewModel.toggleSplitScreen(action.url)
 
-            // Translation
+            // Translation. Click runs the selected mode directly (Android's
+            // toolbar click → translate(getTranslationMode(url))); the config
+            // dropdown is reachable via long-press (ShowTranslationConfigDialog).
             BrowserAction.ShowTranslation -> {
                 if (currentHelper?.isTranslateByParagraph == true) {
                     currentHelper.clearTranslationElements()
                     EBToast.show(AppServices.context, "Translation cleared")
                 } else {
-                    showTranslationConfig = true
+                    translateWithMode(
+                        config.getTranslationMode(browserViewModel.currentUrl.value)
+                    )
                 }
             }
             is BrowserAction.ShowTranslationConfigDialog -> showTranslationConfig = true
@@ -1055,8 +1059,12 @@ fun BrowserScreen(
                 TouchAreaZones(onGesture = { runTouchGesture(it) })
             }
 
-            // Nav-gesture FAB (parity Phase F, enableNavButtonGesture).
-            if (chatAlbum == null && config.touch.enableNavButtonGesture) {
+            // Nav-gesture FAB (parity Phase F, enableNavButtonGesture). Android
+            // shows it only while the toolbar is hidden (FullscreenDelegate
+            // show()/hide() on toggleFullscreen), never alongside the toolbar.
+            if (chatAlbum == null && config.touch.enableNavButtonGesture &&
+                (isFullscreen || toolbarHiddenByScroll)
+            ) {
                 NavGestureFab(onGesture = { runTouchGesture(it) })
             }
 
