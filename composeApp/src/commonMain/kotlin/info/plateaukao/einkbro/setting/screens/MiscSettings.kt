@@ -12,6 +12,7 @@ import info.plateaukao.einkbro.setting.NavigateSettingItem
 import info.plateaukao.einkbro.setting.SettingItemInterface
 import info.plateaukao.einkbro.setting.ValueSettingItem
 import info.plateaukao.einkbro.view.EBToast
+import info.plateaukao.einkbro.view.dialog.TranslationLanguageDialog
 import kotlinx.coroutines.launch
 
 fun buildMiscSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
@@ -63,6 +64,16 @@ fun buildMiscSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
 //            Res.string.setting_summary_enable_inplace_translate,
 //            config::enableInplaceParagraphTranslate
 //        ),
+        // Android changes the target language from the on-page language label
+        // shown while a translation is active; iOS has no such overlay, so the
+        // language is configured here instead.
+        ActionSettingItem(Res.string.translation_language, null) {
+            deps.scope.launch {
+                val language = TranslationLanguageDialog(deps.context).show()
+                    ?: return@launch
+                config.translation.translationLanguage = language
+            }
+        },
         ValueSettingItem(
             Res.string.setting_title_translated_langs,
             null,
