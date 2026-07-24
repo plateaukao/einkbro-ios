@@ -1236,13 +1236,14 @@ fun BrowserScreen(
                         recordsState.value = fromEngine + filtered
                     }
                 }
-                // imePadding: with onFocusBehavior=DoNothing the scene is not
-                // panned for the keyboard, so the reversed (bottom-toolbar)
-                // input row must lift itself above the ime.
-                Surface(
-                    Modifier.fillMaxSize().imePadding(),
-                    color = MaterialTheme.colors.background,
-                ) {
+                // Transparent overlay, mirroring Android's inputUrl ComposeView:
+                // the Column paints nothing, so only the opaque input row and
+                // suggestion list show and the page stays visible behind the
+                // empty area (tapping it dismisses). imePadding: with
+                // onFocusBehavior=DoNothing the scene is not panned for the
+                // keyboard, so the reversed (bottom-toolbar) input row must lift
+                // itself above the ime.
+                Box(Modifier.fillMaxSize().imePadding()) {
                     AutoCompleteTextField(
                         focusRequester = urlFocusRequester,
                         // Behavior pref: surface bookmarks (with favicons) in the
@@ -1275,7 +1276,11 @@ fun BrowserScreen(
         // Phase N). Left/Right toolbar falls back to bottom for now.
         val toolbarAtTop = config.ui.isToolbarOnTop
         val renderToolbar: @Composable () -> Unit = {
-            if (!isFullscreen && !toolbarHiddenByScroll) {
+            // Hide the toolbar while the URL input is up (Android sets appBar
+            // INVISIBLE in InputBarDelegate). The pane then fills the freed
+            // space, so the bottom-anchored input row lands flush at the edge —
+            // over where the toolbar was — and its taps can't reach the buttons.
+            if (!isFullscreen && !toolbarHiddenByScroll && !showUrlInput) {
                 // Bottom toolbar (and the vertical rail, whose lowest icons also
                 // reach the edge) is lifted above the home-indicator band; the
                 // background fills the gap down to the physical edge.

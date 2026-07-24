@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -79,6 +80,12 @@ fun AutoCompleteTextField(
 
     Column(
         Modifier
+            // Fill the height so verticalArrangement can actually anchor the
+            // content: a bottom toolbar (shouldReverse) needs the input row and
+            // suggestion list pushed to the bottom, flush against the toolbar.
+            // Without fillMaxSize the Column wraps its content and pins to the
+            // top of the Surface no matter the arrangement.
+            .fillMaxSize()
             .background(Color.Transparent)
             // Tap on the empty area dismisses. Deliberately not Modifier.clickable:
             // clickable also fires for key events bubbling up from the focused URL
