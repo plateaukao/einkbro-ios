@@ -10,6 +10,8 @@ import platform.Foundation.timeIntervalSince1970
 import info.plateaukao.einkbro.util.FileStore
 import info.plateaukao.einkbro.view.Album
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.sqrt
 import kotlinx.cinterop.ObjCAction
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.convert
@@ -58,6 +60,8 @@ import platform.UIKit.UIImageJPEGRepresentation
 import platform.UIKit.UIControlEventValueChanged
 import platform.UIKit.UIGestureRecognizer
 import platform.UIKit.UIGestureRecognizerDelegateProtocol
+import platform.UIKit.UIGestureRecognizerStateBegan
+import platform.UIKit.UIGestureRecognizerStateChanged
 import platform.UIKit.UIGestureRecognizerStateEnded
 import platform.UIKit.UIPanGestureRecognizer
 import platform.UIKit.UIRefreshControl
@@ -963,13 +967,28 @@ private class ScrollObserver(
     }
 }
 
-/** Two-finger pan target (parity Phase F multitouch): on gesture end, the net
- *  translation is reduced to the dominant-axis [MultitouchDirection]. */
+/** Two-finger pan target (parity Phase F multitouch): tracks both fingers over
+ *  the gesture and, on end, reduces the net translation to a dominant-axis
+ *  [MultitouchDirection] — but only when the gesture is a swipe, not a
+ *  pinch-to-zoom. Mirrors Android's MultitouchListener: a pinch is rejected
+ *  two ways — the inter-finger distance changed beyond SCALE_THRESHOLD
+ *  (isScaling), or the two fingers moved in opposite directions along the
+ *  dominant axis (isSame{X,Y}Direction). The centroid translation alone can't
+ *  tell a drifting pinch from a swipe, so we follow each finger. */
 @OptIn(ExperimentalForeignApi::class)
 private class TwoFingerPanTarget(
     private val view: UIView,
     private val onSwipe: (MultitouchDirection) -> Unit,
 ) : NSObject(), UIGestureRecognizerDelegateProtocol {
+    // Both fingers' start/end positions, plus the largest inter-finger distance
+    // change seen during the gesture (Android keeps the peak scale deviation).
+    private var startX0 = 0.0; private var startY0 = 0.0
+    private var startX1 = 0.0; private var startY1 = 0.0
+    private var endX0 = 0.0; private var endY0 = 0.0
+    private var endX1 = 0.0; private var endY1 = 0.0
+    private var initialDistance = 0.0
+    private var maxScaleDeviation = 0.0 // peak abs(1 - currentDistance/initialDistance)
+
     // Recognize alongside WKWebView's own recognizers rather than requiring
     // them to fail, so a two-finger pan is seen even over web content.
     override fun gestureRecognizer(
@@ -979,18 +998,62 @@ private class TwoFingerPanTarget(
 
     @ObjCAction
     fun onPan(recognizer: UIPanGestureRecognizer) {
-        if (recognizer.state != UIGestureRecognizerStateEnded) return
-        val dir = recognizer.translationInView(view).useContents {
-            val threshold = 40.0
-            when {
-                abs(x) < threshold && abs(y) < threshold -> null
-                abs(x) > abs(y) -> if (x > 0) MultitouchDirection.RIGHT else MultitouchDirection.LEFT
-                else -> if (y > 0) MultitouchDirection.DOWN else MultitouchDirection.UP
+        when (recognizer.state) {
+            UIGestureRecognizerStateBegan -> {
+                if (recognizer.numberOfTouches.toInt() < 2) return
+                recognizer.locationOfTouch(0.convert(), view).useContents { startX0 = x; startY0 = y }
+                recognizer.locationOfTouch(1.convert(), view).useContents { startX1 = x; startY1 = y }
+                endX0 = startX0; endY0 = startY0
+                endX1 = startX1; endY1 = startY1
+                initialDistance = distance(startX0, startY0, startX1, startY1)
+                maxScaleDeviation = 0.0
             }
+
+            UIGestureRecognizerStateChanged -> {
+                if (recognizer.numberOfTouches.toInt() < 2) return
+                recognizer.locationOfTouch(0.convert(), view).useContents { endX0 = x; endY0 = y }
+                recognizer.locationOfTouch(1.convert(), view).useContents { endX1 = x; endY1 = y }
+                if (initialDistance > 0.0) {
+                    val deviation = abs(1.0 - distance(endX0, endY0, endX1, endY1) / initialDistance)
+                    if (deviation > maxScaleDeviation) maxScaleDeviation = deviation
+                }
+            }
+
+            UIGestureRecognizerStateEnded -> resolveDirection()?.let(onSwipe)
+
+            else -> Unit // Cancelled / Failed: fire nothing
         }
-        if (dir != null) onSwipe(dir)
     }
+
+    private fun resolveDirection(): MultitouchDirection? {
+        // Pinch-to-zoom: the fingers spread/pinched past the scale threshold.
+        if (maxScaleDeviation > SCALE_THRESHOLD) return null
+        val offsetX = endX1 - startX1
+        val offsetY = endY1 - startY1
+        if (max(abs(offsetX), abs(offsetY)) <= SWIPE_THRESHOLD) return null
+        return if (abs(offsetX) > abs(offsetY)) {
+            // Both fingers must travel the same X direction — a pinch does not.
+            if (!sameSign(endX0 - startX0, offsetX)) null
+            else if (offsetX > 0) MultitouchDirection.RIGHT else MultitouchDirection.LEFT
+        } else {
+            if (!sameSign(endY0 - startY0, offsetY)) null
+            else if (offsetY > 0) MultitouchDirection.DOWN else MultitouchDirection.UP
+        }
+    }
+
+    private fun distance(ax: Double, ay: Double, bx: Double, by: Double): Double {
+        val dx = bx - ax
+        val dy = by - ay
+        return sqrt(dx * dx + dy * dy)
+    }
+
+    private fun sameSign(a: Double, b: Double): Boolean = (a > 0 && b > 0) || (a < 0 && b < 0)
 }
+
+// Companion fields aren't allowed on an ObjC subclass, so these live at file
+// scope. SCALE_THRESHOLD mirrors Android MultitouchListener.SCALE_THRESHOLD.
+private const val SWIPE_THRESHOLD = 40.0
+private const val SCALE_THRESHOLD = 0.03
 
 /** Popups/new windows → host new-tab; JS alert/confirm/prompt → host dialog. */
 private class UiDelegate(
