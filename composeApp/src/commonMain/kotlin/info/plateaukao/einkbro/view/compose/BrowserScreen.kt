@@ -1158,7 +1158,7 @@ fun BrowserScreen(
                         albumList = browserViewModel.albums,
                         albumFocusIndex = browserViewModel.focusIndex,
                         onTabIconClick = { overviewShowsHistory = false },
-                        onTabClick = { browserViewModel.switchTab(it); showOverview = false },
+                        onTabClick = { browserViewModel.showOrJumpToTop(it); showOverview = false },
                         onTabLongClick = { browserViewModel.closeTab(it) },
                         records = browserViewModel.records.value,
                         onHistoryIconClick = { overviewShowsHistory = true },
@@ -1305,7 +1305,7 @@ fun BrowserScreen(
                     onIconLongClick = { toolbarActionHandler.handleLongClick(it) },
                     albumList = browserViewModel.albums,
                     albumFocusIndex = browserViewModel.focusIndex,
-                    onAlbumClick = { browserViewModel.switchTab(it) },
+                    onAlbumClick = { browserViewModel.showOrJumpToTop(it) },
                     onAlbumLongClick = { browserViewModel.closeTab(it) },
                 )
                 }

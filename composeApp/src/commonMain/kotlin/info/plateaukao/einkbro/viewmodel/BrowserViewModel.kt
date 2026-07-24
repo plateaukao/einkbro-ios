@@ -524,6 +524,20 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         }
     }
 
+    /**
+     * Tab-item tap (Android Album.showOrJumpToTop): a non-focused tab is
+     * switched to; tapping the already-focused tab scrolls it to the top, or
+     * reloads it when it is already at the top.
+     */
+    fun showOrJumpToTop(album: Album) {
+        if (album.id == currentAlbum?.id) {
+            val engine = currentEngine ?: return
+            if (engine.isAtTop()) engine.reload() else engine.jumpToTop()
+        } else {
+            switchTab(album)
+        }
+    }
+
     /** Cycles to the previous tab (wraps, like Android's gotoLeftTab). */
     fun gotoLeftTab() {
         val list = albums.value

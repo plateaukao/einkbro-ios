@@ -38,6 +38,13 @@ interface WebViewEngine {
     fun jumpToTop()
     fun jumpToBottom()
 
+    /**
+     * True when the page's vertical scroll is at the very top (Android
+     * EBWebView.isAtTop). Drives the tab-tap gesture: a focused tab that is
+     * already at the top reloads instead of scrolling (Album.showOrJumpToTop).
+     */
+    fun isAtTop(): Boolean = true
+
     fun evaluateJavascript(script: String, callback: ((String?) -> Unit)? = null)
 
     /** Installs a script run on every future navigation (WKUserScript on iOS). */

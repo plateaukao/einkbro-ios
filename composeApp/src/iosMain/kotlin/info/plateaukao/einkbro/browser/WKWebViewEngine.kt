@@ -295,6 +295,16 @@ class WKWebViewEngine(
         evaluateJavascript(Assets.get("scroll_to_bottom.js"))
     }
 
+    // At the top when the scroll offset has reached its resting position, i.e.
+    // the negative of the adjusted top inset (0 when no inset). A 1pt tolerance
+    // absorbs sub-pixel rounding after a settle.
+    override fun isAtTop(): Boolean {
+        val scrollView = webView.scrollView
+        val offsetY = scrollView.contentOffset.useContents { y }
+        val topInset = scrollView.adjustedContentInset.useContents { top }
+        return offsetY <= -topInset + 1.0
+    }
+
     override fun installUserScript(source: String, atDocumentStart: Boolean) {
         val time = if (atDocumentStart) WKUserScriptInjectionTime.WKUserScriptInjectionTimeAtDocumentStart
         else WKUserScriptInjectionTime.WKUserScriptInjectionTimeAtDocumentEnd
