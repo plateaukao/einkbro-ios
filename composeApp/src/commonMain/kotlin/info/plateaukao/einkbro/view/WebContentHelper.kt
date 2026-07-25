@@ -44,8 +44,15 @@ class WebContentHelper(
         }
         // Per-site desktop viewport width (Android injectForcedViewportWidth):
         // force a wide viewport so desktop-mode sites lay out at full width.
-        val width = config.getDesktopViewportWidth(engine.currentUrl().orEmpty())
-        if (width != null && width > 0) {
+        // Gated on desktop mode: in Site Settings this width is a refinement of
+        // Desktop Mode (only editable while it's on, cleared together on reset),
+        // but the stored value survives turning Desktop Mode off. Applying it
+        // regardless then forces a wide desktop layout with a mobile UA — an
+        // orphaned 1280 here pinned facebook.com to 1280px, so it overflowed the
+        // screen and could pinch-zoom out below 1.0. Only honour it in desktop mode.
+        val fitUrl = engine.currentUrl().orEmpty()
+        val width = config.getDesktopViewportWidth(fitUrl)
+        if (config.getDesktopMode(fitUrl) && width != null && width > 0) {
             engine.evaluateJavascript(
                 info.plateaukao.einkbro.browser.Assets.get("force_viewport_width.js")
                     .replace("__WIDTH__", width.toString())
@@ -274,6 +281,30 @@ class WebContentHelper(
                 config.getCustomCss(url).orEmpty()
         // Empty blob clears the slot — that's how styles turn off without reload.
         updateCssSlot(CSS_SLOT_MAIN, cssStyle)
+        updateFitWidthClip()
+    }
+
+    /**
+     * Constrains the page to the device width in normal browsing (iOS analogue of
+     * Android's `useWideViewPort = isDesktopMode`). WKWebView honours the page's
+     * viewport but, when content is wider than the viewport, ignores a
+     * `minimum-scale=1.0` and lets the user pinch out below 1.0 to reveal the
+     * overflow — which also leaves text spilling past the right edge (seen on
+     * facebook.com). Clipping the root's horizontal overflow collapses
+     * documentElement.scrollWidth to the viewport width, so the fit scale is
+     * exactly 1.0 (no zoom-out) and nothing overflows to the right.
+     *
+     * Skipped whenever horizontal scrolling is intentional: desktop mode / a
+     * forced per-site viewport width (both lay out wider than the screen on
+     * purpose), and reader/vertical/two-column modes (which pan sideways).
+     */
+    private fun updateFitWidthClip() {
+        val url = engine.currentUrl().orEmpty()
+        // Only desktop mode lays out wider than the screen on purpose now — the
+        // forced viewport width is gated on it too (see onPageLoaded). Reader /
+        // vertical / two-column pan sideways by design, so leave them alone.
+        val shouldClip = !isReaderModeOn && !isVerticalRead && !config.getDesktopMode(url)
+        updateCssSlot(CSS_SLOT_FIT, if (shouldClip) FIT_WIDTH_CSS else "")
     }
 
     fun toggleInvertColor() {
@@ -502,6 +533,13 @@ class WebContentHelper(
         const val CSS_SLOT_VERTICAL = "vertical"
         const val CSS_SLOT_HIGHLIGHT = "highlight"
         const val CSS_SLOT_TRANSLATION = "translation"
+        const val CSS_SLOT_FIT = "fitwidth"
+
+        // Clips horizontal overflow at the root so the page can't lay out wider
+        // than the viewport (see updateFitWidthClip). Both html AND body are
+        // needed: on WKWebView, clipping html alone leaves documentElement's
+        // scrollWidth at the content width, so the fit scale stays < 1.0.
+        const val FIT_WIDTH_CSS = "html, body { overflow-x: hidden !important; }"
 
         // In-place translated block styling (Android's TRANSLATED_P_CSS_*).
         const val TRANSLATED_P_CSS_NONE = """
