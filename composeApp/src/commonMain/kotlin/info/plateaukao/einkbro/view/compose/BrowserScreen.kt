@@ -46,15 +46,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import android.graphics.Point
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import info.plateaukao.einkbro.util.NoDimDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlin.math.roundToInt
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.activity.HighlightsScreen
 import info.plateaukao.einkbro.activity.SavedPagesScreen
@@ -91,6 +97,7 @@ import info.plateaukao.einkbro.view.dialog.compose.FontDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.ReaderFontDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.LanguageSettingDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.AnchoredDialogFrame
+import info.plateaukao.einkbro.view.dialog.compose.PointAnchoredDialogFrame
 import info.plateaukao.einkbro.view.dialog.compose.MenuDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.PageAiActionDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.ReaderSettingsDialogContent
@@ -1008,6 +1015,9 @@ fun BrowserScreen(
         }
     }
 
+    // Window origin of the web pane, kept for anchoring the link context menu.
+    var webPaneOffset by remember { mutableStateOf(Offset.Zero) }
+
     // The bottom safe-area inset is not reserved at the root: the webview may
     // run under the home indicator (fullscreen / toolbar hidden by scroll).
     // Bottom chrome (toolbar/statusbar) instead pads itself above the home
@@ -1027,7 +1037,12 @@ fun BrowserScreen(
         // The main web pane and all its overlays, rendered into whatever slot the
         // split layout gives it (parity Phase G wraps it beside the second pane).
         val renderMainPane: @Composable (Modifier) -> Unit = { paneModifier ->
-        BoxWithConstraints(paneModifier) {
+        BoxWithConstraints(
+            // The link context menu is hosted in a window-spanning dialog, so it
+            // needs this pane's window origin to place the JS-reported (pane-
+            // relative) long-press point.
+            paneModifier.onGloballyPositioned { webPaneOffset = it.positionInWindow() }
+        ) {
             val chatAlbum = browserViewModel.currentAlbum
                 ?.takeIf { it.type == info.plateaukao.einkbro.view.AlbumType.Chat }
             if (chatAlbum != null) {
@@ -1640,14 +1655,26 @@ fun BrowserScreen(
             browserViewModel.contextMenuLink.value = null
             browserViewModel.clearSelection()
         }
-        Dialog(onDismissRequest = dismiss) {
-            Surface(color = MaterialTheme.colors.background) {
+        // JS reports the long-press point in viewport CSS px relative to the web
+        // pane (1 CSS px = 1 dp, as the selection menu above assumes); shift it by
+        // the pane's window origin to get the window pixels the frame places at.
+        val anchor = with(LocalDensity.current) {
+            Point(
+                (link.x.dp.toPx() + webPaneOffset.x).roundToInt(),
+                (link.y.dp.toPx() + webPaneOffset.y).roundToInt(),
+            )
+        }
+        Dialog(
+            onDismissRequest = dismiss,
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            PointAnchoredDialogFrame(point = anchor, onDismiss = dismiss) {
                 ContextMenuDialogContent(
-                    url = link,
+                    url = link.url,
                     shouldShowAdBlock = false,
                     shouldShowTranslateImage = config.ai.imageApiKey.isNotBlank(),
-                    itemClicked = { handleContextMenuItem(it, link) },
-                    itemLongClicked = { handleContextMenuLongClick(it, link) },
+                    itemClicked = { handleContextMenuItem(it, link.url) },
+                    itemLongClicked = { handleContextMenuLongClick(it, link.url) },
                     onDismiss = dismiss,
                 )
             }

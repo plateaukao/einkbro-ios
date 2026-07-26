@@ -37,11 +37,11 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     val records = mutableStateOf<List<Record>>(emptyList())
 
-    // Phase 5 interaction: current text selection (null = none) and the URL of
-    // a long-pressed link (null = no context menu). Both drive BrowserScreen
+    // Phase 5 interaction: current text selection (null = none) and the
+    // long-pressed link (null = no context menu). Both drive BrowserScreen
     // overlays and always reflect the active tab.
     val selectionInfo = mutableStateOf<SelectionInfo?>(null)
-    val contextMenuLink = mutableStateOf<String?>(null)
+    val contextMenuLink = mutableStateOf<ContextMenuLink?>(null)
 
     // Parity Phase B: engine-delegate requests that need host UI. Each is a
     // one-shot responder; BrowserScreen renders a dialog while non-null.
@@ -295,7 +295,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
                 // A link long-press also starts a native word selection; hide our
                 // selection menu so only the link context menu is shown.
                 selectionInfo.value = null
-                contextMenuLink.value = payload.url
+                contextMenuLink.value = ContextMenuLink(payload.url, payload.x, payload.y)
             }
         }
         engine.installUserScript(Assets.get("selection_change.js"), atDocumentStart = false)
@@ -931,4 +931,17 @@ private data class SelectionPayload(
 private data class LinkPayload(
     val url: String = "",
     val text: String = "",
+    val x: Float = 0f,
+    val y: Float = 0f,
+)
+
+/**
+ * A long-pressed link and the touch point its context menu anchors at, in
+ * viewport CSS px relative to the web pane (link_longpress.js) — the space
+ * [SelectionInfo]'s rects use too.
+ */
+data class ContextMenuLink(
+    val url: String,
+    val x: Float = 0f,
+    val y: Float = 0f,
 )

@@ -159,6 +159,95 @@ fun AnchoredDialogFrame(
     }
 }
 
+/**
+ * Positions dialog content at a long-press point, the way Android's context-menu
+ * fragments do: ContextMenuDialogFragment/BookmarkContextMenuDlgFragment set
+ * Gravity.TOP|START and the window x/y to the touch point, so the card's top-left
+ * lands there — offset far enough below to leave the pressed line of text visible.
+ * [point] is in window pixels. Near an edge the card flips to the point's other
+ * side per axis rather than sliding over the finger (Android just lets its window
+ * clamp); an invalid point (Android's `Point.isValid()`, x or
+ * y == 0) falls back to centered. Card chrome matches [AnchoredDialogFrame]. Host
+ * it in a Dialog with DialogProperties(usePlatformDefaultWidth = false) so the
+ * frame spans the window.
+ */
+@Composable
+fun PointAnchoredDialogFrame(
+    point: Point?,
+    onDismiss: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    val margin = with(LocalDensity.current) { 10.dp.roundToPx() }
+    // Vertical clearance from the touch point: the reported point is inside the
+    // pressed line of text, so the card is pushed a line-height clear of it (up
+    // or down) instead of landing on top of the link that was long-pressed.
+    val touchGap = with(LocalDensity.current) { 20.dp.roundToPx() }
+
+    // Tap outside the card dismisses; pointer-only, as in AnchoredDialogFrame.
+    val dismissModifier = if (onDismiss != null) {
+        Modifier.pointerInput(Unit) { detectTapGestures { onDismiss() } }
+    } else Modifier
+
+    Layout(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .then(dismissModifier),
+        content = {
+            Surface(
+                modifier = Modifier
+                    .wrapContentSize()
+                    .border(1.dp, MaterialTheme.colors.onBackground, RoundedCornerShape(5.dp)),
+                shape = RoundedCornerShape(5.dp),
+                color = MaterialTheme.colors.background,
+            ) {
+                content()
+            }
+        },
+    ) { measurables, constraints ->
+        val maxW = constraints.maxWidth
+        val maxH = constraints.maxHeight
+        val card = measurables.first().measure(
+            constraints.copy(
+                minWidth = 0,
+                minHeight = 0,
+                maxWidth = (maxW - 2 * margin).coerceAtLeast(0),
+                maxHeight = (maxH - 2 * margin).coerceAtLeast(0),
+            )
+        )
+        layout(maxW, maxH) {
+            if (point == null || point.x == 0 || point.y == 0) {
+                card.place((maxW - card.width) / 2, (maxH - card.height) / 2)
+                return@layout
+            }
+            // Window pixels -> this layout's space (offset by the safe-area
+            // padding above). Callers may pass screen coordinates instead
+            // (positionOnScreen); on a fullscreen iOS app the two coincide.
+            val local = coordinates?.windowToLocal(
+                Offset(point.x.toFloat(), point.y.toFloat())
+            ) ?: Offset(point.x.toFloat(), point.y.toFloat())
+            val xMax = (maxW - card.width - margin).coerceAtLeast(margin)
+            val yMax = (maxH - card.height - margin).coerceAtLeast(margin)
+
+            // Per axis: keep the card past the touch point when it fits there,
+            // else flip it to the point's other side so the finger isn't covered
+            // (a link near the bottom/right edge gets the menu above/left of it).
+            // Only a card too big for either side falls back to edge-clamping.
+            // [gap] is the clearance held on both sides of the point — vertical
+            // only, since the pressed text runs horizontally through it.
+            fun anchor(touch: Int, size: Int, maxStart: Int, gap: Int): Int = when {
+                touch + gap <= maxStart -> (touch + gap).coerceAtLeast(margin)
+                touch - gap - size >= margin -> touch - gap - size
+                else -> maxStart
+            }
+            card.place(
+                anchor(local.x.roundToInt(), card.width, xMax, gap = 0),
+                anchor(local.y.roundToInt(), card.height, yMax, gap = touchGap),
+            )
+        }
+    }
+}
+
 @Composable
 fun HorizontalSeparator() {
     Divider(thickness = 1.dp, color = MaterialTheme.colors.onBackground)

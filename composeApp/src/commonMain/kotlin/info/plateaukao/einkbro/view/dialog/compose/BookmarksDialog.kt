@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import info.plateaukao.einkbro.util.NoDimDialog as Dialog
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.database.Bookmark
@@ -106,6 +107,9 @@ fun BookmarksDialogContent(
     val shouldShowDragHandle = remember { mutableStateOf(false) }
     val isGridView = remember { mutableStateOf(config.ui.isBookmarkGridView) }
     val contextMenuBookmark = remember { mutableStateOf<Bookmark?>(null) }
+    // Long-press point the context menu anchors at (screen px), like Android's
+    // BookmarksDialogFragment passing anchorPoint to BookmarkContextMenuDlgFragment.
+    val contextMenuPoint = remember { mutableStateOf<Point?>(null) }
     val editBookmark = remember { mutableStateOf<Bookmark?>(null) }
 
     LaunchedEffect(bookmarkViewModel) {
@@ -179,9 +183,8 @@ fun BookmarksDialogContent(
                         true
                     ); closeAction()
                 },
-                onBookmarkLongClick = { bookmark, _ ->
-                    // Android anchors the context-menu window at the touch
-                    // point; CMP dialogs are centered, so the point is unused.
+                onBookmarkLongClick = { bookmark, point ->
+                    contextMenuPoint.value = point
                     contextMenuBookmark.value = bookmark
                 }
             )
@@ -189,32 +192,40 @@ fun BookmarksDialogContent(
     }
 
     contextMenuBookmark.value?.let { bookmark ->
-        Dialog(onDismissRequest = { contextMenuBookmark.value = null }) {
-            BookmarkContextMenuScreen(bookmark = bookmark) { itemType ->
-                contextMenuBookmark.value = null
-                when (itemType) {
-                    ContextMenuItemType.NewTabForeground -> {
-                        bookmarkIconClickAction(bookmark.title, bookmark.url, true)
-                        closeAction()
+        Dialog(
+            onDismissRequest = { contextMenuBookmark.value = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            PointAnchoredDialogFrame(
+                point = contextMenuPoint.value,
+                onDismiss = { contextMenuBookmark.value = null },
+            ) {
+                BookmarkContextMenuScreen(bookmark = bookmark) { itemType ->
+                    contextMenuBookmark.value = null
+                    when (itemType) {
+                        ContextMenuItemType.NewTabForeground -> {
+                            bookmarkIconClickAction(bookmark.title, bookmark.url, true)
+                            closeAction()
+                        }
+
+                        ContextMenuItemType.NewTabBackground -> {
+                            bookmarkIconClickAction(bookmark.title, bookmark.url, false)
+                            closeAction()
+                        }
+
+                        ContextMenuItemType.SplitScreen -> {
+                            splitScreenAction(bookmark.url)
+                            closeAction()
+                        }
+
+                        ContextMenuItemType.Edit -> editBookmark.value = bookmark
+
+                        ContextMenuItemType.Delete -> coroutineScope.launch {
+                            bookmarkViewModel.deleteBookmark(bookmark)
+                        }
+
+                        else -> Unit
                     }
-
-                    ContextMenuItemType.NewTabBackground -> {
-                        bookmarkIconClickAction(bookmark.title, bookmark.url, false)
-                        closeAction()
-                    }
-
-                    ContextMenuItemType.SplitScreen -> {
-                        splitScreenAction(bookmark.url)
-                        closeAction()
-                    }
-
-                    ContextMenuItemType.Edit -> editBookmark.value = bookmark
-
-                    ContextMenuItemType.Delete -> coroutineScope.launch {
-                        bookmarkViewModel.deleteBookmark(bookmark)
-                    }
-
-                    else -> Unit
                 }
             }
         }

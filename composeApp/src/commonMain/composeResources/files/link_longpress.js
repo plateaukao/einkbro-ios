@@ -1,7 +1,9 @@
-// Detects a long-press on an anchor and reports {url, text} to Kotlin via the
-// einkbroLongPress message handler. iOS has no WebView.HitTestResult; a touch
+// Detects a long-press on an anchor and reports {url, text, x, y} to Kotlin via
+// the einkbroLongPress message handler. iOS has no WebView.HitTestResult; a touch
 // timer stands in. `-webkit-touch-callout:none` on links suppresses the native
 // long-press action sheet so only our menu shows (text selection is untouched).
+// x/y are the touch point in viewport CSS px — the same space
+// selection_change.js reports its rects in; Kotlin anchors the context menu there.
 (function() {
     if (window.__ebLongPressListener) return;
     window.__ebLongPressListener = true;
@@ -18,10 +20,10 @@
         }
         return null;
     }
-    function post(url, text) {
+    function post(url, text, x, y) {
         try {
             window.webkit.messageHandlers.einkbroLongPress.postMessage(
-                JSON.stringify({ url: url, text: text })
+                JSON.stringify({ url: url, text: text, x: x, y: y })
             );
         } catch (e) {}
     }
@@ -31,10 +33,15 @@
     document.addEventListener("touchstart", function(e) {
         var link = findLink(e.target);
         if (!link) return;
+        // Read the coordinates now: the touch list is empty by the time the
+        // timer fires.
+        var touch = e.touches && e.touches[0];
+        var x = touch ? touch.clientX : 0;
+        var y = touch ? touch.clientY : 0;
         cancel();
         timer = setTimeout(function() {
             timer = null;
-            post(link.href, (link.textContent || "").trim());
+            post(link.href, (link.textContent || "").trim(), x, y);
         }, 500);
     }, true);
     document.addEventListener("touchend", cancel, true);
