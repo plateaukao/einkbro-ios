@@ -249,6 +249,13 @@ class WKWebViewEngine(
     }
 
     override fun loadFile(path: String) {
+        // A missing file makes WKWebView fail with NSURLErrorFileDoesNotExist,
+        // whose description ("not found on this server") reads like a network
+        // error and shows no error page — say what actually went wrong.
+        if (!FileStore.exists(path)) {
+            reportLoadError("File not found: ${path.substringAfterLast('/')}")
+            return
+        }
         val fileUrl = NSURL.fileURLWithPath(path)
         // Grant read access to the containing directory (webarchive/resources).
         val dirUrl = fileUrl.URLByDeletingLastPathComponent ?: fileUrl

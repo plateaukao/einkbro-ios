@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.database.SavedPage
 import info.plateaukao.einkbro.util.FileStore
+import info.plateaukao.einkbro.util.resolveStoredPath
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -27,7 +28,7 @@ class SavedPageViewModel : ViewModel() {
 
     fun deleteSavedPage(savedPage: SavedPage) {
         viewModelScope.launch {
-            FileStore.delete(savedPage.filePath)
+            FileStore.delete(resolveStoredPath(savedPage.filePath))
             manager.deleteSavedPage(savedPage)
             refresh()
         }

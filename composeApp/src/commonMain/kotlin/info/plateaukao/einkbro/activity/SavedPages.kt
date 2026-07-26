@@ -29,6 +29,7 @@ import info.plateaukao.einkbro.resources.saved_pages
 import info.plateaukao.einkbro.unit.IntentUnit
 import info.plateaukao.einkbro.util.DateFormat
 import info.plateaukao.einkbro.util.LocalContext
+import info.plateaukao.einkbro.util.resolveStoredPath
 import info.plateaukao.einkbro.view.compose.EmptyListPlaceholder
 import info.plateaukao.einkbro.view.compose.ListScaffold
 import info.plateaukao.einkbro.viewmodel.SavedPageViewModel
@@ -56,7 +57,9 @@ fun SavedPagesScreen(
                     onOpenPage(savedPage)
                 } else {
                     // Fallback (e.g. from the catalog) — hand off to the system opener.
-                    IntentUnit.launchUrl(context, "file://${savedPage.filePath}")
+                    IntentUnit.launchUrl(
+                        context, "file://" + resolveStoredPath(savedPage.filePath),
+                    )
                 }
             },
             onPageDelete = { savedPage ->

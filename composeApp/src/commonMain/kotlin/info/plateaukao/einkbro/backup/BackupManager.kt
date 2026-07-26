@@ -13,6 +13,7 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.float
 import kotlinx.serialization.json.floatOrNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -28,6 +29,12 @@ import kotlinx.serialization.json.longOrNull
  *
  * The Android backup serializes per-table JSON too; this covers the core user
  * data (prefs, bookmarks, history) and reuses the DAO overwrite paths.
+ *
+ * Rule for anything file-backed: **if the raw bytes are not in the zip, the list
+ * that points at them does not go in either.** A backup carries no .webarchive /
+ * .mht / .epub / .pdf payloads, so the read-later list and the saved EPUB/PDF
+ * lists are excluded in both directions — restoring them would only produce
+ * entries naming files that do not exist on this device.
  */
 object BackupManager {
 
@@ -147,7 +154,9 @@ object BackupManager {
     suspend fun exportBackupZip(): ByteArray {
         val zip = ZipWriter()
         zip.addStored("manifest.json", """{"version":1,"app":"einkbro-ios"}""")
-        zip.addStored("prefs.json", AppServices.sharedPreferences.exportPrefs())
+        zip.addStored(
+            "prefs.json", portablePrefsOnly(AppServices.sharedPreferences.exportPrefs()),
+        )
         zip.addStored("bookmarks.json", exportBookmarksJson())
         zip.addStored("history.json", exportHistoryJson())
         zip.addStored("domain_configs.json", exportDomainConfigsJson())
@@ -162,7 +171,8 @@ object BackupManager {
         // iOS-format entries. Android's bookmarks.json / history.json share these
         // names with identical JSON shapes, so both platforms restore through them.
         entries["prefs.json"]?.let {
-            AppServices.sharedPreferences.importPrefs(it.decodeToString()); restored = true
+            AppServices.sharedPreferences.importPrefs(portablePrefsOnly(it.decodeToString()))
+            restored = true
         }
         entries["bookmarks.json"]?.let { importBookmarks(it.decodeToString()); restored = true }
         entries["history.json"]?.let { importHistory(it.decodeToString()); restored = true }
@@ -184,13 +194,28 @@ object BackupManager {
 
     // --- Android BackupUnit v2 compatibility ---
 
-    // Never carry another device's Drive OAuth session across a restore.
-    // The e-ink image prefs are Android-only tuning for e-ink panels; iOS
-    // has no e-ink display and no UI for them, so importing them would
-    // silently distort image colors.
-    private fun isPrivateKey(key: String) =
-        key == "sp_drive_auth_state" || key == "sp_drive_pending_auth" ||
-                key == "sp_image_adjustment" || key == "sp_eink_image_mode"
+    // Keys that must never cross devices:
+    //  - the Drive OAuth session is the *other* device's login;
+    //  - the e-ink image prefs are Android panel tuning iOS has no display or
+    //    UI for, so importing them would silently distort image colors;
+    //  - the saved-file lists (read-later EPUBs/PDFs) are references to files
+    //    that never leave the device that wrote them — a backup carries no file
+    //    bytes, so restoring the list only yields entries nothing can open.
+    private val NON_PORTABLE_KEYS = setOf(
+        "sp_drive_auth_state", "sp_drive_pending_auth",
+        "sp_image_adjustment", "sp_eink_image_mode",
+        info.plateaukao.einkbro.preference.ConfigManager.K_SAVED_EPUBS,
+        info.plateaukao.einkbro.preference.ConfigManager.K_SAVED_PDFS,
+    )
+
+    private fun isPrivateKey(key: String) = key in NON_PORTABLE_KEYS
+
+    /** Drops [NON_PORTABLE_KEYS] from a `prefs.json` snapshot, in both directions. */
+    private fun portablePrefsOnly(prefsJson: String): String {
+        val obj = runCatching { Json.parseToJsonElement(prefsJson).jsonObject }.getOrNull()
+            ?: return prefsJson
+        return JsonObject(obj.filterKeys { !isPrivateKey(it) }).toString()
+    }
 
     /** Android SharedPreferences XML (`<map><boolean name=… value=…/>…</map>`). */
     private fun importAndroidPrefsXml(xml: String): Boolean {
@@ -264,7 +289,12 @@ object BackupManager {
 
     /** Per-site configs from Android's database_data.json ("domain_configurations":
      *  [{domain, configuration}] where configuration is the same serialized
-     *  DomainConfigurationData both platforms use). */
+     *  DomainConfigurationData both platforms use).
+     *
+     *  The same file also carries "saved_pages" (the read-later list), which is
+     *  deliberately NOT imported: the zip holds no archive bytes, so the rows
+     *  would only name .mht files sitting on the Android device. Same reason
+     *  [exportBackupZip] leaves this app's own saved pages out. */
     private fun importAndroidDatabaseData(text: String): Boolean {
         val configs = runCatching {
             Json.parseToJsonElement(text).jsonObject["domain_configurations"]?.jsonArray

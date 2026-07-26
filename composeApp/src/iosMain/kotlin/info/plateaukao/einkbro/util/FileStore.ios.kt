@@ -19,7 +19,7 @@ import platform.posix.memcpy
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 actual object FileStore {
 
-    private fun documentsDir(): String? {
+    actual fun documentsPath(): String? {
         val url = NSFileManager.defaultManager.URLForDirectory(
             directory = NSDocumentDirectory,
             inDomain = NSUserDomainMask,
@@ -31,7 +31,7 @@ actual object FileStore {
     }
 
     actual fun dirPath(subDir: String): String? {
-        val documents = documentsDir() ?: return null
+        val documents = documentsPath() ?: return null
         val dir = "$documents/$subDir"
         NSFileManager.defaultManager.createDirectoryAtPath(
             dir, withIntermediateDirectories = true, attributes = null, error = null,

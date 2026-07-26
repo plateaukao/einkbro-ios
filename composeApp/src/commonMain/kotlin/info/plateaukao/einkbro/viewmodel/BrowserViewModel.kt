@@ -109,6 +109,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
                 currentHelper?.updateEbookTouchMode()
             }
         }
+        pruneMissingSavedFiles()
         viewModelScope.launch { reloadRecords() }
         // Load installed userscripts so the first page can inject matching ones.
         viewModelScope.launch { AppServices.userScriptManager.reload() }
@@ -374,7 +375,10 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             viewModelScope.launch {
                 AppServices.bookmarkManager.insertSavedPage(
                     info.plateaukao.einkbro.database.SavedPage(
-                        title = title, url = url, filePath = path,
+                        title = title, url = url,
+                        // Container-relative: an absolute path stops resolving
+                        // the moment the app is reinstalled.
+                        filePath = info.plateaukao.einkbro.util.storedPathFor(path),
                         savedAt = System.currentTimeMillis(),
                     )
                 )
@@ -418,8 +422,10 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
                 return@getEpubChapter
             }
             viewModelScope.launch {
+                // The stored path may predate this install's container.
+                val target = appendToPath?.let { info.plateaukao.einkbro.util.resolveStoredPath(it) }
                 val result = epubExporter.export(
-                    capture, bookName, chapterTitle, url, appendToPath,
+                    capture, bookName, chapterTitle, url, target,
                 ) { p -> epubProgress.value = p }
                 epubProgress.value = null
                 epubDoneTick.value++
@@ -428,7 +434,8 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
                         if (appendToPath == null) {
                             config.addSavedEpubFile(
                                 info.plateaukao.einkbro.preference.SavedFileInfo(
-                                    result.bookTitle, result.path,
+                                    result.bookTitle,
+                                    info.plateaukao.einkbro.util.storedPathFor(result.path),
                                 )
                             )
                         }
@@ -444,6 +451,27 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     fun removeSavedEpub(info: info.plateaukao.einkbro.preference.SavedFileInfo) {
         config.removeSavedEpubFile(info)
     }
+
+    /**
+     * Drops saved EPUB/PDF entries whose file is gone: the Android
+     * `content://` URIs older backup imports carried over (nothing on iOS can
+     * open those), and any path left behind by an install whose container is
+     * no longer reachable. Entries that still resolve are untouched.
+     */
+    private fun pruneMissingSavedFiles() {
+        val epubs = config.savedEpubFileInfos
+        val keptEpubs = epubs.filter { it.fileExists() }
+        if (keptEpubs.size != epubs.size) config.savedEpubFileInfos = keptEpubs
+
+        val pdfs = config.savedPdfFileInfos
+        val keptPdfs = pdfs.filter { it.fileExists() }
+        if (keptPdfs.size != pdfs.size) config.savedPdfFileInfos = keptPdfs
+    }
+
+    private fun info.plateaukao.einkbro.preference.SavedFileInfo.fileExists(): Boolean =
+        info.plateaukao.einkbro.util.FileStore.exists(
+            info.plateaukao.einkbro.util.resolveStoredPath(uri)
+        )
 
     // --- Instapaper (parity Phase J) ---
 
@@ -480,8 +508,15 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     /** Opens an offline saved page (.webarchive) in a new tab. */
     fun openSavedPage(filePath: String, title: String) {
+        val path = info.plateaukao.einkbro.util.resolveStoredPath(filePath)
+        // Check before opening the tab: a missing file would otherwise leave a
+        // blank tab behind and report WKWebView's "not found on this server".
+        if (!info.plateaukao.einkbro.util.FileStore.exists(path)) {
+            EBToast.show(AppServices.context, "Saved page file is missing")
+            return
+        }
         newTab(url = "", title = title)
-        currentEngine?.loadFile(filePath)
+        currentEngine?.loadFile(path)
     }
 
     /** Opens a search for [query] in a fresh tab (selection-menu Search). */

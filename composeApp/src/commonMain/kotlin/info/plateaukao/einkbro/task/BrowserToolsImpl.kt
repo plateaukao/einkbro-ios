@@ -23,6 +23,7 @@ import info.plateaukao.einkbro.util.FileStore
 import info.plateaukao.einkbro.util.Locale
 import info.plateaukao.einkbro.util.Uri
 import info.plateaukao.einkbro.util.sanitizeFileName
+import info.plateaukao.einkbro.util.storedPathFor
 import info.plateaukao.einkbro.view.Album
 import info.plateaukao.einkbro.view.WebContentHelper
 import info.plateaukao.einkbro.viewmodel.TtsViewModel
@@ -349,8 +350,10 @@ class BrowserToolsImpl(
             "epub", "${sanitizeFileName(book.title, "book")}.epub", bytes
         ) ?: return null
 
-        if (config.savedEpubFileInfos.none { it.uri == path }) {
-            config.addSavedEpubFile(SavedFileInfo(book.title, path))
+        // Persist the container-relative form; absolute paths die on reinstall.
+        val storedPath = storedPathFor(path)
+        if (config.savedEpubFileInfos.none { it.uri == storedPath }) {
+            config.addSavedEpubFile(SavedFileInfo(book.title, storedPath))
         }
         return path
     }
