@@ -998,6 +998,7 @@ private class TwoFingerPanTarget(
     private var endX1 = 0.0; private var endY1 = 0.0
     private var initialDistance = 0.0
     private var maxScaleDeviation = 0.0 // peak abs(1 - currentDistance/initialDistance)
+    private var maxSpanDelta = 0.0 // peak abs(currentDistance - initialDistance), in points
 
     // Recognize alongside WKWebView's own recognizers rather than requiring
     // them to fail, so a two-finger pan is seen even over web content.
@@ -1017,6 +1018,7 @@ private class TwoFingerPanTarget(
                 endX1 = startX1; endY1 = startY1
                 initialDistance = distance(startX0, startY0, startX1, startY1)
                 maxScaleDeviation = 0.0
+                maxSpanDelta = 0.0
             }
 
             UIGestureRecognizerStateChanged -> {
@@ -1024,7 +1026,9 @@ private class TwoFingerPanTarget(
                 recognizer.locationOfTouch(0.convert(), view).useContents { endX0 = x; endY0 = y }
                 recognizer.locationOfTouch(1.convert(), view).useContents { endX1 = x; endY1 = y }
                 if (initialDistance > 0.0) {
-                    val deviation = abs(1.0 - distance(endX0, endY0, endX1, endY1) / initialDistance)
+                    val delta = abs(distance(endX0, endY0, endX1, endY1) - initialDistance)
+                    if (delta > maxSpanDelta) maxSpanDelta = delta
+                    val deviation = delta / initialDistance
                     if (deviation > maxScaleDeviation) maxScaleDeviation = deviation
                 }
             }
@@ -1037,7 +1041,14 @@ private class TwoFingerPanTarget(
 
     private fun resolveDirection(): MultitouchDirection? {
         // Pinch-to-zoom: the fingers spread/pinched past the scale threshold.
-        if (maxScaleDeviation > SCALE_THRESHOLD) return null
+        // Both tests must pass, because the ratio alone is far too twitchy: two
+        // fingers are typically ~100pt apart, so SCALE_THRESHOLD is only ~3pt of
+        // span change — less than a hand naturally drifts while swiping, which
+        // made nearly every real swipe read as a pinch. Android is guarded the
+        // same way: its scaleFactor only starts moving once ScaleGestureDetector
+        // reports a scale, and that needs the span to change by more than its
+        // span slop (2 x 8dp touch slop) first.
+        if (maxSpanDelta > SCALE_SLOP && maxScaleDeviation > SCALE_THRESHOLD) return null
         val offsetX = endX1 - startX1
         val offsetY = endY1 - startY1
         if (max(abs(offsetX), abs(offsetY)) <= SWIPE_THRESHOLD) return null
@@ -1061,9 +1072,13 @@ private class TwoFingerPanTarget(
 }
 
 // Companion fields aren't allowed on an ObjC subclass, so these live at file
-// scope. SCALE_THRESHOLD mirrors Android MultitouchListener.SCALE_THRESHOLD.
+// scope. SCALE_THRESHOLD mirrors Android MultitouchListener.SCALE_THRESHOLD;
+// SCALE_SLOP is the dead zone Android gets for free from ScaleGestureDetector
+// (span slop = 2 x 8dp touch slop, rounded up here for finger jitter over a
+// long swipe). A pinch that actually zooms moves the span far more than this.
 private const val SWIPE_THRESHOLD = 40.0
 private const val SCALE_THRESHOLD = 0.03
+private const val SCALE_SLOP = 24.0
 
 /** Popups/new windows → host new-tab; JS alert/confirm/prompt → host dialog. */
 private class UiDelegate(
