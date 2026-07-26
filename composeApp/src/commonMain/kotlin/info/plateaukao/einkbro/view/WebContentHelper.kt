@@ -539,7 +539,15 @@ class WebContentHelper(
         // than the viewport (see updateFitWidthClip). Both html AND body are
         // needed: on WKWebView, clipping html alone leaves documentElement's
         // scrollWidth at the content width, so the fit scale stays < 1.0.
-        const val FIT_WIDTH_CSS = "html, body { overflow-x: hidden !important; }"
+        //
+        // `clip`, NOT `hidden`: per CSS Overflow 3, `hidden` on one axis forces a
+        // `visible` other axis to compute to `auto`, so `overflow-x: hidden` made
+        // body a nested scroll container. On sites that give body an explicit
+        // height (Threads/Instagram's virtualised feeds set one) that box then
+        // owned the touch gesture with only a sliver of scrollable overflow, so a
+        // drag moved the feed a little and sprang straight back. `clip` paired
+        // with `visible` stays `visible` — it clips without creating a scroller.
+        const val FIT_WIDTH_CSS = "html, body { overflow-x: clip !important; }"
 
         // In-place translated block styling (Android's TRANSLATED_P_CSS_*).
         const val TRANSLATED_P_CSS_NONE = """
