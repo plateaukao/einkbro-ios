@@ -576,11 +576,16 @@ fun MenuItem(
     val pressed by interactionSource.collectIsPressedAsState()
 
     val screenWidth = screenWidthDp()
+    // Wide enough for the longest single English word in a label ("Instapaper",
+    // "Downloads", "background") to sit on one line — narrower cells broke them
+    // mid-word, which reads far worse than a two-line label. Capped so the
+    // six-column grid still fits a 320pt screen (deployment target is iOS 15).
+    val maxCellWidth = ((screenWidth - 24) / MENU_GRID_COLUMNS).coerceAtLeast(40)
     val width = when {
-        isLargeType -> if (screenWidth > 500) 62.dp else 50.dp
-        screenWidth > 500 -> 55.dp
-        else -> 45.dp
-    }
+        isLargeType -> if (screenWidth > 500) 76 else 64
+        screenWidth > 500 -> 68
+        else -> 58
+    }.coerceAtMost(maxCellWidth).dp
 
     val fontSize = if (!showIcon) 16.sp else if (screenWidth > 500) 10.sp else 8.sp
 
