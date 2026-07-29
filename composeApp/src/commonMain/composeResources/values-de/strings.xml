@@ -374,12 +374,8 @@ Dies zu deaktivieren ist sicherer, schneller und spart Datenvolumen. Manche Inha
     <string name="translate_by_paragraph">Absatzweise übersetzen</string>
     <string name="translation_language">Übersetzungssprache</string>
     <string name="misc">Sonstiges</string>
-    <string name="papago">Papago</string>
     <string name="source_language">Quellsprache</string>
     <string name="inter_translate">Inter Translate</string>
-    <string name="translate_image_key">Schlüssel für Bildübersetzung</string>
-    <string name="translate_image_key_summary">Notwendigen Schlüssel eingeben, um die Bildübersetzungsfunktion zu nutzen</string>
-    <string name="papago_language_setting">Spracheinstellung</string>
     <string name="toggle_touch_turn_page">Touch-Seitenumblättern umschalten</string>
     <string name="use_it_on_dict_search">KI in der Wörterbuchsuche verwenden</string>
     <string name="setting_summary_search_in_dict">Beim Suchen in Readern KI für Suchergebnisse verwenden</string>
@@ -393,7 +389,6 @@ Dies zu deaktivieren ist sicherer, schneller und spart Datenvolumen. Manche Inha
     <string name="naver_translate">Naver Translate</string>
     <string name="setting_title_gpt_model_name">OpenAI-Modellname</string>
     <string name="setting_summary_gpt_model_name">Standard ist gpt-4.1. Bei Bedarf anderen Modellnamen eingeben</string>
-    <string name="papago_translate_by_screen">Papago nach Bildschirm</string>
     <string name="split_search_settings">Einstellungen für geteilte Suche</string>
     <string name="setting_title_split_search_setting">Einstellungen für geteilte Suche</string>
     <string name="setting_summary_split_search_setting">Benutzerdefinierte Suche und Ergebnisöffnung im geteilten Bildschirm</string>
@@ -420,7 +415,6 @@ Dies zu deaktivieren ist sicherer, schneller und spart Datenvolumen. Manche Inha
     <string name="setting_tts_locale">Text-to-Speech Sprache</string>
     <string name="setting_title_external_search_pop">Popup für PROCESS_TEXT verwenden</string>
     <string name="setting_summary_external_search_pop">Als Popup-Wörterbuch suchen (geeignet für die Wörterbuchintegration in Reader-Apps)</string>
-    <string name="deepl_translate">DeepL</string>
     <string name="mincho_ja">Mincho(JA)</string>
     <string name="gamja_flower_ko">Gamja Flower(KO)</string>
     <string name="setting_title_use_gemini">Google Gemini-Modell verwenden</string>
@@ -480,7 +474,6 @@ Dies zu deaktivieren ist sicherer, schneller und spart Datenvolumen. Manche Inha
     <string name="setting_summary_translation_style">Stil für die Absatzübersetzung wählen</string>
     <string name="gray">Grau</string>
     <string name="bold">Fett</string>
-    <string name="deepl_translate_by_paragraph">DeepL absatzweise</string>
     <string name="dialog_message_remove_highlight">Markierung entfernen?</string>
     <string name="read_from_here">Ab hier</string>
     <string name="iansui_tc">iansui(TC)</string>

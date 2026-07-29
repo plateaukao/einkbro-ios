@@ -80,13 +80,6 @@ fun buildMiscSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
             Res.string.setting_summary_translated_langs,
             config.translation::preferredTranslateLanguageString
         ),
-        ValueSettingItem(
-            Res.string.translate_image_key,
-            null,
-            Res.string.translate_image_key_summary,
-            config = config.ai::imageApiKey,
-            showValue = false
-        ),
         // On Android this opens TranslationLanguageDialog.showDualCaptionLocale().
         ActionSettingItem(
             Res.string.setting_dual_caption,

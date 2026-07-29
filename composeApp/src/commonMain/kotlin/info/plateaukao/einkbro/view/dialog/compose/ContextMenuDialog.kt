@@ -45,7 +45,7 @@ data class MenuItemConfig(
     val titleResId: StringResource,
     val imageVector: ImageVector? = null,
     val iconResId: DrawableResource? = null,
-    val shouldShow: (url: String, shouldShowAdBlock: Boolean, shouldShowTranslateImage: Boolean) -> Boolean = { _, _, _ -> true }
+    val shouldShow: (url: String, shouldShowAdBlock: Boolean) -> Boolean = { _, _ -> true }
 )
 
 data class MenuLayout(
@@ -94,14 +94,6 @@ private fun createMenuLayout(isEbookMode: Boolean = false): MenuLayout {
             Icons.AutoMirrored.Outlined.Segment
         ),
         MenuItemConfig(
-            ContextMenuItemType.TranslateImage,
-            Res.string.translate,
-            iconResId = Res.drawable.ic_papago,
-            shouldShow = { url, _, shouldShowTranslateImage ->
-                shouldShowTranslateImage && (url.lowercase().contains("jpg") || url.lowercase().contains("png"))
-            }
-        ),
-        MenuItemConfig(
             ContextMenuItemType.Tts,
             Res.string.menu_tts,
             Icons.Outlined.RecordVoiceOver
@@ -132,7 +124,6 @@ private fun createMenuLayout(isEbookMode: Boolean = false): MenuLayout {
 fun ContextMenuDialogContent(
     url: String = "https://github.com/plateaukao/einkbro",
     shouldShowAdBlock: Boolean = true,
-    shouldShowTranslateImage: Boolean = false,
     isEbookMode: Boolean = false,
     hoveredItem: ContextMenuItemType? = null,
     itemClicked: (ContextMenuItemType) -> Unit = {},
@@ -142,7 +133,6 @@ fun ContextMenuDialogContent(
     ContextMenuItems(
         url,
         shouldShowAdBlock,
-        shouldShowTranslateImage,
         showIcons = AppServices.config.ui.showActionMenuIcons,
         isEbookMode = isEbookMode,
         hoveredItem = hoveredItem,
@@ -195,7 +185,6 @@ private fun urlDecode(encoded: String): String {
 private fun ContextMenuItems(
     url: String = "",
     shouldShowAdBlock: Boolean = true,
-    shouldShowTranslateImage: Boolean = false,
     showIcons: Boolean = true,
     isEbookMode: Boolean = false,
     hoveredItem: ContextMenuItemType? = null,
@@ -239,7 +228,7 @@ private fun ContextMenuItems(
             horizontalArrangement = Arrangement.Center
         ) {
             menuLayout.secondRowItems.filter { item ->
-                item.shouldShow(url, shouldShowAdBlock, shouldShowTranslateImage)
+                item.shouldShow(url, shouldShowAdBlock)
             }.forEach { item ->
                 ContextMenuItem(
                     titleResId = item.titleResId,
@@ -299,7 +288,7 @@ enum class ContextMenuItemType {
     NewTabForeground, NewTabBackground,
     ShareLink, SelectText, OpenWith,
     SaveBookmark, SaveAs,
-    SplitScreen, AdBlock, TranslateImage, Tts, Edit, Delete, Summarize, GotoLink
+    SplitScreen, AdBlock, Tts, Edit, Delete, Summarize, GotoLink
 }
 
 @Composable

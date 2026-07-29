@@ -1,14 +1,11 @@
 package info.plateaukao.einkbro.util
 
 /**
- * Minimal HMAC seam for the translation providers (Papago signs requests with
- * HMAC-MD5; its image OCR endpoint with HMAC-SHA1). CommonCrypto on iOS.
+ * Minimal digest seam for Edge-TTS tokens and Google Drive PKCE. CommonCrypto
+ * on iOS. (The HMAC-MD5 / HMAC-SHA1 entries the Papago providers needed went
+ * away with them.)
  */
 expect object Crypto {
-    fun hmacMd5(key: ByteArray, data: ByteArray): ByteArray
-    fun hmacSha1(key: ByteArray, data: ByteArray): ByteArray
-    fun md5Hex(data: ByteArray): String
-
     /** Uppercase hex SHA-256 (Edge-TTS Sec-MS-GEC token, parity Phase L). */
     fun sha256Hex(data: ByteArray): String
 

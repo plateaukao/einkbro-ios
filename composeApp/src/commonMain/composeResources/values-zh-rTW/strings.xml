@@ -344,8 +344,6 @@
     <string name="misc">其他</string>
     <string name="source_language">Source Language</string>
     <string name="inter_translate">Inter-translate</string>
-    <string name="translate_image_key">Key for translate image</string>
-    <string name="papago_language_setting">語言設定</string>
     <string name="toggle_touch_turn_page">開關點擊翻頁</string>
     <string name="use_it_on_dict_search">字典查詢時，使用 AI</string>
     <string name="setting_summary_search_in_dict">在其他App中選取文字時，使用此功能</string>
@@ -460,7 +458,6 @@
     <string name="setting_summary_translation_style">選擇想要的文字區塊外觀</string>
     <string name="gray">灰色字體</string>
     <string name="bold">粗體字</string>
-    <string name="deepl_translate_by_paragraph">Deepl by Paragraph</string>
     <string name="dialog_message_remove_highlight">移除劃線?</string>
     <string name="read_from_here">從這裡開始朗讀</string>
     <string name="iansui_tc">芫荽(TC)</string>
@@ -504,7 +501,6 @@
     <string name="audio_only_mode">僅播放音訊</string>
     <string name="custom_scale">自訂字型縮放</string>
     <string name="custom_scale_desc">輸入想要的字型縮放比例（%）</string>
-    <string name="deepl_translate">DeepL</string>
     <string name="eink_image_10">10%</string>
     <string name="eink_image_100">100%</string>
     <string name="eink_image_mode_deep">深度（抖色處理）</string>
@@ -527,8 +523,6 @@
     <string name="none">無</string>
     <string name="page_ai">網頁 AI</string>
     <string name="page_ai_action_title">網頁 AI 動作</string>
-    <string name="papago">Papago</string>
-    <string name="papago_translate_by_screen">Papago 螢幕翻譯</string>
     <string name="project_site">專案網站</string>
     <string name="reader_toolbar">閱讀工具列設定</string>
     <string name="save_history_mode_disabled">不儲存</string>
@@ -551,7 +545,6 @@
     <string name="switch_touch_area_action_short">切換方向</string>
     <string name="title_activity_setting">SettingActivity</string>
     <string name="toc_delete">刪除</string>
-    <string name="translate_image_key_summary">輸入必要的金鑰以使用圖片翻譯功能</string>
     <string name="tts_type_gpt">OpenAI</string>
     <string name="twitter">Twitter</string>
     <string name="volume_page_turn_paused">音量鍵翻頁已暫停 5 秒</string>

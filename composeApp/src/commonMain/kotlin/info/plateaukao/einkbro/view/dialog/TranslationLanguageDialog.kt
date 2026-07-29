@@ -18,9 +18,6 @@ class TranslationLanguageDialog(val context: Context) {
     suspend fun show(): TranslationLanguage? =
         pick(AppServices.config.translation.translationLanguage)
 
-    suspend fun showPapagoSourceLanguage(): TranslationLanguage? =
-        pick(AppServices.config.translation.sourceLanguage)
-
     private suspend fun pick(current: TranslationLanguage): TranslationLanguage? {
         val entries = TranslationLanguage.entries
         val picked = AppServices.dialogManager.getSelectedOptionWithString(

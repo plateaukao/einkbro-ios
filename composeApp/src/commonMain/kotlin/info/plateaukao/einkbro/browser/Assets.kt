@@ -65,12 +65,9 @@ object Assets {
         "text_node_monitor.js",
         "clear_translation_elements.js",
         "get_raw_text.js",
-        // Translation extras (Phase M): Google widget, image OCR overlay, dual captions.
+        // Translation extras (Phase M): Google widget, dual captions.
         "inject_google_translate.js",
         "hide_google_translate_popup.js",
-        "translate_image_overlay.js",
-        "get_remaining_images.js",
-        "translated_image.html",
         "dual_caption_shim.js",
         // Table of contents (Phase A): heading extraction + jump.
         "get_toc.js",

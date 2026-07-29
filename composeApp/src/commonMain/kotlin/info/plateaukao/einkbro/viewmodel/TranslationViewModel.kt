@@ -7,7 +7,6 @@ import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.data.remote.ApiResult
 import info.plateaukao.einkbro.data.remote.ChatMessage
 import info.plateaukao.einkbro.data.remote.ChatRole
-import info.plateaukao.einkbro.data.remote.ImageTranslateResult
 import info.plateaukao.einkbro.data.remote.OpenAiRepository
 import info.plateaukao.einkbro.data.remote.TranslateRepository
 import info.plateaukao.einkbro.data.remote.toSystemMessage
@@ -30,10 +29,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Real port of the Android TranslationViewModel: Google/DeepL/Papago text
- * translation plus LLM (OpenAI-compatible + Gemini) queries drive the
- * translate popup. Android-only surfaces (Naver dict WebView, image translate,
- * task streams) are deferred to later phases.
+ * Real port of the Android TranslationViewModel: Google text translation plus
+ * LLM (OpenAI-compatible + Gemini) queries drive the translate popup. Android's
+ * DeepL and Papago providers (including Papago image OCR) are not ported; the
+ * Naver dict WebView surface is not either.
  */
 class TranslationViewModel(
     private val config: ConfigManager = AppServices.config,
@@ -138,8 +137,6 @@ class TranslationViewModel(
 
         when (translateApi) {
             TRANSLATE_API.GOOGLE -> callGoogleTranslate()
-            TRANSLATE_API.PAPAGO -> callPapagoTranslate()
-            TRANSLATE_API.DEEPL -> callDeepLTranslate()
             TRANSLATE_API.LLM -> queryLlm()
             else -> Unit
         }
@@ -175,30 +172,6 @@ class TranslationViewModel(
                 targetLanguage = config.translation.translationLanguage.value,
             )
             if (result.isNullOrEmpty()) emitTranslationError("Google")
-            else _responseMessage.value = AnnotatedString(result)
-        }
-    }
-
-    private fun callDeepLTranslate() {
-        val message = _inputMessage.value
-        viewModelScope.launch {
-            val result = translateRepository.deepLTranslate(
-                message,
-                targetLanguage = config.translation.translationLanguage,
-            )
-            if (result.isNullOrEmpty()) emitTranslationError("DeepL")
-            else _responseMessage.value = AnnotatedString(result)
-        }
-    }
-
-    private fun callPapagoTranslate() {
-        val message = _inputMessage.value
-        viewModelScope.launch {
-            val result = translateRepository.pTranslate(
-                message,
-                targetLanguage = config.translation.translationLanguage.value,
-            )
-            if (result.isNullOrEmpty()) emitTranslationError("Papago")
             else _responseMessage.value = AnnotatedString(result)
         }
     }
@@ -362,31 +335,6 @@ class TranslationViewModel(
             _scrollSignal.emit(isUp)
         }
     }
-
-    // --- image OCR translation (Phase M) ---------------------------------
-
-    /**
-     * OCR-translates a single image (long-press). Source is left to Papago's
-     * language detection (langDetect), matching Android; target is the
-     * configured translation language. Returns the rendered base64 JPEG.
-     */
-    suspend fun translateImage(referer: String, imageUrl: String): ImageTranslateResult? =
-        translateRepository.translateImageFromUrl(
-            referer = referer,
-            url = imageUrl,
-            sourceLanguage = config.translation.sourceLanguage.value,
-            targetLanguage = config.translation.translationLanguage.value,
-            langDetect = true,
-        )
-
-    /** OCR-translates a WebView screenshot (translate-by-screen). */
-    suspend fun translateScreenshot(jpegBytes: ByteArray): String? =
-        translateRepository.translateImageBytes(
-            bytes = jpegBytes,
-            sourceLanguage = config.translation.sourceLanguage.value,
-            targetLanguage = config.translation.translationLanguage.value,
-            langDetect = true,
-        )?.renderedImage
 
     // --- AI task runner (Android TaskMenuDelegate parity) ----------------
     // The task result stream is rendered into the same result surface the

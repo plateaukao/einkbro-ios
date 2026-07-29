@@ -1,7 +1,9 @@
 package info.plateaukao.einkbro.viewmodel
 
+// Persisted by ordinal (AiConfig.externalSearchMethod), so readers must bounds-check:
+// Papago and DeepL were removed from the middle of this list.
 enum class TRANSLATE_API {
-    GOOGLE, PAPAGO, NAVER, LLM, DEEPL, OPENAI, GEMINI,
+    GOOGLE, NAVER, LLM, OPENAI, GEMINI,
 }
 
 fun String.unescape(): String {

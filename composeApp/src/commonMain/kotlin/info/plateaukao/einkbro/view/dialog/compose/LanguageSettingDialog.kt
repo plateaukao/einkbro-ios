@@ -34,11 +34,12 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * Entry composable; was LanguageSettingDialogFragment.Content().
- * The language pickers are stub dialogs that resolve to cancelled.
+ * Only the target language is selectable: the source-language picker existed
+ * for Papago, which is not ported.
  */
 @Composable
 fun LanguageSettingDialogContent(
-    translateApi: TRANSLATE_API = TRANSLATE_API.PAPAGO,
+    translateApi: TRANSLATE_API = TRANSLATE_API.GOOGLE,
     translationViewModel: TranslationViewModel = remember { TranslationViewModel() },
     translate: () -> Unit = {},
     onDismiss: () -> Unit = {},
@@ -46,8 +47,8 @@ fun LanguageSettingDialogContent(
     val config = AppServices.config
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    PapagoSetting(
-        shouldShowSourceLanguage = translateApi == TRANSLATE_API.PAPAGO,
+    TranslationLanguageSetting(
+        shouldShowSourceLanguage = false,
         translationViewModel = translationViewModel,
         changeTranslationLanguage = {
             scope.launch {
@@ -56,25 +57,17 @@ fun LanguageSettingDialogContent(
                 translationViewModel.updateTranslationLanguage(language)
             }
         },
-        changeSourceLanguage = {
-            scope.launch {
-                val language =
-                    TranslationLanguageDialog(context).showPapagoSourceLanguage() ?: return@launch
-                config.translation.sourceLanguage = language
-                translationViewModel.updateSourceLanguage(language)
-            }
-        },
         translate = translate,
         dismiss = onDismiss,
     )
 }
 
 @Composable
-fun PapagoSetting(
+fun TranslationLanguageSetting(
     shouldShowSourceLanguage: Boolean,
     translationViewModel: TranslationViewModel,
     changeTranslationLanguage: () -> Unit,
-    changeSourceLanguage: () -> Unit,
+    changeSourceLanguage: () -> Unit = {},
     translate: () -> Unit,
     dismiss: () -> Unit,
 ) {
@@ -87,7 +80,7 @@ fun PapagoSetting(
         horizontalAlignment = Alignment.End
     ) {
         Text(
-            text = stringResource(Res.string.papago_language_setting),
+            text = stringResource(Res.string.translation_language),
             style = MaterialTheme.typography.h5.copy(color = MaterialTheme.colors.onBackground),
             modifier = Modifier
                 .fillMaxWidth()

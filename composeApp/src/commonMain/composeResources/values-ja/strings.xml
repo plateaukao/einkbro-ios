@@ -234,8 +234,6 @@
     <string name="dark_mode_follow_system">システムに従う</string>
     <string name="dark_mode_force_on">強制オン</string>
     <string name="dashed_border">破線の枠</string>
-    <string name="deepl_translate">DeepL</string>
-    <string name="deepl_translate_by_paragraph">DeepL段落翻訳</string>
     <string name="description_split_screen_string_pattern">キーワード位置を%sとしたカスタム検索URL</string>
     <string name="description_split_screen_title">コンテキストメニューのタイトルとして表示する名前を入力</string>
     <string name="desktop_mode">デスクトップモード</string>
@@ -319,9 +317,6 @@
     <string name="page_ai_action_title">Page AIアクション</string>
     <string name="page_down">ページダウン</string>
     <string name="page_up">ページアップ</string>
-    <string name="papago">Papago</string>
-    <string name="papago_language_setting">言語設定</string>
-    <string name="papago_translate_by_screen">Papago画面翻訳</string>
     <string name="password">パスワード</string>
     <string name="plus_show_bookmarks">最近のブックマークを表示</string>
     <string name="plus_show_homepage">ホームページを表示</string>
@@ -519,8 +514,6 @@
     <string name="touch_aciton_settings">その他の設定</string>
     <string name="touch_turn_page">タッチページめくり</string>
     <string name="translate_by_paragraph">段落ごとに翻訳</string>
-    <string name="translate_image_key">画像翻訳キー</string>
-    <string name="translate_image_key_summary">画像翻訳機能を使用するためのキーを入力</string>
     <string name="translation_language">翻訳言語</string>
     <string name="tts_type_etts">ReadAloud</string>
     <string name="tts_type_gpt">OpenAI</string>

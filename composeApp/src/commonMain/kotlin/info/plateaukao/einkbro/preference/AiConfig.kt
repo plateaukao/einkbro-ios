@@ -28,8 +28,6 @@ class AiConfig(private val sp: SharedPreferences) {
         K_GPT_USER_PROMPT_WEB_PAGE,
         "Summarize in 50 words:"
     )
-    var imageApiKey by StringPreference(sp, K_IMAGE_API_KEY, "")
-    var imageTranslateIntervalSeconds by IntPreference(sp, "K_IMAGE_TRANSLATE_INTERVAL", 4)
     var gptModel by StringPreference(sp, K_GPT_MODEL, "gpt-4.1")
     var alternativeModel by StringPreference(sp, K_ALTERNATIVE_MODEL, gptModel)
     var geminiModel by StringPreference(sp, K_GEMINI_MODEL, "gemini-2.5-flash")
@@ -74,7 +72,11 @@ class AiConfig(private val sp: SharedPreferences) {
     var isExternalSearchInSameTab by BooleanPreference(sp, K_EXTERNAL_SEARCH_IN_SAME_TAB, false)
 
     var externalSearchMethod: TRANSLATE_API
-        get() = TRANSLATE_API.entries[sp.getInt(K_EXTERNAL_SEARCH_METHOD, 0)]
+        // getOrElse, not entries[]: an ordinal stored before Papago/DeepL were
+        // removed can now point past the end of the enum.
+        get() = TRANSLATE_API.entries.getOrElse(sp.getInt(K_EXTERNAL_SEARCH_METHOD, 0)) {
+            TRANSLATE_API.GOOGLE
+        }
         set(value) {
             sp.edit { putInt(K_EXTERNAL_SEARCH_METHOD, value.ordinal) }
         }
@@ -178,7 +180,6 @@ class AiConfig(private val sp: SharedPreferences) {
         const val K_GPT_SYSTEM_PROMPT = "sp_gpt_system_prompt"
         const val K_GPT_USER_PROMPT_PREFIX = "sp_gpt_user_prompt"
         const val K_GPT_USER_PROMPT_WEB_PAGE = "sp_gpt_user_prompt_web_page"
-        const val K_IMAGE_API_KEY = "sp_image_api_key"
         const val K_GPT_MODEL = "sp_gp_model"
         const val K_GPT_VOICE_MODEL = "sp_gpt_voice_model"
         const val K_GPT_VOICE_PROMPT = "sp_gpt_voice_prompt"

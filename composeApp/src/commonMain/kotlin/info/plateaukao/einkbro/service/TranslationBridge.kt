@@ -39,7 +39,7 @@ class TranslationBridge(
     var translateApi: TRANSLATE_API = TRANSLATE_API.GOOGLE
 
     // Request-rate control, mirroring Android: 4 concurrent for the fast
-    // providers, strictly serial + 1500ms spacing for DeepL/Gemini.
+    // providers, strictly serial + 1500ms spacing for Gemini.
     private val fastSemaphore = Semaphore(4)
     private val slowSemaphore = Semaphore(1)
 
@@ -73,18 +73,14 @@ class TranslationBridge(
         }
 
         val semaphore =
-            if (translateApi == TRANSLATE_API.DEEPL || translateApi == TRANSLATE_API.GEMINI) {
-                slowSemaphore
-            } else {
-                fastSemaphore
-            }
+            if (translateApi == TRANSLATE_API.GEMINI) slowSemaphore else fastSemaphore
         semaphore.withPermit {
             val translated = performTranslation(request.text, language)
             if (translated.isNotEmpty() && request.text.length < CACHE_TEXT_LENGTH_LIMIT) {
                 cache[cacheKey] = translated
             }
             invokeCallback(engine, request, translated)
-            if (translateApi == TRANSLATE_API.DEEPL || translateApi == TRANSLATE_API.GEMINI) {
+            if (translateApi == TRANSLATE_API.GEMINI) {
                 delay(1500)
             }
         }
@@ -93,10 +89,6 @@ class TranslationBridge(
     private suspend fun performTranslation(text: String, language: String): String =
         when (translateApi) {
             TRANSLATE_API.GOOGLE -> translateRepository.gTranslateWithApi(text, language).orEmpty()
-            TRANSLATE_API.PAPAGO -> translateRepository.pTranslate(text, language).orEmpty()
-            TRANSLATE_API.DEEPL ->
-                translateRepository.deepLTranslate(text, config.translation.translationLanguage).orEmpty()
-
             TRANSLATE_API.OPENAI -> translateWithLlm(text, language, GptActionType.OpenAi, config.ai.gptModel)
             TRANSLATE_API.GEMINI ->
                 translateWithLlm(text, language, GptActionType.Gemini, config.ai.geminiModel)

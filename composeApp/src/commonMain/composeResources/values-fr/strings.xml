@@ -382,12 +382,8 @@
     <string name="translate_by_paragraph">Traduction par paragraphe</string>
     <string name="translation_language">Langue de traduction</string>
     <string name="misc">Divers</string>
-    <string name="papago">Papago</string>
     <string name="source_language">Langue source</string>
     <string name="inter_translate">Inter Translate</string>
-    <string name="translate_image_key">Clé pour la traduction d\'image</string>
-    <string name="translate_image_key_summary">Saisir la clé nécessaire pour la traduction d\'image</string>
-    <string name="papago_language_setting">Paramètres de langue</string>
     <string name="toggle_touch_turn_page">Activer/Désactiver la pagination tactile</string>
     <string name="use_it_on_dict_search">Utiliser l\'IA dans la recherche de dictionnaire</string>
     <string name="setting_summary_search_in_dict">Lors d\'une recherche dans les lecteurs, utiliser l\'IA pour les résultats</string>
@@ -401,7 +397,6 @@
     <string name="naver_translate">Naver Translate</string>
     <string name="setting_title_gpt_model_name">Nom du modèle OpenAI</string>
     <string name="setting_summary_gpt_model_name">Par défaut gpt-4.1. Saisir un autre nom de modèle si nécessaire</string>
-    <string name="papago_translate_by_screen">Papago par écran</string>
     <string name="split_search_settings">Paramètres de recherche partagée</string>
     <string name="setting_title_split_search_setting">Paramètres de recherche partagée</string>
     <string name="setting_summary_split_search_setting">Recherche personnalisée et ouverture en écran partagé</string>
@@ -427,7 +422,6 @@
     <string name="setting_tts_locale">Langue de synthèse vocale</string>
     <string name="setting_title_external_search_pop">Utiliser le popup pour l\'événement PROCESS_TEXT</string>
     <string name="setting_summary_external_search_pop">Rechercher comme dictionnaire popup (adapté aux applications de lecture)</string>
-    <string name="deepl_translate">DeepL</string>
     <string name="mincho_ja">Mincho(JA)</string>
     <string name="gamja_flower_ko">Gamja Flower(KO)</string>
     <string name="setting_title_use_gemini">Utiliser le modèle Google Gemini</string>
@@ -487,7 +481,6 @@
     <string name="setting_summary_translation_style">Choisir le style pour la traduction par paragraphe</string>
     <string name="gray">Gris</string>
     <string name="bold">Gras</string>
-    <string name="deepl_translate_by_paragraph">DeepL par paragraphe</string>
     <string name="dialog_message_remove_highlight">Supprimer le surlignage ?</string>
     <string name="read_from_here">À partir d\'ici</string>
     <string name="iansui_tc">iansui(TC)</string>

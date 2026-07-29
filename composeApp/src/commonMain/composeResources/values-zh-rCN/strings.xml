@@ -316,9 +316,6 @@
     <string name="misc">其他项</string>
     <string name="source_language">源语言</string>
     <string name="inter_translate">互译</string>
-    <string name="translate_image_key">翻译图像的关键字</string>
-    <string name="translate_image_key_summary">输入必要的关键字以显示图像翻译功能。</string>
-    <string name="papago_language_setting">语言设置</string>
     <string name="toggle_touch_turn_page">切换触摸翻页</string>
     <string name="use_it_on_dict_search">在字典搜索中使用AI</string>
     <string name="setting_summary_search_in_dict">在阅读器中搜索时，使用AI搜索结果</string>
@@ -431,7 +428,6 @@
     <string name="setting_summary_translation_style">选择您喜欢的段落翻译样式</string>
     <string name="gray">灰色</string>
     <string name="bold">粗体</string>
-    <string name="deepl_translate_by_paragraph">Deepl按段落</string>
     <string name="dialog_message_remove_highlight">取消突出显示?</string>
     <string name="read_from_here">从此处阅读</string>
     <string name="iansui_tc">iansui(TC)</string>
@@ -474,7 +470,6 @@
     <string name="audio_only_mode">仅音频</string>
     <string name="custom_scale">自定义字体缩放</string>
     <string name="custom_scale_desc">输入所需的字体缩放比例 (%)</string>
-    <string name="deepl_translate">DeepL</string>
     <string name="eink_image_10">10%</string>
     <string name="eink_image_100">100%</string>
     <string name="eink_image_mode_deep">深度（抖动处理）</string>
@@ -496,8 +491,6 @@
     <string name="none">无</string>
     <string name="page_ai">页面AI</string>
     <string name="page_ai_action_title">页面AI动作</string>
-    <string name="papago">Papago</string>
-    <string name="papago_translate_by_screen">Papago屏幕翻译</string>
     <string name="reader_toolbar">阅读工具栏设置</string>
     <string name="save_history_mode_disabled">不保存</string>
     <string name="save_history_mode_save_when_close">关闭标签时保存</string>

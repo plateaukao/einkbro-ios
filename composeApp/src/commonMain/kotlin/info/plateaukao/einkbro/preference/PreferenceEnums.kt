@@ -22,8 +22,6 @@ enum class TranslationMode(val labelResId: StringResource) {
     GOOGLE_URL(Res.string.google_full_page),
     GOOGLE_IN_PLACE(Res.string.google_in_place),
     TRANSLATE_BY_PARAGRAPH(Res.string.translate_by_paragraph),
-    PAPAGO_TRANSLATE_BY_SCREEN(Res.string.papago_translate_by_screen),
-    DEEPL_BY_PARAGRAPH(Res.string.deepl_translate_by_paragraph),
     OPENAI_BY_PARAGRAPH(Res.string.openai_translate_by_paragraph),
     GEMINI_BY_PARAGRAPH(Res.string.gemini_translate_by_paragraph),
     OPENAI_IN_PLACE(Res.string.openai_in_place),

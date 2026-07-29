@@ -341,12 +341,8 @@
     <string name="translate_by_paragraph">Traducir por párrafo</string>
     <string name="translation_language">Idioma de traducción</string>
     <string name="misc">Varios</string>
-    <string name="papago">Papago</string>
     <string name="source_language">Idioma de origen</string>
     <string name="inter_translate">Inter Traducir</string>
-    <string name="translate_image_key">Clave para la traducción de imágenes</string>
-    <string name="translate_image_key_summary">Introduce la clave necesaria para usar la característica de traducción de imágenes</string>
-    <string name="papago_language_setting">Configuración del idioma</string>
     <string name="toggle_touch_turn_page">Alternar giro de página por toque</string>
     <string name="use_it_on_dict_search">Usar IA en la búsqueda del diccionario</string>
     <string name="setting_summary_search_in_dict">Cuando busques en lectores, usa IA para buscar resultados</string>
@@ -360,7 +356,6 @@
     <string name="naver_translate">Naver Translate</string>
     <string name="setting_title_gpt_model_name">Nombre del modelo de OpenAI</string>
     <string name="setting_summary_gpt_model_name">Por defecto es gpt-4.1. Inserta otro nombre de modelo si es necesario</string>
-    <string name="papago_translate_by_screen">Papago por pantalla</string>
     <string name="split_search_settings">Configuración de búsqueda dividida</string>
     <string name="setting_title_split_search_setting">Configuración de búsqueda dividida</string>
     <string name="setting_summary_split_search_setting">Búsqueda personalizada y apertura de resultados en pantalla dividida</string>
@@ -411,7 +406,6 @@
     <string name="setting_title_external_search_pop">Usar ventana emergente para el evento PROCESS_TEXT</string>
     <string name="setting_summary_external_search_pop">Búsqueda como un diccionario emergente (adecuado para la integración de diccionarios de aplicaciones de lectura)</string>
     <string name="cannot_save_epub">Algo salió mal al guardar el EPUB. Por favor, inténtalo de nuevo más tarde</string>
-    <string name="deepl_translate">DeepL</string>
     <string name="mincho_ja">Mincho(JA)</string>
     <string name="gamja_flower_ko">Gamja Flower(KO)</string>
     <string name="setting_title_use_gemini">Usar modelo Gemini de Google</string>
@@ -467,7 +461,6 @@
     <string name="setting_summary_translation_style">Elige el estilo que te guste para la traducción de párrafos</string>
     <string name="gray">Gris</string>
     <string name="bold">Negrita</string>
-    <string name="deepl_translate_by_paragraph">DeepL por párrafo</string>
     <string name="dialog_message_remove_highlight">¿Eliminar resaltado?</string>
     <string name="read_from_here">Desde aquí</string>
     <string name="iansui_tc">iansui(TC)</string>
