@@ -39,6 +39,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import info.plateaukao.einkbro.AppServices
+import info.plateaukao.einkbro.BuildConfig
 import info.plateaukao.einkbro.activity.SettingRoute.Backup
 import info.plateaukao.einkbro.activity.SettingRoute.Behavior
 import info.plateaukao.einkbro.activity.SettingRoute.ChatGPT
@@ -321,13 +322,14 @@ fun SettingsScreen(
     val startSettingItems = remember { buildStartSettingItems(deps) }
 
     val allSearchableSettings: List<Pair<StringResource, SettingItemInterface>> = remember {
-        listOf(
+        listOfNotNull(
             Ui.titleId to uiSettingItems,
             Toolbar.titleId to toolbarSettingItems,
             Behavior.titleId to behaviorSettingItems,
             Gesture.titleId to gestureSettingItems,
             Search.titleId to searchSettingItems,
-            Backup.titleId to dataSettingItems,
+            // Keep backup actions out of settings search while the screen is off.
+            if (BuildConfig.BACKUP_RESTORE_ENABLED) Backup.titleId to dataSettingItems else null,
             DataControl.titleId to clearDataSettingItems,
             StartControl.titleId to startSettingItems,
             Misc.titleId to miscSettingItems,
@@ -415,7 +417,7 @@ fun SettingsScreen(
                 composable(SettingRoute.GesturePicker.name) {
                     GesturePickerScreen(navController)
                 }
-                composable(Backup.name) {
+                if (BuildConfig.BACKUP_RESTORE_ENABLED) composable(Backup.name) {
                     SettingScreen(navController, dataSettingItems, dialogManager, action, 1)
                 }
                 composable(StartControl.name) {

@@ -1,5 +1,6 @@
 package info.plateaukao.einkbro.setting.screens
 
+import info.plateaukao.einkbro.BuildConfig
 import info.plateaukao.einkbro.activity.SettingRoute.Backup
 import info.plateaukao.einkbro.activity.SettingRoute.Behavior
 import info.plateaukao.einkbro.activity.SettingRoute.ChatGPT
@@ -18,7 +19,7 @@ import info.plateaukao.einkbro.setting.NavigateSettingItem
 import info.plateaukao.einkbro.setting.SettingItemInterface
 import info.plateaukao.einkbro.setting.VersionSettingItem
 
-fun buildMainSettingItems(): List<SettingItemInterface> = listOf(
+fun buildMainSettingItems(): List<SettingItemInterface> = listOfNotNull(
     NavigateSettingItem(Res.string.setting_title_ui, Res.drawable.ic_phone, destination = Ui),
     NavigateSettingItem(
         Res.string.setting_title_toolbar,
@@ -36,11 +37,12 @@ fun buildMainSettingItems(): List<SettingItemInterface> = listOf(
         destination = Gesture
     ),
     DividerSettingItem(),
-    NavigateSettingItem(
+    // Backup/restore is behind a build flag — see BuildConfig.BACKUP_RESTORE_ENABLED.
+    if (BuildConfig.BACKUP_RESTORE_ENABLED) NavigateSettingItem(
         Res.string.setting_title_data,
         Res.drawable.icon_backup,
         destination = Backup
-    ),
+    ) else null,
     NavigateSettingItem(
         Res.string.setting_title_start_control,
         Res.drawable.icon_earth,
