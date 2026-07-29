@@ -84,6 +84,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import info.plateaukao.einkbro.AppServices
+import info.plateaukao.einkbro.BuildConfig
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.*
 import info.plateaukao.einkbro.view.compose.MyTheme
@@ -128,8 +129,10 @@ fun MenuDialogContent(
 
 enum class MenuItemType {
     // Android also has Quit; dropped on iOS — apps cannot self-terminate
-    // (PARITY_PLAN §7).
-    Tts, QuickToggle, OpenHome, CloseTab,
+    // (PARITY_PLAN §7). CloseTab is dropped for the same reason: on Android it
+    // doubles as "quit" once the last tab goes, while here it can only ever
+    // hand back a fresh home tab. Tabs are closed from the tab list instead.
+    Tts, QuickToggle, OpenHome,
     SplitScreen, Translate, VerticalRead, ReaderMode, TouchSetting, ToolbarSetting,
     // Android also has Shortcut (add-to-home-screen); dropped on iOS — no API
     // for per-site home icons (PARITY_PLAN §7).
@@ -156,10 +159,22 @@ sealed class MenuEntry {
     object Spacer : MenuEntry()
 }
 
+/**
+ * Build-flagged items stay out of the menu grid — and out of the hide/reorder
+ * editor. LAN link / app-data sharing rides on the same flag as backup-restore
+ * (both need the multicast entitlement Apple has not granted for this team);
+ * Instapaper has its own flag (it is inert without account credentials).
+ */
+private val MenuItemType.isEnabled: Boolean
+    get() = when (this) {
+        MenuItemType.SendLink, MenuItemType.ReceiveData -> BuildConfig.BACKUP_RESTORE_ENABLED
+        MenuItemType.Instapaper -> BuildConfig.INSTAPAPER_ENABLED
+        else -> true
+    }
+
 private val defaultSectionItems: Map<MenuSection, List<MenuItemType>> = mapOf(
     MenuSection.Top to listOf(
         MenuItemType.Highlights, MenuItemType.SetHome, MenuItemType.OpenHome,
-        MenuItemType.CloseTab,
     ),
     MenuSection.Share to listOf(
         MenuItemType.ReceiveData, MenuItemType.SaveBookmark,
@@ -178,7 +193,7 @@ private val defaultSectionItems: Map<MenuSection, List<MenuItemType>> = mapOf(
         MenuItemType.ToolbarSetting, MenuItemType.QuickToggle, MenuItemType.SiteSettings,
         MenuItemType.Settings,
     ),
-)
+).mapValues { (_, items) -> items.filter { it.isEnabled } }
 
 val defaultMenuEntries: List<MenuEntry> = buildList {
     addAll(defaultSectionItems[MenuSection.Top]!!.map { MenuEntry.Item(it) })
@@ -206,7 +221,11 @@ private fun decodeMenuEntries(tokens: List<String>): List<MenuEntry> = tokens.ma
         val name = token.removePrefix(BOUNDARY_PREFIX)
         runCatching { MenuSection.valueOf(name) }.getOrNull()?.let { MenuEntry.Boundary(it) }
     } else {
-        runCatching { MenuItemType.valueOf(token) }.getOrNull()?.let { MenuEntry.Item(it) }
+        // Drops disabled items from an order persisted by an earlier build; when the
+        // flag flips back on, effectiveMenuEntries re-appends them to their section.
+        runCatching { MenuItemType.valueOf(token) }.getOrNull()
+            ?.takeIf { it.isEnabled }
+            ?.let { MenuEntry.Item(it) }
     }
 }
 
@@ -390,7 +409,6 @@ fun MenuItemForType(
         MenuItemType.Highlights -> HideableMenuItem(type, Res.string.menu_highlights, Icons.Outlined.EditNote)
         MenuItemType.SetHome -> HideableMenuItem(type, Res.string.menu_fav, Icons.Outlined.AddHome)
         MenuItemType.OpenHome -> HideableMenuItem(type, Res.string.menu_openFav, Icons.Outlined.Home)
-        MenuItemType.CloseTab -> HideableMenuItem(type, Res.string.menu_closeTab, Icons.Outlined.CancelPresentation)
         MenuItemType.ReceiveData -> HideableMenuItem(type, Res.string.menu_receive, Icons.Outlined.InstallMobile, supportsLongClick = true)
         MenuItemType.SaveBookmark -> HideableMenuItem(type, Res.string.menu_save_bookmark, Icons.Outlined.BookmarkAdd)
         MenuItemType.OpenWith -> HideableMenuItem(type, Res.string.menu_open_with, Icons.Outlined.Apps)

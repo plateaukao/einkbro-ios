@@ -36,7 +36,6 @@ class MenuActionHandler(
         MenuItemType.Tts -> dispatch(BrowserAction.HandleTtsButton)
         MenuItemType.QuickToggle -> dispatch(BrowserAction.ShowFastToggleDialog)
         MenuItemType.OpenHome -> dispatch(BrowserAction.UpdateAlbum(config.favoriteUrl))
-        MenuItemType.CloseTab -> dispatch(BrowserAction.RemoveAlbum)
 
         MenuItemType.SplitScreen -> dispatch(BrowserAction.ToggleSplitScreen())
         MenuItemType.Translate -> dispatch(BrowserAction.ShowTranslation)

@@ -9,7 +9,9 @@ internal object BuildConfig {
 
     /**
      * Gates the "Data" (backup / restore) settings screen — the whole
-     * export/import/LAN-share/Google-Drive group.
+     * export/import/LAN-share/Google-Drive group — plus the two LAN menu
+     * items (Send Link / Receive Data), which need the same multicast
+     * entitlement.
      *
      * Off for the first App Store submission: the flow is awkward to demo for
      * App Review (it needs a second device for LAN share, and Drive sync sends
@@ -17,4 +19,14 @@ internal object BuildConfig {
      * the screen back; nothing else needs to change.
      */
     const val BACKUP_RESTORE_ENABLED: Boolean = false
+
+    /**
+     * Gates the Instapaper menu item and its gesture action.
+     *
+     * Off for the first App Store submission: "save to Instapaper" only does
+     * anything once the user hands over an Instapaper username and password,
+     * so App Review would find a dead item behind a credentials prompt.
+     * Flip to `true` to bring it back; the dialog and repository stay wired.
+     */
+    const val INSTAPAPER_ENABLED: Boolean = false
 }

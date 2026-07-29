@@ -1,6 +1,7 @@
 package info.plateaukao.einkbro.browser
 
 import org.jetbrains.compose.resources.StringResource
+import info.plateaukao.einkbro.BuildConfig
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.*
 import info.plateaukao.einkbro.view.GestureType
@@ -93,9 +94,13 @@ object BrowserActionCatalog {
         ),
         BrowserActionCategory(
             Res.string.action_category_share,
-            listOf(
+            listOfNotNull(
                 BrowserActionEntry(BrowserAction.ShareLink, Res.string.menu_share_link),
-                BrowserActionEntry(BrowserAction.AddToInstapaper, Res.string.menu_instapaper),
+                // Gated with the menu item; a gesture bound to it by an older build
+                // falls back to nothingEntry, since entryOf() resolves unknown ids there.
+                if (BuildConfig.INSTAPAPER_ENABLED)
+                    BrowserActionEntry(BrowserAction.AddToInstapaper, Res.string.menu_instapaper)
+                else null,
             ),
         ),
         BrowserActionCategory(
