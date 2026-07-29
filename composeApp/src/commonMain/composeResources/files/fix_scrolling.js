@@ -62,6 +62,28 @@
         try { androidApp.setTouchOnInnerScrollable(false); } catch (ex) {}
     }, true);
 
+    // The document is not always the scroller. A page that gives html/body an
+    // explicit height AND body `overflow-y: scroll|auto` parks the whole
+    // article inside body, leaving documentElement with nothing to scroll —
+    // window.scrollBy/scrollTo then updates scrollY and moves nothing on
+    // screen. MediaWiki ships exactly that pair (`html, body { height: 100% }`
+    // plus `body { overflow-y: scroll }`), which is why paging did nothing on
+    // Wikipedia. findScrollableParent above deliberately ignores body (it
+    // answers a different question, for pull-to-refresh), so this is separate.
+    // Returns the element paging must drive, or null when the window is fine.
+    window.__einkbroDocScroller = function() {
+        var se = document.scrollingElement || document.documentElement;
+        if (se && se.scrollHeight > se.clientHeight + 1) return null;
+        var b = document.body;
+        if (b && b.scrollHeight > b.clientHeight + 1) {
+            var overflowY = window.getComputedStyle(b).overflowY;
+            if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') {
+                return b;
+            }
+        }
+        return null;
+    };
+
     window.__einkbroPageScroll = function(direction, offsetPercent, offsetPx) {
         var scrollable = findInnerScrollable();
         if (!scrollable) return "false";

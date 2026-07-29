@@ -26,5 +26,12 @@
     if (window.__einkbroPageScroll &&
         window.__einkbroPageScroll(dir, __RESERVE_PCT__, __RESERVE_PX__) === "true") return;
     var usableH = window.innerHeight * (1 - __RESERVE_PCT__) - __RESERVE_PX__;
+    // Sites that make body the scroller (see __einkbroDocScroller) ignore
+    // window.scrollBy entirely, so drive that element instead.
+    var docScroller = window.__einkbroDocScroller && window.__einkbroDocScroller();
+    if (docScroller) {
+        docScroller.scrollBy({top: dir * usableH, left: 0, behavior: 'instant'});
+        return;
+    }
     window.scrollBy({top: dir * usableH, left: 0, behavior: 'instant'});
 })(__DIRECTION__);
