@@ -553,9 +553,12 @@ fun BrowserScreen(
             // TTS
             BrowserAction.HandleTtsButton -> {
                 if (!ttsViewModel.isReading()) {
-                    currentHelper?.getRawText { text ->
-                        if (text.isNotBlank()) {
-                            ttsViewModel.readArticle(text, browserViewModel.currentTitle.value)
+                    currentHelper?.let { helper ->
+                        scope.launch {
+                            val text = helper.getRawTextWithCaption()
+                            if (text.isNotBlank()) {
+                                ttsViewModel.readArticle(text, browserViewModel.currentTitle.value)
+                            }
                         }
                     }
                 }
@@ -666,13 +669,16 @@ fun BrowserScreen(
                 ) {
                     EBToast.show(AppServices.context, "Set an AI API key in Settings first")
                 } else {
-                    currentHelper?.getRawText { text ->
-                        if (text.isNotBlank()) {
-                            translationViewModel.url = browserViewModel.currentUrl.value
-                            translationViewModel.pageTitle = browserViewModel.currentTitle.value
-                            translationViewModel.setupTextSummary(text)
-                            translateDialogWholePage = true
-                            showTranslateDialog = true
+                    currentHelper?.let { helper ->
+                        scope.launch {
+                            val text = helper.getRawTextWithCaption()
+                            if (text.isNotBlank()) {
+                                translationViewModel.url = browserViewModel.currentUrl.value
+                                translationViewModel.pageTitle = browserViewModel.currentTitle.value
+                                translationViewModel.setupTextSummary(text)
+                                translateDialogWholePage = true
+                                showTranslateDialog = true
+                            }
                         }
                     } ?: Unit
                 }
@@ -687,10 +693,12 @@ fun BrowserScreen(
                     // split screen; the split-pane chat variant is deferred).
                     val runAction = action.runWithAction
                     val presetContent = action.content
-                    currentHelper?.getRawText { text ->
-                        val content = presetContent ?: text
-                        if (content.isNotBlank()) {
-                            openChatWithWebTab(content, runAction)
+                    currentHelper?.let { helper ->
+                        scope.launch {
+                            val content = presetContent ?: helper.getRawTextWithCaption()
+                            if (content.isNotBlank()) {
+                                openChatWithWebTab(content, runAction)
+                            }
                         }
                     } ?: Unit
                 }
@@ -1609,11 +1617,14 @@ fun BrowserScreen(
                 TtsSettingDialogContent(
                     ttsViewModel = ttsViewModel,
                     readCurrentArticleAction = {
-                        helper?.getRawText { text ->
-                            if (text.isNotBlank()) {
-                                ttsViewModel.readArticle(
-                                    text, browserViewModel.currentTitle.value
-                                )
+                        helper?.let { current ->
+                            scope.launch {
+                                val text = current.getRawTextWithCaption()
+                                if (text.isNotBlank()) {
+                                    ttsViewModel.readArticle(
+                                        text, browserViewModel.currentTitle.value
+                                    )
+                                }
                             }
                         }
                     },
@@ -1731,15 +1742,18 @@ fun BrowserScreen(
                             handleBrowserAction(
                                 BrowserAction.ChatWithWeb(runWithAction = gptAction)
                             )
-                        } else helper?.getRawText { text ->
-                            if (text.isNotBlank()) {
-                                translationViewModel.url = browserViewModel.currentUrl.value
-                                translationViewModel.pageTitle =
-                                    browserViewModel.currentTitle.value
-                                translationViewModel.updateInputMessage(text)
-                                translationViewModel.setupGptAction(gptAction)
-                                translateDialogWholePage = true
-                                showTranslateDialog = true
+                        } else helper?.let { current ->
+                            scope.launch {
+                                val text = current.getRawTextWithCaption()
+                                if (text.isNotBlank()) {
+                                    translationViewModel.url = browserViewModel.currentUrl.value
+                                    translationViewModel.pageTitle =
+                                        browserViewModel.currentTitle.value
+                                    translationViewModel.updateInputMessage(text)
+                                    translationViewModel.setupGptAction(gptAction)
+                                    translateDialogWholePage = true
+                                    showTranslateDialog = true
+                                }
                             }
                         }
                     },

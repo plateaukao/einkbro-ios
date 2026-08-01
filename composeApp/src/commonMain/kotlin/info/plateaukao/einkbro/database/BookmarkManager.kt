@@ -165,6 +165,14 @@ class BookmarkManager(private val database: AppDatabase) {
 
     suspend fun deleteAllChatGptQueries() = chatGptQueryDao.deleteAll()
 
+    // --- cached video transcripts (YouTube caption fallback) ---
+
+    suspend fun getVideoTranscript(videoId: String): VideoTranscript? =
+        database.videoTranscriptDao().getTranscript(videoId)
+
+    suspend fun insertVideoTranscript(videoTranscript: VideoTranscript) =
+        database.videoTranscriptDao().insert(videoTranscript)
+
     // Decoded bitmaps are cached per domain so repeated lookups return the same
     // instance; Compose skipping and mutableStateOf equality rely on that.
     fun findFaviconBitmapBy(url: String): androidx.compose.ui.graphics.ImageBitmap? {

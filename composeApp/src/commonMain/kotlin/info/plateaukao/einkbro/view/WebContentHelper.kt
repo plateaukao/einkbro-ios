@@ -3,10 +3,16 @@ package info.plateaukao.einkbro.view
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.browser.Assets
 import info.plateaukao.einkbro.browser.WebViewEngine
+import info.plateaukao.einkbro.caption.CaptionFetchResult
+import info.plateaukao.einkbro.caption.DualCaptionProcessor
+import info.plateaukao.einkbro.caption.YouTubeCaptionFetcher
 import info.plateaukao.einkbro.preference.ConfigManager
 import info.plateaukao.einkbro.preference.FontType
 import info.plateaukao.einkbro.preference.HighlightStyle
 import info.plateaukao.einkbro.preference.TranslationTextStyle
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -402,8 +408,108 @@ class WebContentHelper(
 
     /** Fetches the page's visible text (read-aloud, GPT summarize). */
     fun getRawText(callback: (String) -> Unit) {
+        // A prepared video transcript replaces the watch-page DOM entirely
+        // (Android EBWebView.getRawTextInto does the same with dualCaption).
+        // Re-check the page first, so a caller that skips prepareVideoTranscript
+        // can't be served the previous video's transcript.
+        dropTranscriptIfPageChanged()
+        dualCaption?.let { caption ->
+            val html = runCatching { DualCaptionProcessor(config).convertToHtml(caption) }.getOrNull()
+            if (html != null) {
+                callback(html)
+                return
+            }
+        }
         engine.evaluateJavascript(Assets.get("get_raw_text.js")) { result ->
             callback(result.orEmpty())
+        }
+    }
+
+    // --- YouTube captions (parity: Android EBWebView.prepareYoutubeCaption) ---
+
+    // Caption/transcript JSON for the video this tab currently shows.
+    private var dualCaption: String? = null
+    private var dualCaptionVideoId: String? = null
+
+    // Video id of the last YouTube page whose caption fetch came up empty, so a
+    // caption-less video doesn't re-hit the network on every AI action.
+    private var noCaptionVideoId: String? = null
+
+    /**
+     * Page text for the AI and TTS pipelines. On a YouTube watch page the
+     * video's caption transcript is fetched first and used in place of the
+     * watch-page DOM, which otherwise hands the model a wall of sidebar titles
+     * and comments. Everywhere else this is plain [getRawText].
+     *
+     * [onGeminiTranscribe] fires just before the (minutes-long) Gemini
+     * transcription fallback starts, so a caller showing its own progress UI
+     * can say what is happening; callers that pass nothing get a toast.
+     */
+    suspend fun getRawTextWithCaption(onGeminiTranscribe: (() -> Unit)? = null): String {
+        prepareVideoTranscript(onGeminiTranscribe)
+        return suspendCancellableCoroutine { continuation ->
+            getRawText { if (continuation.isActive) continuation.resume(it) }
+        }
+    }
+
+    /**
+     * Fetches (and remembers) the transcript for the video on screen, so a
+     * later [getRawText] returns it. Split out of [getRawTextWithCaption] for
+     * callers that time-box the DOM extraction: a Gemini transcription runs for
+     * minutes and must sit outside such a bound.
+     */
+    /**
+     * Forgets the held transcript once the tab is showing something else.
+     * Keyed by video id rather than hooked to page load because YouTube is an
+     * SPA: moving to the next video need not commit a new document.
+     */
+    private fun dropTranscriptIfPageChanged() {
+        if (dualCaption == null) return
+        val videoId = YouTubeCaptionFetcher.extractVideoId(engine.currentUrl().orEmpty())
+        if (videoId == null || videoId != dualCaptionVideoId) {
+            dualCaption = null
+            dualCaptionVideoId = null
+        }
+    }
+
+    suspend fun prepareVideoTranscript(onGeminiTranscribe: (() -> Unit)? = null) {
+        val pageUrl = engine.currentUrl().orEmpty()
+        val videoId = YouTubeCaptionFetcher.extractVideoId(pageUrl)
+        dropTranscriptIfPageChanged()
+        if (videoId == null || dualCaption != null || videoId == noCaptionVideoId) return
+
+        // Callers with their own progress UI pass a notice; everyone else at
+        // least gets a toast, because the Gemini fallback can take minutes with
+        // no other feedback.
+        val notify = onGeminiTranscribe ?: {
+            EBToast.show(
+                AppServices.context,
+                "No captions found. Transcribing video with Gemini… this may take a few minutes.",
+            )
+        }
+        // The full transcript is always fetched; this outer timeout only guards
+        // against a hung network. Sized above the Gemini fallback's 5-minute
+        // request timeout; on expiry getRawText falls back to page text.
+        val result = withTimeoutOrNull(360_000) {
+            YouTubeCaptionFetcher().fetchCaption(pageUrl, notify)
+        } ?: CaptionFetchResult.Failed("timeout", transient = true)
+        when (result) {
+            is CaptionFetchResult.Captions -> {
+                dualCaption = result.timedTextJson
+                dualCaptionVideoId = videoId
+            }
+
+            CaptionFetchResult.None -> noCaptionVideoId = videoId
+
+            is CaptionFetchResult.Failed -> {
+                // A transient failure (rate limit, network) may work next time,
+                // so don't remember it against the video.
+                if (!result.transient) noCaptionVideoId = videoId
+                EBToast.show(
+                    AppServices.context,
+                    "Video transcription failed: ${result.message}",
+                )
+            }
         }
     }
 

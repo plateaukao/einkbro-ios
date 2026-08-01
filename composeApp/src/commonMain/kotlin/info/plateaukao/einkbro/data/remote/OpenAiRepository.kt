@@ -5,6 +5,7 @@ import info.plateaukao.einkbro.preference.ChatGPTActionInfo
 import info.plateaukao.einkbro.preference.ConfigManager
 import info.plateaukao.einkbro.preference.GptActionType
 import io.ktor.client.call.body
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.preparePost
@@ -173,6 +174,11 @@ class OpenAiRepository(
             val response = client.post("$GEMINI_API_PREFIX$model:generateContent") {
                 contentType(ContentType.Application.Json)
                 header("x-goog-api-key", config.ai.geminiApiKey)
+                // This is a single blocking response, so the whole generation has
+                // to fit inside the timeout — there is no stream keeping the
+                // socket fed. Summarizing a full video transcript is far past the
+                // shared client's 2-minute default.
+                timeout { requestTimeoutMillis = 300_000 }
                 setBody(
                     json.encodeToString(
                         GeminiRequestData.serializer(),

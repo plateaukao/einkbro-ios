@@ -21,6 +21,7 @@ import androidx.sqlite.execSQL
  *  v3 — saved_pages (Phase 7 offline archives).
  *  v4 — user_scripts + user_script_values (parity Phase H userscripts).
  *  v5 — chat_gpt_query (parity Phase K AI query persistence).
+ *  v6 — video_transcripts (Gemini transcripts of caption-less YouTube videos).
  */
 @Database(
     entities = [
@@ -34,8 +35,9 @@ import androidx.sqlite.execSQL
         UserScript::class,
         UserScriptValue::class,
         ChatGptQuery::class,
+        VideoTranscript::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -50,6 +52,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userScriptDao(): UserScriptDao
     abstract fun userScriptValueDao(): UserScriptValueDao
     abstract fun chatGptQueryDao(): ChatGptQueryDao
+    abstract fun videoTranscriptDao(): VideoTranscriptDao
 }
 
 /** Adds the articles + highlights tables without dropping existing data. */
@@ -109,6 +112,17 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
                 "`date` INTEGER NOT NULL, `url` TEXT NOT NULL, `model` TEXT NOT NULL, " +
                 "`selectedText` TEXT NOT NULL, `result` TEXT NOT NULL, " +
                 "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)"
+        )
+    }
+}
+
+/** Adds the video_transcripts table (Gemini transcripts, cached forever). */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `video_transcripts` (" +
+                "`videoId` TEXT NOT NULL, `transcript` TEXT NOT NULL, " +
+                "`timestamp` INTEGER NOT NULL, PRIMARY KEY(`videoId`))"
         )
     }
 }
@@ -265,6 +279,21 @@ interface UserScriptValueDao {
 
     @Query("DELETE FROM user_script_values WHERE scriptId = :scriptId")
     suspend fun deleteAllForScript(scriptId: Long)
+}
+
+@Dao
+interface VideoTranscriptDao {
+    @Query("SELECT * FROM video_transcripts WHERE videoId = :videoId")
+    suspend fun getTranscript(videoId: String): VideoTranscript?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(videoTranscript: VideoTranscript)
+
+    @Query("SELECT * FROM video_transcripts")
+    suspend fun getAllTranscripts(): List<VideoTranscript>
+
+    @Query("DELETE FROM video_transcripts")
+    suspend fun deleteAll()
 }
 
 @Dao

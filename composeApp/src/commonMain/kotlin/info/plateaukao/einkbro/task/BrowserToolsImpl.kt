@@ -153,6 +153,11 @@ class BrowserToolsImpl(
      *  READER_EXTRACT_TIMEOUT_MS (the JS callback is not guaranteed to fire). */
     private suspend fun rawTextOf(helper: WebContentHelper): String =
         withContext(Dispatchers.Main) {
+            // On a YouTube watch page this swaps in the caption transcript. It
+            // sits outside the timeout on purpose: a Gemini transcription runs
+            // for minutes, while READER_EXTRACT_TIMEOUT_MS only guards the JS
+            // callback that may never fire.
+            helper.prepareVideoTranscript()
             withTimeoutOrNull(READER_EXTRACT_TIMEOUT_MS) {
                 suspendCancellableCoroutine { cont ->
                     helper.getRawText { text ->
