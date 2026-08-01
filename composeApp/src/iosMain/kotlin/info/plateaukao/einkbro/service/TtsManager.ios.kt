@@ -76,9 +76,16 @@ actual class TtsManager actual constructor() {
         }
     }
 
+    /**
+     * The configured language is a bare primary subtag ("ko"), but
+     * voiceWithLanguage wants BCP-47 ("ko-KR"). Preferred regions come first
+     * for the languages that have an obvious one; anything else resolves by
+     * scanning the installed voices, which always succeeds because the picker
+     * only offers languages taken from that same list.
+     */
     private fun voiceForConfiguredLanguage(): AVSpeechSynthesisVoice? {
         val language = AppServices.config.tts.ttsLocale.language
-        val bcp47 = when (language) {
+        val preferred = when (language) {
             "en" -> "en-US"
             "zh" -> "zh-TW"
             "ja" -> "ja-JP"
@@ -87,10 +94,13 @@ actual class TtsManager actual constructor() {
             "de" -> "de-DE"
             "es" -> "es-ES"
             "it" -> "it-IT"
-            else -> language
+            else -> null
         }
-        return AVSpeechSynthesisVoice.voiceWithLanguage(bcp47)
-            ?: AVSpeechSynthesisVoice.voiceWithLanguage(language)
+        preferred?.let { AVSpeechSynthesisVoice.voiceWithLanguage(it) }?.let { return it }
+        AVSpeechSynthesisVoice.voiceWithLanguage(language)?.let { return it }
+        return AVSpeechSynthesisVoice.speechVoices()
+            .mapNotNull { it as? AVSpeechSynthesisVoice }
+            .firstOrNull { it.language.substringBefore('-') == language }
     }
 
     internal fun onUtteranceFinished() {

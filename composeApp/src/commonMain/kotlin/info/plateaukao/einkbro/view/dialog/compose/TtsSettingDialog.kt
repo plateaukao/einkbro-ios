@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
@@ -49,7 +52,7 @@ import info.plateaukao.einkbro.util.getString
 import info.plateaukao.einkbro.view.EBToast
 import info.plateaukao.einkbro.view.compose.MyTheme
 import info.plateaukao.einkbro.view.compose.SelectableText
-import info.plateaukao.einkbro.view.dialog.TtsLanguageDialog
+import info.plateaukao.einkbro.view.dialog.TtsLanguageDialogContent
 import info.plateaukao.einkbro.viewmodel.TtsReadingState
 import info.plateaukao.einkbro.viewmodel.TtsReadingState.IDLE
 import info.plateaukao.einkbro.viewmodel.TtsReadingState.PAUSED
@@ -76,6 +79,7 @@ fun TtsSettingDialogContent(
     val ttsManager = remember { TtsManager() }
 
     val ttsType = remember { mutableStateOf(config.tts.ttsType) }
+    val ttsLocale = remember { mutableStateOf(config.tts.ttsLocale) }
     val ettsVoice = remember { mutableStateOf(config.tts.ettsVoice) }
     val gptVoice = remember { mutableStateOf(config.ai.gptVoiceOption) }
     val ttsSpeedValue = remember { mutableIntStateOf(config.tts.ttsSpeedValue) }
@@ -93,6 +97,33 @@ fun TtsSettingDialogContent(
                 ETtsVoiceDialogContent {
                     ettsVoice.value = it
                     showEttsVoiceDialog.value = false
+                }
+            }
+        }
+    }
+
+    // Same treatment for the system-TTS language picker. The installed-voice
+    // lookup is deliberately inside the branch: it walks every voice on the
+    // device, and only matters once the picker is actually open.
+    val showLocaleDialog = remember { mutableStateOf(false) }
+    if (showLocaleDialog.value) {
+        Dialog(onDismissRequest = { showLocaleDialog.value = false }) {
+            // Card styling matches AnchoredDialogFrame; these dialogs render
+            // over an undimmed page, so the outline is what separates them.
+            Surface(
+                modifier = Modifier
+                    .wrapContentSize()
+                    .border(1.dp, MaterialTheme.colors.onBackground, RoundedCornerShape(5.dp)),
+                shape = RoundedCornerShape(5.dp),
+                color = MaterialTheme.colors.background,
+            ) {
+                TtsLanguageDialogContent(
+                    locales = remember { ttsManager.getAvailableLanguages() },
+                    selectedLocale = ttsLocale.value,
+                ) {
+                    config.tts.ttsLocale = it
+                    ttsLocale.value = it
+                    showLocaleDialog.value = false
                 }
             }
         }
@@ -118,15 +149,13 @@ fun TtsSettingDialogContent(
             MainTtsSettingDialog(
                 readingState = readingState.value,
                 selectedType = ttsType.value,
-                selectedLocale = config.tts.ttsLocale,
+                selectedLocale = ttsLocale.value,
                 selectedGptVoice = gptVoice.value,
                 selectedEttsVoice = ettsVoice.value,
                 selectedSpeedValue = ttsSpeedValue.value,
                 onSpeedValueClick = { config.tts.ttsSpeedValue = it; ttsSpeedValue.value = it },
                 recentVoices = config.tts.recentUsedTtsVoices,
-                showLocaleDialog = {
-                    TtsLanguageDialog(context).show(ttsManager.getAvailableLanguages())
-                },
+                showLocaleDialog = { showLocaleDialog.value = true },
                 onTtsTypeSelected = {
                     config.tts.ttsType = it
                     ttsType.value = it
