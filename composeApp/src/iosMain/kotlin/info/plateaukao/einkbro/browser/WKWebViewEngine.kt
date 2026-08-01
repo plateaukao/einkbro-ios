@@ -235,6 +235,21 @@ class WKWebViewEngine(
         notifyStarted()
     }
 
+    /**
+     * Re-issues a page-initiated navigation as an app-initiated one, which is
+     * what stops WKWebView handing the URL to a native app via a universal
+     * link. WebKit only tries app links for navigations the page started;
+     * everything loaded through `-[WKWebView loadRequest:]` carries
+     * ShouldAllowExternalSchemesButNotAppLinks and stays in the web view. The
+     * original request is passed through untouched so WebKit's own headers
+     * (Referer above all) survive the round trip.
+     */
+    internal fun loadSuppressingAppLink(request: NSURLRequest) {
+        requestedHost = request.URL?.absoluteString?.let { Uri.parse(it).host }
+        webView.loadRequest(request)
+        notifyStarted()
+    }
+
     // Failed main-frame URL, so einkbro://retry can re-fetch it.
     private var errorPageFailedUrl: String? = null
 
@@ -755,6 +770,26 @@ private class NavigationDelegate(
             engine.requestRouteLinkToSplit(url.absoluteString ?: "")
         ) {
             decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
+            return
+        }
+        // Universal links: WebKit hands a cross-site link tap straight to the
+        // app that claims the domain — tapping a youtube.com hit in Google
+        // results launches the YouTube app instead of loading the watch page
+        // here. There is no public policy to opt out (WebKit's
+        // _WKNavigationActionPolicyAllowWithoutTryingAppLink isn't reachable
+        // from Kotlin/Native, whose WKNavigationActionPolicy enum has no such
+        // constant), so cancel the tap and re-issue the same request as an
+        // app-initiated load, which WebKit never app-links. Narrow on purpose:
+        // only main-frame link taps that leave the current host can app-link at
+        // all, and _blank taps (targetFrame == null) belong to the new-tab path
+        // in the UI delegate.
+        if (url != null && (scheme == "http" || scheme == "https") &&
+            decidePolicyForNavigationAction.navigationType == WKNavigationTypeLinkActivated &&
+            decidePolicyForNavigationAction.targetFrame?.mainFrame == true &&
+            url.host != null && url.host != webView.URL?.host
+        ) {
+            decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
+            engine.loadSuppressingAppLink(decidePolicyForNavigationAction.request)
             return
         }
         decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyAllow)
