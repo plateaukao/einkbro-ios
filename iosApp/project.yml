@@ -21,6 +21,24 @@ targets:
     #     path: iosApp/EinkBro.entitlements
     #     properties:
     #       com.apple.developer.networking.multicast: true
+    #
+    # Default-browser support is blocked the same way. Being offered in
+    # Settings > Apps > Default Apps > Browser needs
+    # com.apple.developer.web-browser, a MANAGED entitlement Apple grants only
+    # on request (email default-app-requests@apple.com; reported waits run
+    # weeks to months). Two things change once it is granted, so this cannot be
+    # a drop-in edit:
+    #   - managed entitlements require MANUAL signing, so CODE_SIGN_STYLE below
+    #     must move off Automatic and a matching profile must be installed;
+    #   - Info.plist likely also needs http/https listed in CFBundleURLTypes
+    #     (confirm against Apple's "Preparing your app to be the default web
+    #     browser" doc at grant time — it is inert without the entitlement).
+    # The receiving side is already implemented: iOSApp.swift's onOpenURL hands
+    # every incoming URL to handleExternalUrl, and ExternalUrlBridge.normalize
+    # passes non-einkbro:// URLs through unchanged, so http(s) hand-offs already
+    # open in a tab. Adding the entitlement before Apple grants it fails
+    # provisioning. Once granted, add to the entitlements block above:
+    #       com.apple.developer.web-browser: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: info.plateaukao.einkbro.ios
