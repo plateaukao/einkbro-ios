@@ -18,9 +18,35 @@
         return performance.now() - lastGestureTime < GESTURE_WINDOW_MS;
     }
 
+    // A tap on a player's own chrome (YouTube's big play button, a thumbnail
+    // overlay) approves that player's media element for good, not just for the
+    // gesture window. Players that build their pipeline before calling play() —
+    // YouTube fetches the player config and attaches MSE first — reach play()
+    // long after GESTURE_WINDOW_MS is up, so window-only approval rejects the
+    // one playback the user explicitly asked for and the player sits on its
+    // spinner. The walk stops below body so a stray tap on the page background
+    // can't approve every video on the page.
+    function approveNearestMedia(target) {
+        var node = target;
+        while (node && node !== document.body && node !== document.documentElement) {
+            if (node.tagName === 'VIDEO' || node.tagName === 'AUDIO') {
+                approved.add(node);
+                return;
+            }
+            var media = node.querySelector && node.querySelector('video, audio');
+            if (media) {
+                approved.add(media);
+                return;
+            }
+            node = node.parentElement;
+        }
+    }
+
     ['click', 'dblclick'].forEach(function(type) {
         window.addEventListener(type, function(e) {
-            if (e.isTrusted) lastGestureTime = performance.now();
+            if (!e.isTrusted) return;
+            lastGestureTime = performance.now();
+            approveNearestMedia(e.target);
         }, true);
     });
     window.addEventListener('keydown', function(e) {

@@ -76,6 +76,7 @@ import platform.WebKit.WKNavigationActionPolicy
 import platform.WebKit.WKNavigationDelegateProtocol
 import platform.WebKit.WKNavigationResponse
 import platform.WebKit.WKNavigationResponsePolicy
+import platform.WebKit.WKAudiovisualMediaTypeNone
 import platform.WebKit.WKNavigationTypeLinkActivated
 import platform.WebKit.WKScriptMessage
 import platform.WebKit.WKScriptMessageHandlerProtocol
@@ -125,6 +126,15 @@ class WKWebViewEngine(
             // playback; PiP is opt-in.
             allowsInlineMediaPlayback = !browserConfig.enableVideoAutoFullscreen
             allowsPictureInPictureMediaPlayback = browserConfig.enableVideoPip
+            // Autoplay policy is enforced in JS (disable_video_autoplay.js), not
+            // by WebKit. WebKit's default (WKAudiovisualMediaTypeAll) demands
+            // that play() be called *synchronously* inside the gesture's event
+            // turn; YouTube taps play() only after fetching the player config and
+            // wiring up MSE, so it lands outside that turn, gets a
+            // NotAllowedError, and the player sits on its spinner forever. The JS
+            // layer applies Android's rule instead (Chromium's WebView is far
+            // laxer here, which is why the same page plays on Android EinkBro).
+            mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone
             // window.open() must reach the UI delegate to open as a new tab.
             preferences.javaScriptCanOpenWindowsAutomatically = true
             // Private browsing: a non-persistent store leaves nothing on disk
