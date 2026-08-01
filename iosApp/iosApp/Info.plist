@@ -48,6 +48,16 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- EinkBro is a web browser: the user, not the app, chooses which
+		     sites to visit, and plain-http sites must load (Android sets
+		     usesCleartextTraffic=true + network_security_config.xml).
+		     Scoped to web-view content only, so the app's own Ktor/NSURLSession
+		     traffic (translate, OpenAI, Gemini, Edge-TTS) stays ATS-protected. -->
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>EinkBro shares links and app data with other EinkBro devices on your local network.</string>
 	<key>UIBackgroundModes</key>
