@@ -5,11 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 
-/** What a tab renders: a web engine, or a native chat surface (chat-with-web /
- *  agent chat — Android hosts these as chat.html web tabs; iOS renders them
- *  natively, so the tab layer needs to know which pane to mount). */
-enum class AlbumType { Web, Chat }
-
 /**
  * Stand-in for the WebView-backed Album (browser tab). Carries just the state
  * the tab/history UIs render; browser callbacks become no-op lambdas the
@@ -18,7 +13,6 @@ enum class AlbumType { Web, Chat }
 class Album(
     title: String = "",
     private val url: String = "",
-    val type: AlbumType = AlbumType.Web,
     var onShow: (Album) -> Unit = {},
     var onRemove: (Album) -> Unit = {},
 ) {
@@ -26,6 +20,9 @@ class Album(
 
     var isLoaded = false
     var isTranslatePage = false
+    // AI chat tab hosting chat.html (Android EBWebView.isAIPage): excluded
+    // from history records and from tab restore.
+    var isAIPage = false
     var incognito = false
     var albumTitle: String by mutableStateOf(title)
     var bitmap: ImageBitmap? by mutableStateOf(null)

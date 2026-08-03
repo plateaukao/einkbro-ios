@@ -19,6 +19,7 @@ class BookmarkManager(private val database: AppDatabase) {
     private val highlightDao = database.highlightDao()
     private val savedPageDao = database.savedPageDao()
     private val chatGptQueryDao = database.chatGptQueryDao()
+    private val chatSessionDao = database.chatSessionDao()
 
     // For the fire-and-forget calls that come from non-suspend contexts
     // (ConfigManager property setters).
@@ -164,6 +165,19 @@ class BookmarkManager(private val database: AppDatabase) {
         chatGptQueryDao.deleteChatGptQuery(chatGptQuery)
 
     suspend fun deleteAllChatGptQueries() = chatGptQueryDao.deleteAll()
+
+    // Chat-with-web sessions (Android BookmarkManager's chat_sessions facade;
+    // chat.html reads/writes these through ChatWebInterface).
+    suspend fun getAllChatSessions(): List<ChatSession> = chatSessionDao.getAllSessions()
+
+    suspend fun getChatSessionById(sessionId: String): ChatSession? =
+        chatSessionDao.getSessionById(sessionId)
+
+    suspend fun upsertChatSession(session: ChatSession) = chatSessionDao.upsert(session)
+
+    suspend fun deleteChatSession(sessionId: String) = chatSessionDao.deleteById(sessionId)
+
+    suspend fun deleteAllChatSessions() = chatSessionDao.deleteAll()
 
     // --- cached video transcripts (YouTube caption fallback) ---
 

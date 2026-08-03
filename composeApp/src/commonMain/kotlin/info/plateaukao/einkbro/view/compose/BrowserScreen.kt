@@ -323,17 +323,26 @@ fun BrowserScreen(
         showTranslateDialog = true
     }
 
-    /** Opens a plain chat-with-web tab seeded with [content] (Android's
-     *  addAlbum("Chat With Web") + chat.html; here a native chat tab). */
+    /** Opens a chat-with-web tab: chat.html in a web tab driven by
+     *  ChatWebInterface, seeded with [content] (Android's
+     *  addAlbum("Chat With Web") + EBWebView.setupAiPage). */
     fun openChatWithWebTab(content: String, runAction: ChatGPTActionInfo?) {
-        val session = info.plateaukao.einkbro.viewmodel.ChatSession(agentMode = false)
-        session.startChat(
-            content,
-            browserViewModel.currentTitle.value,
-            browserViewModel.currentUrl.value,
+        // Capture before the chat tab replaces the page as the active tab.
+        val pageTitle = browserViewModel.currentTitle.value
+        val pageUrl = browserViewModel.currentUrl.value
+        val engine = browserViewModel.newAiTab("Chat With Web")
+        val chatInterface = info.plateaukao.einkbro.browser.ChatWebInterface(
+            scope = scope,
+            engine = engine,
+            webContent = content,
+            webTitle = pageTitle,
+            webUrl = pageUrl,
+            onOpenNewTab = { url -> browserViewModel.newTab(url) },
         )
-        browserViewModel.newChatTab("Chat With Web", session)
-        runAction?.let { session.runInitialAction(it) }
+        browserViewModel.attachChatInterface(engine.album.id, chatInterface)
+        chatInterface.loadChatPage(
+            initialPrompt = runAction?.let { it.userMessage.ifBlank { it.systemMessage } },
+        )
     }
 
     fun runCustomTask(prompt: String) {
@@ -359,14 +368,21 @@ fun BrowserScreen(
                     browserViewModel.engineForAlbumId(albumId)
                 }
             }
-            val session = info.plateaukao.einkbro.viewmodel.ChatSession(agentMode = true)
-            browserViewModel.newChatTab("Agent Chat", session)
-            session.startAgent(
-                ttsViewModel = ttsViewModel,
-                snapshot = snapshot,
-                activeEngineProvider = { browserViewModel.currentEngine },
-                initialPrompt = prompt,
+            val engine = browserViewModel.newAiTab("Agent Chat")
+            val chatInterface = info.plateaukao.einkbro.browser.ChatWebInterface(
+                scope = scope,
+                engine = engine,
+                webContent = "",
+                webTitle = snapshot?.title.orEmpty(),
+                webUrl = snapshot?.url.orEmpty(),
+                onOpenNewTab = { url -> browserViewModel.newTab(url) },
+                agentMode = true,
+                agentSnapshot = snapshot,
+                agentTtsViewModel = ttsViewModel,
+                agentActiveEngineProvider = { browserViewModel.currentEngine },
             )
+            browserViewModel.attachChatInterface(engine.album.id, chatInterface)
+            chatInterface.loadChatPage(initialPrompt = prompt)
         }
     }
 
@@ -970,21 +986,10 @@ fun BrowserScreen(
             // relative) long-press point.
             paneModifier.onGloballyPositioned { webPaneOffset = it.positionInWindow() }
         ) {
-            val chatAlbum = browserViewModel.currentAlbum
-                ?.takeIf { it.type == info.plateaukao.einkbro.view.AlbumType.Chat }
-            if (chatAlbum != null) {
-                // A chat tab mounts the native conversation pane instead of a
-                // web engine (Android renders chat.html in the tab's WebView).
-                browserViewModel.currentChatSession?.let { session ->
-                    key(chatAlbum.id) {
-                        ChatTabContent(
-                            session = session,
-                            onClose = { chatAlbum.remove() },
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                }
-            } else if (engine != null) {
+            // AI chat tabs are ordinary web tabs rendering chat.html (Android
+            // parity, d0dd4db's native pane retired) — no special mount path.
+            val isAiTab = browserViewModel.currentAlbum?.isAIPage == true
+            if (engine != null) {
                 // Key by tab id so UIKitView re-embeds the current tab's
                 // WKWebView when the active tab changes (its factory runs once).
                 key(browserViewModel.currentAlbum?.id) {
@@ -995,7 +1000,7 @@ fun BrowserScreen(
             // Touch-area page-turn zones (parity Phase F). Hidden while the URL
             // input is up when hideTouchAreaWhenInput is set. A chat tab owns
             // its whole pane — no page-turn overlays over it.
-            if (chatAlbum == null && touchPagingEnabled &&
+            if (!isAiTab && touchPagingEnabled &&
                 !(config.touch.hideTouchAreaWhenInput && showUrlInput)
             ) {
                 TouchAreaZones(onGesture = { runTouchGesture(it) })
@@ -1004,7 +1009,7 @@ fun BrowserScreen(
             // Nav-gesture FAB (parity Phase F, enableNavButtonGesture). Android
             // shows it only while the toolbar is hidden (FullscreenDelegate
             // show()/hide() on toggleFullscreen), never alongside the toolbar.
-            if (chatAlbum == null && config.touch.enableNavButtonGesture &&
+            if (!isAiTab && config.touch.enableNavButtonGesture &&
                 (isFullscreen || toolbarHiddenByScroll)
             ) {
                 NavGestureFab(onGesture = { runTouchGesture(it) })

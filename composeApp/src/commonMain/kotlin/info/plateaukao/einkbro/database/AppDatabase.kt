@@ -22,6 +22,8 @@ import androidx.sqlite.execSQL
  *  v4 — user_scripts + user_script_values (parity Phase H userscripts).
  *  v5 — chat_gpt_query (parity Phase K AI query persistence).
  *  v6 — video_transcripts (Gemini transcripts of caption-less YouTube videos).
+ *  v7 — chat_sessions (chat-with-web conversations, saved by chat.html).
+ *  v8 — chat_sessions.webContent (per-session page text for context restore).
  */
 @Database(
     entities = [
@@ -36,8 +38,9 @@ import androidx.sqlite.execSQL
         UserScriptValue::class,
         ChatGptQuery::class,
         VideoTranscript::class,
+        ChatSession::class,
     ],
-    version = 6,
+    version = 8,
     exportSchema = true,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -53,6 +56,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userScriptValueDao(): UserScriptValueDao
     abstract fun chatGptQueryDao(): ChatGptQueryDao
     abstract fun videoTranscriptDao(): VideoTranscriptDao
+    abstract fun chatSessionDao(): ChatSessionDao
 }
 
 /** Adds the articles + highlights tables without dropping existing data. */
@@ -123,6 +127,27 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
             "CREATE TABLE IF NOT EXISTS `video_transcripts` (" +
                 "`videoId` TEXT NOT NULL, `transcript` TEXT NOT NULL, " +
                 "`timestamp` INTEGER NOT NULL, PRIMARY KEY(`videoId`))"
+        )
+    }
+}
+
+/** Adds the chat_sessions table (chat-with-web conversations; Android v12→13). */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `chat_sessions` (" +
+                "`id` TEXT NOT NULL, `title` TEXT NOT NULL, `created` INTEGER NOT NULL, " +
+                "`lastUpdated` INTEGER NOT NULL, `webTitle` TEXT NOT NULL, " +
+                "`webUrl` TEXT NOT NULL, `messages` TEXT NOT NULL, PRIMARY KEY(`id`))"
+        )
+    }
+}
+
+/** Adds chat_sessions.webContent (session context restore; Android v13→14). */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "ALTER TABLE `chat_sessions` ADD COLUMN `webContent` TEXT NOT NULL DEFAULT ''"
         )
     }
 }
