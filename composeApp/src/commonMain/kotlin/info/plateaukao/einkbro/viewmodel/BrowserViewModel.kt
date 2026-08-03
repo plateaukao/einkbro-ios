@@ -15,8 +15,8 @@ import info.plateaukao.einkbro.database.Record
 import info.plateaukao.einkbro.preference.AlbumInfo
 import info.plateaukao.einkbro.preference.SaveHistoryMode
 import info.plateaukao.einkbro.util.System
+import info.plateaukao.einkbro.browser.ChatWebInterface
 import info.plateaukao.einkbro.view.Album
-import info.plateaukao.einkbro.view.AlbumType
 import info.plateaukao.einkbro.view.EBToast
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -59,9 +59,10 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     private val engines = LinkedHashMap<Int, WebViewEngine>()
     private val helpers = LinkedHashMap<Int, WebContentHelper>()
-    // Native chat tabs (AlbumType.Chat): album id → conversation session. A chat
-    // album has an entry here instead of in `engines`.
-    private val chatSessions = LinkedHashMap<Int, ChatSession>()
+    // AI chat tabs (isAIPage): album id → the native side of chat.html. The
+    // tab's engine lives in `engines` like any web tab; this map only exists
+    // so closeTab can cancel streams and release the agent's off-screen engine.
+    private val chatInterfaces = LinkedHashMap<Int, ChatWebInterface>()
     // Background tabs whose load was deferred (enableWebBkgndLoad off); the
     // URL loads the first time the tab is activated.
     private val pendingLoads = LinkedHashMap<Int, String>()
@@ -81,7 +82,6 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     val currentAlbum: Album? get() = albums.value.getOrNull(focusIndex.value)
     val currentEngine: WebViewEngine? get() = currentAlbum?.let { engines[it.id] }
     val currentHelper: WebContentHelper? get() = currentAlbum?.let { helpers[it.id] }
-    val currentChatSession: ChatSession? get() = currentAlbum?.let { chatSessions[it.id] }
 
     /** Live engine for a tab by album id — null once that tab is closed. Agent tasks
      *  resolve the originating tab through this (Android used a WeakReference). */
@@ -196,27 +196,37 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     }
 
     /**
-     * Opens a native chat tab (chat-with-web / agent chat). The [session] is
-     * built by the host (it needs TTS + tools wiring the view model doesn't
-     * own) and is disposed when the tab closes. Android's equivalent is
-     * addAlbum("Chat With Web"/"Agent Chat") + chat.html; here the tab renders
-     * ChatTabContent instead of a web engine.
+     * Opens an AI chat tab (chat-with-web / agent chat): a regular web tab
+     * flagged isAIPage that the host loads chat.html into (Android's
+     * addAlbum("Chat With Web") + EBWebView.setupAiPage). The engine skips the
+     * browsing user scripts and per-domain config — the chat page manages
+     * itself and must keep JavaScript on. The host builds the
+     * [ChatWebInterface] (it needs TTS + tools wiring the view model doesn't
+     * own) and registers it via [attachChatInterface] for disposal on close.
      */
-    fun newChatTab(title: String, session: ChatSession) {
+    fun newAiTab(title: String): WebViewEngine {
         selectionInfo.value = null
         contextMenuLink.value = null
         val album = Album(
             title = title,
-            type = AlbumType.Chat,
             onShow = { switchTab(it) },
             onRemove = { closeTab(it) },
         )
-        chatSessions[album.id] = session
+        album.isAIPage = true
+        val engine = createWebViewEngine(album, this, incognito = false)
+        engines[album.id] = engine
+        helpers[album.id] = WebContentHelper(engine, config)
         albums.value = albums.value + album
         currentEngine?.pause()
         focusIndex.value = albums.value.lastIndex
         syncCurrentState()
         persistTabs()
+        return engine
+    }
+
+    /** Registers the chat tab's native bridge so closeTab can dispose it. */
+    fun attachChatInterface(albumId: Int, chatInterface: ChatWebInterface) {
+        chatInterfaces[albumId] = chatInterface
     }
 
     /** Applies per-domain user agent, JavaScript, and adblock to [engine]. */
@@ -616,7 +626,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         }
         engines.remove(album.id)?.destroy()
         helpers.remove(album.id)
-        chatSessions.remove(album.id)?.dispose()
+        chatInterfaces.remove(album.id)?.dispose()
         pendingLoads.remove(album.id)
         list.removeAt(index)
         albums.value = list
@@ -775,6 +785,9 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         // Inject enabled userscripts that match this page (parity Phase H).
         userScriptBridge.onPageFinished(engine)
         persistTabs()
+        // AI chat tabs never write history (Android NinjaWebViewClient skips
+        // chat.html: "has no standalone meaning") and never auto-translate.
+        if (engine.album.isAIPage) return
         if (url.isBlank() || url == "about:blank") return
         // Signal the UI to auto-translate this site if the user marked it.
         if (engine === currentEngine) {
@@ -879,8 +892,9 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         config.tab.savedAlbumInfoList = albums.value
             .filterNot { it.incognito }
             // Chat tabs are conversation state, not URLs — they don't survive
-            // relaunch (Android's chat.html tabs restore as blanks; we skip them).
-            .filterNot { it.type == AlbumType.Chat }
+            // relaunch (Android filters isAIPage the same way; the saved
+            // sessions in the chat_sessions table are what persists).
+            .filterNot { it.isAIPage }
             .map { album ->
                 AlbumInfo(
                     title = album.albumTitle,

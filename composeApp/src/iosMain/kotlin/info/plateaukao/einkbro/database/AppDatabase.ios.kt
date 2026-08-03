@@ -21,6 +21,7 @@ actual fun createAppDatabase(): AppDatabase {
     return Room.databaseBuilder<AppDatabase>(name = dbPath)
         .addMigrations(
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+            MIGRATION_6_7,
         )
         .setDriver(BundledSQLiteDriver())
         .setQueryCoroutineContext(Dispatchers.IO)
