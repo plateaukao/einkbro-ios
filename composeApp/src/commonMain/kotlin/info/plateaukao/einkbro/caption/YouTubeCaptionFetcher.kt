@@ -217,7 +217,7 @@ class YouTubeCaptionFetcher(
     }
 
     private suspend fun requestGeminiTranscript(videoId: String): GeminiOutcome = try {
-        val model = config.ai.geminiModel.ifBlank { "gemini-2.5-flash" }
+        val model = config.ai.geminiModel.ifBlank { "gemini-3.5-flash-lite" }
         val response = client.post("$GEMINI_API_PREFIX$model:generateContent") {
             contentType(ContentType.Application.Json)
             header("x-goog-api-key", config.ai.geminiApiKey)

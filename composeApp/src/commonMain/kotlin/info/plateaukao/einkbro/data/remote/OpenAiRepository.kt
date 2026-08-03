@@ -211,6 +211,38 @@ class OpenAiRepository(
         }
     }
 
+    /**
+     * One-shot config check for the settings screens: sends a trivial prompt with the
+     * given engine's key/model and reports the concrete failure (HTTP status, parse,
+     * network) instead of a bare null, so the user can verify a key or model name
+     * right after entering it.
+     */
+    suspend fun testConnection(gptActionInfo: ChatGPTActionInfo): ApiResult<String> {
+        val messages = listOf(ChatMessage(TEST_PROMPT, ChatRole.User))
+        if (gptActionInfo.actionType == GptActionType.Gemini) {
+            return queryGemini(messages, gptActionInfo)
+        }
+        return try {
+            val response = client.post("${getServerUrl(gptActionInfo.actionType)}$COMPLETION_PATH") {
+                contentType(ContentType.Application.Json)
+                header("Authorization", "Bearer ${config.ai.gptApiKey}")
+                setBody(
+                    json.encodeToString(
+                        ChatRequest.serializer(),
+                        ChatRequest(gptActionInfo.model, messages),
+                    )
+                )
+            }
+            if (response.status.value != 200) return statusFailure(response.status.value)
+            val text = json.decodeFromString(ChatCompletion.serializer(), response.bodyAsText())
+                .choices.firstOrNull()?.message?.content
+            if (text.isNullOrBlank()) ApiResult.Failure(ApiResult.Kind.Parse, "Empty response")
+            else ApiResult.Success(text)
+        } catch (e: Exception) {
+            ApiResult.Failure(ApiResult.Kind.Network, e.message ?: "Network error", cause = e)
+        }
+    }
+
     private fun statusFailure(code: Int, provider: String = "AI provider"): ApiResult.Failure = when {
         code == 429 -> ApiResult.Failure(ApiResult.Kind.RateLimited, "$provider rate limit reached")
         code == 401 || code == 403 ->
@@ -226,6 +258,7 @@ class OpenAiRepository(
     companion object {
         private const val COMPLETION_PATH = "/v1/chat/completions"
         private const val TTS_PATH = "/v1/audio/speech"
+        private const val TEST_PROMPT = "Reply with one word: ok"
         private const val GEMINI_API_PREFIX =
             "https://generativelanguage.googleapis.com/v1beta/models/"
     }

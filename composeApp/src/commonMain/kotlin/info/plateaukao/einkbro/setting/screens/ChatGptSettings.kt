@@ -1,6 +1,10 @@
 package info.plateaukao.einkbro.setting.screens
 
 import info.plateaukao.einkbro.activity.SettingRoute
+import info.plateaukao.einkbro.data.remote.ApiResult
+import info.plateaukao.einkbro.data.remote.OpenAiRepository
+import info.plateaukao.einkbro.preference.ChatGPTActionInfo
+import info.plateaukao.einkbro.preference.GptActionType
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.*
 import info.plateaukao.einkbro.setting.ActionSettingItem
@@ -11,6 +15,39 @@ import info.plateaukao.einkbro.setting.NavigateSettingItem
 import info.plateaukao.einkbro.setting.SettingItemInterface
 import info.plateaukao.einkbro.setting.ValueSettingItem
 import info.plateaukao.einkbro.view.EBToast
+import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.getString
+
+// Fires a tiny chat request with the engine's currently saved key/model and toasts
+// the outcome, so a freshly entered key or model name can be verified in place.
+// The model is read lazily at click time to pick up edits made just above the button.
+private fun testConnectionItem(
+    deps: SettingScreenDeps,
+    actionType: GptActionType,
+    model: () -> String,
+) = ActionSettingItem(
+    Res.string.setting_test_connection,
+    null,
+    Res.string.setting_summary_test_connection,
+) {
+    EBToast.showShort(deps.context, Res.string.test_connection_testing)
+    deps.scope.launch {
+        val modelName = model()
+        val result = OpenAiRepository().testConnection(
+            ChatGPTActionInfo(actionType = actionType, model = modelName)
+        )
+        EBToast.show(
+            deps.context,
+            when (result) {
+                is ApiResult.Success ->
+                    getString(Res.string.test_connection_success, modelName)
+
+                is ApiResult.Failure ->
+                    getString(Res.string.test_connection_failed, result.message)
+            }
+        )
+    }
+}
 
 fun buildChatGptSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
     val config = deps.config
@@ -111,6 +148,7 @@ fun buildGptOpenAiSettingItems(deps: SettingScreenDeps): List<SettingItemInterfa
             Res.string.setting_summary_gpt_model_name,
             config.ai::gptModel
         ),
+        testConnectionItem(deps, GptActionType.OpenAi) { config.ai.gptModel },
         DividerSettingItem(),
         BooleanSettingItem(
             Res.string.use_it_on_tts,
@@ -148,6 +186,7 @@ fun buildGptSelfHostedSettingItems(deps: SettingScreenDeps): List<SettingItemInt
             Res.string.setting_summary_other_model_name,
             config.ai::alternativeModel
         ),
+        testConnectionItem(deps, GptActionType.SelfHosted) { config.ai.alternativeModel },
     )
 }
 
@@ -166,5 +205,6 @@ fun buildGptGeminiSettingItems(deps: SettingScreenDeps): List<SettingItemInterfa
             Res.string.setting_summary_gemini_model_name,
             config.ai::geminiModel
         ),
+        testConnectionItem(deps, GptActionType.Gemini) { config.ai.geminiModel },
     )
 }
