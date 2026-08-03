@@ -59,6 +59,8 @@ after the same-day fix round. Use this as the work-list for closing the rest.
   redesign. Documented divergence for now.
 - **`externalSearchWithGpt`**, **`externalSearchWithPopUp`**, **`processTextUrl`**,
   **`isExternalSearchInSameTab`** — Android dict/PROCESS_TEXT flows not ported.
+  The Gen AI screen's "Use AI in dictionary search" item is removed on iOS
+  (Android-only); the prefs stay in `AiConfig` to mirror the Android original.
 - **Live reaction (web keys)** — layout keys are now live (see fixed table);
   still applying only on next navigation instead of an immediate reload like
   Android: videoAutoplay, custom UA, darkMode. pullToRefresh needs re-wiring

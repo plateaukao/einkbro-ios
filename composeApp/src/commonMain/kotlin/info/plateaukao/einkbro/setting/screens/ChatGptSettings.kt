@@ -106,12 +106,8 @@ fun buildChatGptSettingItems(deps: SettingScreenDeps): List<SettingItemInterface
                 Res.string.google_gemini
             )
         ),
-        BooleanSettingItem(
-            Res.string.use_it_on_dict_search,
-            null,
-            Res.string.setting_summary_search_in_dict,
-            config.ai::externalSearchWithGpt
-        ),
+        // No "use AI in dictionary search" item: that switch drives Android's
+        // PROCESS_TEXT dict flow, which has no iOS counterpart.
         BooleanSettingItem(
             Res.string.setting_title_chat_stream,
             null,
