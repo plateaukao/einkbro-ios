@@ -4,7 +4,10 @@ package info.plateaukao.einkbro
 // where the DEBUG name collides with Xcode's `#define DEBUG 1`.
 internal object BuildConfig {
     const val DEBUG: Boolean = true
-    const val VERSION_NAME: String = "0.1.0"
+    // Read from the app bundle so the About row always matches the shipped
+    // CFBundleShortVersionString — a hardcoded copy here rotted at "0.1.0"
+    // while the real version moved on.
+    val VERSION_NAME: String get() = appVersionName()
     const val APPLICATION_ID: String = "info.plateaukao.einkbro.ios"
 
     /**
@@ -30,3 +33,6 @@ internal object BuildConfig {
      */
     const val INSTAPAPER_ENABLED: Boolean = false
 }
+
+/** The marketing version of the running app (CFBundleShortVersionString). */
+internal expect fun appVersionName(): String
