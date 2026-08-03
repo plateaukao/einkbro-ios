@@ -544,10 +544,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             currentEngine?.pause()
             focusIndex.value = index
             currentEngine?.resume()
-            // A deferred background tab loads the first time it's shown.
-            pendingLoads.remove(album.id)?.let { url ->
-                engines[album.id]?.loadUrl(url)
-            }
+            flushPendingLoad(album)
             // Stale selection/menu from the previous tab must not linger.
             selectionInfo.value = null
             contextMenuLink.value = null
@@ -556,6 +553,18 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             helpers[album.id]?.updateEbookTouchMode()
             syncCurrentState()
             persistTabs()
+        }
+    }
+
+    /**
+     * Starts a deferred tab's load the first time it becomes the shown tab —
+     * the iOS side of Android's EBWebView.activate() loading initAlbumUrl.
+     * Every path that moves focus must run this, or a lazily restored tab
+     * stays blank with no URL for Refresh to act on.
+     */
+    private fun flushPendingLoad(album: Album) {
+        pendingLoads.remove(album.id)?.let { url ->
+            engines[album.id]?.loadUrl(url)
         }
     }
 
@@ -604,6 +613,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         val list = albums.value.toMutableList()
         val index = list.indexOfFirst { it.id == album.id }
         if (index < 0) return
+        val wasCurrent = index == focusIndex.value
         // SAVE_WHEN_CLOSE: the deferred history record is written now.
         pendingCloseHistory.remove(album.id)?.let { (title, url) ->
             viewModelScope.launch {
@@ -625,9 +635,19 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         if (list.isEmpty()) {
             newTab(config.favoriteUrl.ifBlank { DEFAULT_HOME })
         } else {
-            val next = if (config.tab.shouldShowNextAfterRemoveTab) index else index - 1
-            focusIndex.value = next.coerceIn(0, list.lastIndex)
-            currentEngine?.resume()
+            if (wasCurrent) {
+                val next = if (config.tab.shouldShowNextAfterRemoveTab) index else index - 1
+                focusIndex.value = next.coerceIn(0, list.lastIndex)
+                // Focus can land on a lazily restored tab that has never
+                // loaded (Android covers this via showAlbum -> activate()).
+                currentAlbum?.let { flushPendingLoad(it) }
+                currentEngine?.resume()
+            } else if (index < focusIndex.value) {
+                // Closing a tab before the current one shifts indices down;
+                // keep the same tab focused (Android keeps
+                // currentAlbumController and only refreshes the highlight).
+                focusIndex.value -= 1
+            }
             syncCurrentState()
         }
         persistTabs()
