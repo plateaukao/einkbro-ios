@@ -45,6 +45,15 @@ fun buildUiSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
             Res.string.setting_summary_hide_statusbar,
             config.ui::hideStatusbar,
         ),
+        // iOS-only, no Android counterpart: edge-to-edge bottom toolbar with
+        // the home-indicator gesture deferred vs Safari-style padded toolbar.
+        // Inert on iOS 15 (no deferral lever) — padding stays either way.
+        BooleanSettingItem(
+            Res.string.setting_title_edge_to_edge_toolbar,
+            null,
+            Res.string.setting_summary_edge_to_edge_toolbar,
+            config.ui::edgeToEdgeToolbar,
+        ),
         BooleanSettingItem(
             Res.string.desktop_mode,
             null,

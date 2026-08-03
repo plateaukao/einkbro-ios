@@ -195,6 +195,7 @@ fun BrowserScreen(
             info.plateaukao.einkbro.preference.UiConfig.K_TOOLBAR_ICONS,
             info.plateaukao.einkbro.preference.UiConfig.K_FAB_POSITION,
             info.plateaukao.einkbro.preference.UiConfig.K_NAV_POSITION,
+            info.plateaukao.einkbro.preference.UiConfig.K_EDGE_TO_EDGE_TOOLBAR,
         )
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             when (key) {
@@ -239,6 +240,22 @@ fun BrowserScreen(
     LaunchedEffect(toolbarRefreshTick, isFullscreen) {
         info.plateaukao.einkbro.util.HostBridge.setStatusBarHidden(
             config.ui.hideStatusbar || isFullscreen
+        )
+    }
+    // Edge-to-edge toolbar: bottom chrome may occupy the home-indicator band
+    // only when the host defers the bottom-edge system gesture there (else the
+    // system delays or steals its taps — the reason 011c5f0 was walked back).
+    // Deferral costs a double-swipe to go Home, so it is on strictly while a
+    // bottom toolbar is actually rendered in the band, and off on iOS 15 where
+    // SwiftUI has no deferral lever (falls back to the Safari-style padding).
+    val edgeToEdgeToolbar = config.ui.edgeToEdgeToolbar &&
+        info.plateaukao.einkbro.util.HostBridge.supportsBottomGestureDeferral
+    val bottomToolbarInBand = edgeToEdgeToolbar &&
+        !isFullscreen && !toolbarHiddenByScroll && !showUrlInput &&
+        (!config.ui.isToolbarOnTop || config.ui.isVerticalToolbar)
+    LaunchedEffect(toolbarRefreshTick, bottomToolbarInBand) {
+        info.plateaukao.einkbro.util.HostBridge.setDefersBottomSystemGesture(
+            bottomToolbarInBand
         )
     }
 
@@ -930,10 +947,10 @@ fun BrowserScreen(
 
     // The bottom safe-area inset is not reserved at the root: the webview may
     // run under the home indicator (fullscreen / toolbar hidden by scroll).
-    // Bottom chrome (toolbar/statusbar) instead pads itself above the home
-    // indicator — tapping at the physical edge triggers the system gesture, so
-    // interactive elements must stay out of that band (its background still
-    // paints to the edge, Safari-style).
+    // Bottom chrome either occupies the home-indicator band with the system
+    // gesture deferred (edgeToEdgeToolbar, the default) or pads itself above
+    // it Safari-style — background painting to the edge, tap targets lifted
+    // out of the band (pref off, or iOS 15 without a deferral lever).
     val rootInsets = when {
         // Fullscreen additionally runs under the status bar.
         isFullscreen || statusBarSuppressed ->
@@ -1207,10 +1224,14 @@ fun BrowserScreen(
             // over where the toolbar was — and its taps can't reach the buttons.
             if (!isFullscreen && !toolbarHiddenByScroll && !showUrlInput) {
                 // Bottom toolbar (and the vertical rail, whose lowest icons also
-                // reach the edge) is lifted above the home-indicator band; the
-                // background fills the gap down to the physical edge.
+                // reach the edge) sits flush in the home-indicator band while
+                // the system gesture is deferred (edgeToEdgeToolbar); otherwise
+                // it is lifted above the band, the background filling the gap
+                // down to the physical edge.
                 val bottomInset =
-                    if (!toolbarAtTop || config.ui.isVerticalToolbar) {
+                    if ((!toolbarAtTop || config.ui.isVerticalToolbar) &&
+                        !edgeToEdgeToolbar
+                    ) {
                         Modifier
                             .background(MaterialTheme.colors.background)
                             .windowInsetsPadding(
