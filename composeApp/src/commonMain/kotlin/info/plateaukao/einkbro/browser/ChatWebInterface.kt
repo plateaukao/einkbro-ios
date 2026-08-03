@@ -22,9 +22,12 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -147,6 +150,7 @@ class ChatWebInterface(
             "saveChatSession" -> msg.arg?.let { saveChatSession(it) }
             "deleteChatSession" -> msg.arg?.let { deleteChatSession(it) }
             "deleteAllChatSessions" -> deleteAllChatSessions()
+            "restoreChatSession" -> msg.arg?.let { restoreChatSession(it) }
         }
     }
 
@@ -216,19 +220,53 @@ class ChatWebInterface(
         scope.launch {
             try {
                 val obj = json.parseToJsonElement(sessionJson).jsonObject
+                val id = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@launch
+                // The page never sends webContent (it can be hundreds of KB and
+                // never changes after creation): an existing row keeps its
+                // stored copy; a new row is seeded from this tab's capture.
+                val storedWebContent = bookmarkManager.getChatSessionById(id)?.webContent
                 bookmarkManager.upsertChatSession(
                     ChatSession(
-                        id = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@launch,
+                        id = id,
                         title = obj["title"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                         created = obj["created"]?.jsonPrimitive?.longOrNull ?: 0L,
                         lastUpdated = obj["lastUpdated"]?.jsonPrimitive?.longOrNull ?: 0L,
                         webTitle = obj["webTitle"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                         webUrl = obj["webUrl"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                         messages = (obj["messages"] as? JsonArray)?.toString() ?: "[]",
+                        webContent = storedWebContent ?: webContent,
                     )
                 )
             } catch (_: Exception) {
             }
+        }
+    }
+
+    /**
+     * The page switched to a stored session (chat.html loadSession): rebuild
+     * the LLM-facing state from the row so follow-ups continue the restored
+     * conversation — its history AND its page text, not the tab's. Freshly
+     * created sessions have no row yet and no-op.
+     */
+    fun restoreChatSession(sessionId: String) {
+        if (agentMode) return
+        scope.launch {
+            val session = runCatching { bookmarkManager.getChatSessionById(sessionId) }
+                .getOrNull() ?: return@launch
+            webTitle = session.webTitle
+            webUrl = session.webUrl
+            webContent = session.webContent
+            chatHistory.clear()
+            runCatching { json.parseToJsonElement(session.messages).jsonArray }.getOrNull()
+                ?.forEach { element ->
+                    val message = element as? JsonObject ?: return@forEach
+                    val content = message["content"]?.jsonPrimitive?.contentOrNull
+                        ?: return@forEach
+                    val isUser = message["isUser"]?.jsonPrimitive?.booleanOrNull ?: false
+                    chatHistory.add(
+                        ChatMessage(content, if (isUser) ChatRole.User else ChatRole.Assistant)
+                    )
+                }
         }
     }
 
@@ -258,7 +296,9 @@ class ChatWebInterface(
             if (gptActionInfo.systemMessage.isNotEmpty()) {
                 add(gptActionInfo.systemMessage.toSystemMessage())
             }
-            add(createWebContentMessage(webContent))
+            // Blank after restoring a session saved before webContent was
+            // persisted — send no page context rather than an empty code block.
+            if (webContent.isNotBlank()) add(createWebContentMessage(webContent))
             addAll(chatHistory)
             add(currentUserMessage)
         }
@@ -391,6 +431,7 @@ class ChatWebInterface(
                 saveChatSession: function(j) { post('saveChatSession', j); },
                 deleteChatSession: function(id) { post('deleteChatSession', id); },
                 deleteAllChatSessions: function() { post('deleteAllChatSessions'); },
+                restoreChatSession: function(id) { post('restoreChatSession', id); },
               };
             })();
         """.trimIndent()

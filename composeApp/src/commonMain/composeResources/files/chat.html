@@ -321,6 +321,14 @@
         .session-action-btn:hover {
             background-color: #f0f0f0;
         }
+        /* Touch screens have no real hover: keep each session's action buttons
+           visible so tapping a card switches sessions on the first tap (iOS
+           treats the first tap as hover) and Delete/Open URL stay reachable. */
+        @media (hover: none) {
+            .session-actions {
+                display: block;
+            }
+        }
         .empty-sessions {
             text-align: center;
             color: #888;
@@ -833,8 +841,16 @@
             
             chatMessages.appendChild(messageDiv);
         });
-        
+
         //scrollToBottom();
+
+        // Rebuild the native side's LLM context (chat history + captured page
+        // text) for the restored session, so follow-up questions continue THIS
+        // conversation instead of whatever the tab talked about before. A
+        // brand-new session has no stored row yet — the native side no-ops.
+        if (window.AndroidInterface && typeof window.AndroidInterface.restoreChatSession === 'function') {
+            window.AndroidInterface.restoreChatSession(sessionId);
+        }
     }
 
     // Delete session

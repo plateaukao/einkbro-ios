@@ -170,6 +170,9 @@ class BookmarkManager(private val database: AppDatabase) {
     // chat.html reads/writes these through ChatWebInterface).
     suspend fun getAllChatSessions(): List<ChatSession> = chatSessionDao.getAllSessions()
 
+    suspend fun getChatSessionById(sessionId: String): ChatSession? =
+        chatSessionDao.getSessionById(sessionId)
+
     suspend fun upsertChatSession(session: ChatSession) = chatSessionDao.upsert(session)
 
     suspend fun deleteChatSession(sessionId: String) = chatSessionDao.deleteById(sessionId)

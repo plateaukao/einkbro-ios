@@ -23,6 +23,7 @@ import androidx.sqlite.execSQL
  *  v5 — chat_gpt_query (parity Phase K AI query persistence).
  *  v6 — video_transcripts (Gemini transcripts of caption-less YouTube videos).
  *  v7 — chat_sessions (chat-with-web conversations, saved by chat.html).
+ *  v8 — chat_sessions.webContent (per-session page text for context restore).
  */
 @Database(
     entities = [
@@ -39,7 +40,7 @@ import androidx.sqlite.execSQL
         VideoTranscript::class,
         ChatSession::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -138,6 +139,15 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
                 "`id` TEXT NOT NULL, `title` TEXT NOT NULL, `created` INTEGER NOT NULL, " +
                 "`lastUpdated` INTEGER NOT NULL, `webTitle` TEXT NOT NULL, " +
                 "`webUrl` TEXT NOT NULL, `messages` TEXT NOT NULL, PRIMARY KEY(`id`))"
+        )
+    }
+}
+
+/** Adds chat_sessions.webContent (session context restore; Android v13→14). */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "ALTER TABLE `chat_sessions` ADD COLUMN `webContent` TEXT NOT NULL DEFAULT ''"
         )
     }
 }
