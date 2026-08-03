@@ -13,6 +13,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.sqrt
 import kotlinx.cinterop.ObjCAction
+import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.readValue
@@ -54,6 +55,8 @@ import platform.Foundation.credentialWithUser
 import platform.Foundation.serverTrust
 import platform.Security.SecTrustEvaluateWithError
 import platform.UIKit.UIApplication
+import platform.UIKit.UIColor
+import platform.UIKit.systemBackgroundColor
 import platform.UIKit.UIDevice
 import platform.UIKit.UIImage
 import platform.UIKit.UIImageJPEGRepresentation
@@ -399,6 +402,7 @@ class WKWebViewEngine(
     }
 
     override fun setDarkMode(dark: Boolean?) {
+        darkModeOverride = dark
         // overrideUserInterfaceStyle drives prefers-color-scheme in the page.
         webView.setOverrideUserInterfaceStyle(
             when (dark) {
@@ -407,6 +411,56 @@ class WKWebViewEngine(
                 null -> UIUserInterfaceStyle.UIUserInterfaceStyleUnspecified
             }
         )
+        if (!hasCommitted) applyBlankBackground()
+    }
+
+    // Dark-mode override this tab was configured with: true/false force the
+    // style, null follows the system.
+    private var darkModeOverride: Boolean? = null
+
+    // True once a navigation has committed, i.e. WebKit has a real page to
+    // paint and no longer needs the placeholder background below.
+    private var hasCommitted = false
+
+    /**
+     * Paints a tab that has nothing loaded yet in the theme's color instead of
+     * WebKit's white. A fresh WKWebView draws an opaque white base until a page
+     * commits, so opening a new tab in dark mode flashes white — and with the
+     * default new-tab behavior (start URL input, load nothing) it stays white
+     * for as long as the tab is empty. Clearing `opaque` lets the view's own
+     * background show through in that gap; underPageBackgroundColor covers the
+     * over-scroll area the same way. [releaseBlankBackground] puts both back
+     * before any page content paints, so this never tints a real page.
+     */
+    private fun applyBlankBackground() {
+        val color = when (darkModeOverride) {
+            true -> UIColor.blackColor
+            false -> UIColor.whiteColor
+            // Dynamic color: UIKit resolves it against the web view's trait
+            // collection, so it tracks the system theme.
+            null -> UIColor.systemBackgroundColor
+        }
+        webView.setOpaque(false)
+        webView.backgroundColor = color
+        webView.scrollView.backgroundColor = color
+        webView.underPageBackgroundColor = color
+    }
+
+    /**
+     * Restores WebKit's own base and under-page backgrounds. Called at commit,
+     * before the incoming page paints: a transparent-background document (one
+     * that declares no `color-scheme`) would otherwise render its black text on
+     * our black placeholder.
+     */
+    private fun releaseBlankBackground() {
+        if (hasCommitted) return
+        hasCommitted = true
+        webView.setOpaque(true)
+        webView.backgroundColor = null
+        webView.scrollView.backgroundColor = null
+        // The property is null-resettable in ObjC but the Kotlin binding types
+        // it non-null, so go through KVC to hand it back to WebKit.
+        webView.setValue(null, forKey = "underPageBackgroundColor")
     }
 
     override fun setZoomEnabled(enabled: Boolean) {
@@ -545,6 +599,8 @@ class WKWebViewEngine(
     }
 
     internal fun notifyCommitted() {
+        // A real page is about to paint, so hand the background back to WebKit.
+        releaseBlankBackground()
         listener.onUrlChanged(this, webView.URL?.absoluteString ?: "")
     }
 
@@ -675,6 +731,15 @@ private class NavigationDelegate(
     private var lastEscapeSeenAt = 0.0
     private var escapeSwallowCount = 0
 
+    // Same Kotlin signature as didFinishNavigation below (both are
+    // (WKWebView, WKNavigation?) once the selector labels are dropped), so the
+    // pair needs the ObjC-signature opt-in to coexist.
+    @ObjCSignatureOverride
+    override fun webView(webView: WKWebView, didCommitNavigation: WKNavigation?) {
+        engine.notifyCommitted()
+    }
+
+    @ObjCSignatureOverride
     override fun webView(webView: WKWebView, didFinishNavigation: WKNavigation?) {
         engine.notifyFinished()
     }
