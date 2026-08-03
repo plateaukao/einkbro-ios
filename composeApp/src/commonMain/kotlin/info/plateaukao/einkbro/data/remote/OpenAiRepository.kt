@@ -203,7 +203,12 @@ class OpenAiRepository(
             if (response.status.value != 200) return statusFailure(response.status.value, "Gemini")
             val body = response.bodyAsText()
             val data = json.decodeFromString(GeminiResponseData.serializer(), body)
-            val text = data.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
+            // Every answer part, joined: Gemini splits a reply across parts, so
+            // taking only the first truncated it (and returned the reasoning
+            // summary outright when a thought part happened to come first).
+            val text = data.candidates.firstOrNull()?.content?.parts
+                ?.filterNot { it.thought }
+                ?.joinToString("") { it.text }
             if (text.isNullOrEmpty()) ApiResult.Failure(ApiResult.Kind.Parse, "Gemini returned no content")
             else ApiResult.Success(text)
         } catch (e: Exception) {

@@ -100,9 +100,21 @@ data class GeminiContent(
     val parts: List<GeminiContentPart>,
 )
 
+/**
+ * Serves both request and response parts, as on Android.
+ *
+ * Gemini 3 marks reasoning-summary parts with `thought=true`, and attaches a
+ * `thoughtSignature` to the final answer part — which may carry no `text` key at
+ * all. So [text] must default, or a signature-only part fails to decode and the
+ * whole response surfaces as a bogus network error.
+ *
+ * Both defaults are safe to send: the encoder runs with `encodeDefaults = false`
+ * (kotlinx's default), so a request part emits `text` only, never `thought`.
+ */
 @Serializable
 data class GeminiContentPart(
-    val text: String,
+    val text: String = "",
+    val thought: Boolean = false,
 )
 
 @Serializable
@@ -119,4 +131,6 @@ data class GeminiResponseData(
 @Serializable
 data class GeminiCandidate(
     val content: GeminiContent? = null,
+    // STOP, MAX_TOKENS, SAFETY, ... — set once the model is done talking.
+    val finishReason: String? = null,
 )

@@ -88,8 +88,10 @@ private data class GeminiCandidate(val content: GeminiResponseContent = GeminiRe
 @Serializable
 private data class GeminiResponseContent(val parts: List<GeminiResponsePart> = emptyList())
 
+// thought=true marks a Gemini 3 reasoning summary; text defaults so the
+// signature-bearing final part decodes even when it carries no text key.
 @Serializable
-private data class GeminiResponsePart(val text: String = "")
+private data class GeminiResponsePart(val text: String = "", val thought: Boolean = false)
 
 @Serializable
 private data class GeminiErrorResponse(val error: GeminiErrorBody = GeminiErrorBody())
@@ -237,6 +239,10 @@ class YouTubeCaptionFetcher(
             val text = json.decodeFromString(GeminiResponse.serializer(), body)
                 .candidates.firstOrNull()
                 ?.content?.parts
+                // thinkingBudget=0 is requested below, but a model that declines
+                // to honour it would otherwise fold its reasoning into the
+                // transcript.
+                ?.filterNot { it.thought }
                 ?.joinToString("") { it.text }
                 ?.trim()
             if (text.isNullOrBlank()) GeminiOutcome.NoSpeech
