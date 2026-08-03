@@ -11,4 +11,18 @@ expect object HostBridge {
 
     /** Hides the system status bar (clock/signal/battery overlay). */
     fun setStatusBarHidden(hidden: Boolean)
+
+    /**
+     * Whether the host can defer the bottom-edge system gesture (SwiftUI's
+     * defersSystemGestures, iOS 16+). When false, bottom chrome must stay out
+     * of the home-indicator band or its taps get eaten by the system.
+     */
+    val supportsBottomGestureDeferral: Boolean
+
+    /**
+     * Defers the home-indicator system gesture so touches in the bottom band
+     * reach the app first; going Home then takes two consecutive swipes. Keep
+     * it on only while interactive chrome actually occupies the band.
+     */
+    fun setDefersBottomSystemGesture(enabled: Boolean)
 }

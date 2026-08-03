@@ -488,6 +488,8 @@
     <string name="setting_summary_search_in_dict">When searching in readers, use AI to search results</string>
     <string name="hide_statusbar">Hide system status bar</string>
     <string name="setting_summary_hide_statusbar">Always hide the system status bar</string>
+    <string name="setting_title_edge_to_edge_toolbar">Extend toolbar to screen bottom</string>
+    <string name="setting_summary_edge_to_edge_toolbar">Toolbar uses the home-indicator area; going Home then takes two swipes. Off: toolbar stays above the home indicator</string>
     <string name="enable_touch_area_as_arrow_key">Long click as ← → key</string>
     <string name="setting_title_chat_stream">Reply In-Stream</string> <!-- Not sure about this one -->
     <string name="setting_summary_chat_stream">Response will be displayed character by character, so that it's faster</string>

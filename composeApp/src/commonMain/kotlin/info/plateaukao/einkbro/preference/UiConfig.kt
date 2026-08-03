@@ -45,6 +45,11 @@ class UiConfig(private val context: Context, private val sp: SharedPreferences) 
             putString(K_STATUSBAR_ITEMS, value.joinToString(",") { it.ordinal.toString() })
         }
 
+    // iOS-only: bottom toolbar occupies the home-indicator band (the host
+    // defers the system gesture there). Off = Safari-style, toolbar padded
+    // above the band. No Android counterpart.
+    var edgeToEdgeToolbar by BooleanPreference(sp, K_EDGE_TO_EDGE_TOOLBAR, true)
+
     var shouldHideToolbar by BooleanPreference(sp, K_HIDE_TOOLBAR, false)
     var showToolbarFirst by BooleanPreference(sp, K_SHOW_TOOLBAR_FIRST, true)
     var hideStatusbar by BooleanPreference(sp, K_HIDE_STATUSBAR, false)
@@ -145,6 +150,7 @@ class UiConfig(private val context: Context, private val sp: SharedPreferences) 
     companion object {
         const val K_TOOLBAR_POSITION = "sp_toolbar_position"
         const val K_TOOLBAR_TOP = "sp_toolbar_top"
+        const val K_EDGE_TO_EDGE_TOOLBAR = "sp_edge_to_edge_toolbar"
         const val K_HIDE_TOOLBAR = "hideToolbar"
         const val K_SHOW_TOOLBAR_FIRST = "sp_toolbarShow"
         const val K_HIDE_STATUSBAR = "sp_hide_statusbar"
