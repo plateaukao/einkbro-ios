@@ -36,9 +36,12 @@ import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Translate
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -49,8 +52,10 @@ import androidx.compose.runtime.setValue
 import android.graphics.Point
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
@@ -117,9 +122,11 @@ import info.plateaukao.einkbro.viewmodel.TranslationViewModel
 import info.plateaukao.einkbro.viewmodel.TtsViewModel
 import androidx.compose.runtime.snapshotFlow
 import info.plateaukao.einkbro.database.Record
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -196,6 +203,7 @@ fun BrowserScreen(
             info.plateaukao.einkbro.preference.UiConfig.K_FAB_POSITION,
             info.plateaukao.einkbro.preference.UiConfig.K_NAV_POSITION,
             info.plateaukao.einkbro.preference.UiConfig.K_EDGE_TO_EDGE_TOOLBAR,
+            info.plateaukao.einkbro.preference.UiConfig.K_HIDE_TOOLBAR,
         )
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             when (key) {
@@ -220,9 +228,20 @@ fun BrowserScreen(
         onDispose { config.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     var isFullscreen by remember { mutableStateOf(false) }
-    // Auto-hide toolbar on scroll (Android shouldHideToolbar): hidden past a
-    // downward-scroll threshold, restored on scroll-up or jump-to-top.
-    var toolbarHiddenByScroll by remember { mutableStateOf(false) }
+    // Auto-hide toolbar on scroll (Android shouldHideToolbar), Safari-style:
+    // instead of Android's instant visibility toggle, the toolbar tracks the
+    // scroll — sliding out as the page scrolls down, back in on scroll-up —
+    // and settles to the nearest edge once the scroll goes quiet.
+    // toolbarHideOffset is how far (px) it has slid toward hidden, clamped to
+    // its extent (height, or width for the vertical rail), measured by the
+    // slide modifier in renderToolbar.
+    val toolbarHideOffset = remember { Animatable(0f) }
+    var toolbarHideExtent by remember { mutableStateOf(0) }
+    val toolbarHiddenByScroll by remember {
+        derivedStateOf {
+            toolbarHideExtent > 0 && toolbarHideOffset.value >= toolbarHideExtent
+        }
+    }
     var showSearchBar by remember { mutableStateOf(false) }
     var searchResultInfo by remember { mutableStateOf("") }
     var touchPagingEnabled by remember { mutableStateOf(config.touch.enableTouchTurn) }
@@ -507,7 +526,7 @@ fun BrowserScreen(
                 // "Toolbar first": when hidden by scrolling, Back restores the
                 // toolbar before navigating (Android BrowserActivity L655).
                 config.ui.showToolbarFirst && toolbarHiddenByScroll ->
-                    toolbarHiddenByScroll = false
+                    scope.launch { toolbarHideOffset.animateTo(0f, tween(150)) }
                 currentEngine?.canGoBack() == true -> currentEngine.goBack()
                 config.tab.closeTabWhenNoMoreBackHistory ->
                     browserViewModel.currentAlbum?.let { browserViewModel.closeTab(it) } ?: Unit
@@ -845,8 +864,10 @@ fun BrowserScreen(
         currentUrl = { browserViewModel.currentUrl.value },
     )
 
-    // Auto-hide toolbar on scroll (shouldHideToolbar): hide after a clear
-    // downward scroll away from the top; restore on scroll-up or at the top.
+    // Auto-hide toolbar on scroll (shouldHideToolbar): the toolbar follows the
+    // scroll delta — each down-scroll px slides it further out (once clear of
+    // the page top), each up-scroll px slides it back — and a half-slid bar
+    // settles to the nearest edge when no scroll event arrives for a beat.
     // Scrolls while the keyboard is up are WKWebView revealing the caret, not
     // user intent — reacting to them resizes the webview, which re-triggers
     // the caret-reveal scroll: an endless show/hide oscillation (visible as
@@ -855,14 +876,79 @@ fun BrowserScreen(
         WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     )
     LaunchedEffect(engine) {
-        engine?.setScrollChangeHandler { dy, y ->
-            when {
-                imeVisible -> Unit
-                !config.ui.shouldHideToolbar -> toolbarHiddenByScroll = false
-                dy > 12 && y > 100 -> toolbarHiddenByScroll = true
-                dy < -12 || y <= 0 -> toolbarHiddenByScroll = false
-            }
+        val scrollEngine = engine ?: return@LaunchedEffect
+        // The delegate fires on the main thread mid-gesture; queue the deltas
+        // and consume them here so slides stay off the delegate callback and
+        // the settle timeout has a suspension point to ride on.
+        val events = Channel<Triple<Int, Int, Int>>(Channel.UNLIMITED)
+        scrollEngine.setScrollChangeHandler { dy, y, maxY ->
+            events.trySend(Triple(dy, y, maxY))
         }
+        // Hiding the toolbar grows the webview, which shrinks the scrollable
+        // range — so a hide near the content end makes WKWebView clamp its
+        // offset, and that clamp comes back through this very handler as an
+        // up-scroll that re-reveals the toolbar: an endless shake. Android's
+        // cutoff (ChromeSetupDelegate L274, 112dp above the end) exists for
+        // the same reason; within that band the toolbar only ever reveals —
+        // a reveal shrinks the webview and can't trigger the clamp.
+        val bottomGuard = 112
+        var nearBottom = false
+        try {
+            while (true) {
+                val midSlide = toolbarHideOffset.value.let {
+                    it > 0f && it < toolbarHideExtent
+                }
+                val first = if (midSlide) {
+                    withTimeoutOrNull(250) { events.receive() }
+                } else {
+                    events.receive()
+                }
+                if (first == null) {
+                    // Scroll went quiet half-way: settle to the nearest edge —
+                    // except near the content end, where settling to hidden
+                    // would start the clamp shake; always come back instead.
+                    val extent = toolbarHideExtent.toFloat()
+                    toolbarHideOffset.animateTo(
+                        if (!nearBottom && toolbarHideOffset.value > extent / 2) {
+                            extent
+                        } else {
+                            0f
+                        },
+                        tween(150),
+                    )
+                    continue
+                }
+                // Coalesce whatever piled up while animating/handling.
+                var (dy, y, maxY) = first
+                while (true) {
+                    val more = events.tryReceive().getOrNull() ?: break
+                    dy += more.first
+                    y = more.second
+                    maxY = more.third
+                }
+                nearBottom = y > maxY - bottomGuard
+                when {
+                    imeVisible -> Unit
+                    !config.ui.shouldHideToolbar -> toolbarHideOffset.snapTo(0f)
+                    y <= 0 -> toolbarHideOffset.snapTo(0f)
+                    // Down-scroll only bites once clear of the top (Android's
+                    // y > 100 guard) and clear of the bottom cutoff; up-scroll
+                    // always reveals.
+                    dy > 0 && (y <= 100 || nearBottom) -> Unit
+                    dy != 0 && toolbarHideExtent > 0 -> toolbarHideOffset.snapTo(
+                        (toolbarHideOffset.value + dy)
+                            .coerceIn(0f, toolbarHideExtent.toFloat())
+                    )
+                }
+            }
+        } finally {
+            scrollEngine.setScrollChangeHandler(null)
+        }
+    }
+    // Turning the setting off while the toolbar is slid away restores it
+    // immediately (the scroll loop alone would need another scroll event).
+    LaunchedEffect(toolbarRefreshTick) {
+        if (!config.ui.shouldHideToolbar) toolbarHideOffset.snapTo(0f)
     }
 
     // Two-finger swipe paging (parity Phase F multitouch). Rides on the engine's
@@ -1222,12 +1308,38 @@ fun BrowserScreen(
         // Bottom) and statusbarPosition can place them around the pane (parity
         // Phase N). Left/Right toolbar falls back to bottom for now.
         val toolbarAtTop = config.ui.isToolbarOnTop
+        // Scroll-follow slide: measure at full size, then report the extent
+        // minus the current hide offset and place the content so it slides
+        // toward its own screen edge (top toolbar up, bottom toolbar down,
+        // vertical rail sideways). Shrinking the reported size — instead of
+        // just translating — is what lets the weighted web pane reclaim the
+        // space in the same frame, so the page grows as the bar slides. The
+        // offset is read inside the measure block: scroll frames re-run layout
+        // only, not composition.
+        val vertical = config.ui.isVerticalToolbar
+        val slidesLeft = vertical && config.ui.toolbarPosition ==
+            info.plateaukao.einkbro.preference.ToolbarPosition.Left
+        val slideModifier = Modifier.clipToBounds().layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            val extent = if (vertical) placeable.width else placeable.height
+            if (toolbarHideExtent != extent) toolbarHideExtent = extent
+            val hide = toolbarHideOffset.value.roundToInt().coerceIn(0, extent)
+            layout(
+                width = if (vertical) placeable.width - hide else placeable.width,
+                height = if (vertical) placeable.height else placeable.height - hide,
+            ) {
+                placeable.place(
+                    x = if (slidesLeft) -hide else 0,
+                    y = if (!vertical && toolbarAtTop) -hide else 0,
+                )
+            }
+        }
         val renderToolbar: @Composable () -> Unit = {
             // Hide the toolbar while the URL input is up (Android sets appBar
             // INVISIBLE in InputBarDelegate). The pane then fills the freed
             // space, so the bottom-anchored input row lands flush at the edge —
             // over where the toolbar was — and its taps can't reach the buttons.
-            if (!isFullscreen && !toolbarHiddenByScroll && !showUrlInput) {
+            if (!isFullscreen && !showUrlInput) {
                 // Bottom toolbar (and the vertical rail, whose lowest icons also
                 // reach the edge) sits flush in the home-indicator band while
                 // the system gesture is deferred (edgeToEdgeToolbar); otherwise
@@ -1245,7 +1357,7 @@ fun BrowserScreen(
                     } else {
                         Modifier
                     }
-                Box(bottomInset) {
+                Box(slideModifier.then(bottomInset)) {
                 ComposedToolbar(
                     isVertical = config.ui.isVerticalToolbar,
                     showTabs = showTabStrip && !config.ui.isVerticalToolbar,
@@ -1271,13 +1383,37 @@ fun BrowserScreen(
         // stand-in info strip shown ONLY while the toolbar is hidden (fullscreen
         // toggle or hide-on-scroll) and the statusbar setting is enabled; it is
         // never rendered alongside a visible toolbar.
-        val statusbarVisible = config.ui.statusbarEnabled &&
-            (isFullscreen || toolbarHiddenByScroll)
+        val statusbarEngaged by remember {
+            derivedStateOf { isFullscreen || toolbarHideOffset.value > 0f }
+        }
+        val statusbarVisible = config.ui.statusbarEnabled && statusbarEngaged
+        val statusbarAtTop = config.ui.statusbarPosition ==
+            info.plateaukao.einkbro.view.statusbar.StatusbarPosition.Top
+        // The info strip replaces the departing toolbar, so its reveal rides
+        // the same scroll progress: it slides in from its screen edge exactly
+        // as far as the toolbar has slid out (and back out in sync when the
+        // toolbar returns). Only the fullscreen toggle — a mode switch, like
+        // Android's — shows it in one step.
+        val statusbarSlide = Modifier.clipToBounds().layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            val progress = when {
+                isFullscreen -> 1f
+                toolbarHideExtent > 0 ->
+                    (toolbarHideOffset.value / toolbarHideExtent).coerceIn(0f, 1f)
+                else -> 0f
+            }
+            val visible = (placeable.height * progress).roundToInt()
+            layout(placeable.width, visible) {
+                placeable.place(0, if (statusbarAtTop) visible - placeable.height else 0)
+            }
+        }
         val renderStatusbar: @Composable () -> Unit = {
-            info.plateaukao.einkbro.view.statusbar.Statusbar(
-                items = config.ui.statusbarItems,
-                pageInfo = "",
-            )
+            Box(statusbarSlide) {
+                info.plateaukao.einkbro.view.statusbar.Statusbar(
+                    items = config.ui.statusbarItems,
+                    pageInfo = "",
+                )
+            }
         }
         if (toolbarAtTop && !config.ui.isVerticalToolbar) renderToolbar()
         if (statusbarVisible &&

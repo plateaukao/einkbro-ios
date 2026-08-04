@@ -469,7 +469,7 @@ class WKWebViewEngine(
 
     private var scrollDelegate: ScrollObserver? = null
 
-    override fun setScrollChangeHandler(handler: ((Int, Int) -> Unit)?) {
+    override fun setScrollChangeHandler(handler: ((Int, Int, Int) -> Unit)?) {
         if (handler == null) {
             webView.scrollView.delegate = null
             scrollDelegate = null
@@ -1082,15 +1082,32 @@ private class RefreshTarget(private val onRefresh: () -> Unit) : NSObject() {
 /** Streams vertical scroll deltas for the auto-hide-toolbar pref. */
 @OptIn(ExperimentalForeignApi::class)
 private class ScrollObserver(
-    private val onScroll: (Int, Int) -> Unit,
+    private val onScroll: (Int, Int, Int) -> Unit,
 ) : NSObject(), platform.UIKit.UIScrollViewDelegateProtocol {
     private var lastY = 0.0
+    // Sub-point remainder carried into the next event: a slow drag delivers
+    // fractional offsets per frame, and truncating each one to Int would sum
+    // to far less than the finger actually moved (the toolbar scroll-follow
+    // slide tracks these deltas 1:1).
+    private var residual = 0.0
 
     override fun scrollViewDidScroll(scrollView: platform.UIKit.UIScrollView) {
-        val y = scrollView.contentOffset.useContents { this.y }
-        val dy = y - lastY
+        // Normalize so 0 is the resting top regardless of adjusted insets, and
+        // clamp to the scrollable range: rubber-band overshoot then contributes
+        // no deltas, so the top/bottom bounce can't wiggle the toolbar slide.
+        val rawY = scrollView.contentOffset.useContents { this.y }
+        val topInset = scrollView.adjustedContentInset.useContents { this.top }
+        val bottomInset = scrollView.adjustedContentInset.useContents { this.bottom }
+        val contentHeight = scrollView.contentSize.useContents { this.height }
+        val viewHeight = scrollView.bounds.useContents { this.size.height }
+        val maxY = (contentHeight + topInset + bottomInset - viewHeight)
+            .coerceAtLeast(0.0)
+        val y = (rawY + topInset).coerceIn(0.0, maxY)
+        val exact = y - lastY + residual
         lastY = y
-        onScroll(dy.toInt(), y.toInt())
+        val dy = exact.toInt()
+        residual = exact - dy
+        onScroll(dy, y.toInt(), maxY.toInt())
     }
 }
 
