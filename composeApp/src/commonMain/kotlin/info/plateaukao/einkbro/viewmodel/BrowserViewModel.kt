@@ -19,7 +19,9 @@ import info.plateaukao.einkbro.browser.ChatWebInterface
 import info.plateaukao.einkbro.view.Album
 import info.plateaukao.einkbro.view.EBToast
 import kotlinx.coroutines.launch
+import info.plateaukao.einkbro.caption.YouTubeCaptionFetcher
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 /**
@@ -310,11 +312,33 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         }
         engine.installUserScript(Assets.get("selection_change.js"), atDocumentStart = false)
         engine.installUserScript(Assets.get("link_longpress.js"), atDocumentStart = false)
-        // Dual YouTube captions (parity Phase M): a document-start fetch/XHR shim
-        // that merges a second-language timedtext copy in-page. The locale is
-        // baked in at engine creation; new tabs pick up a changed pref.
+        // Dual YouTube captions (parity Phase M): the page asks for a video's
+        // translated caption track, we fetch it natively and hand back the
+        // timedtext JSON; the overlay in dual_caption_shim.js draws the second
+        // line. Nothing intercepts the player's own caption request.
         val dualCaptionLocale = config.tts.dualCaptionLocale
         if (dualCaptionLocale.isNotBlank()) {
+            engine.addMessageHandler("einkbroDualCaption") { videoId ->
+                if (engine !== currentEngine) return@addMessageHandler
+                if (videoId.isBlank()) return@addMessageHandler
+                viewModelScope.launch {
+                    val (translated, original) = YouTubeCaptionFetcher().fetchDualCaptionTracks(
+                        "https://www.youtube.com/watch?v=$videoId",
+                        dualCaptionLocale,
+                    ) ?: return@launch
+                    // Encoded as JS string literals so the caption text can't
+                    // break out of the call.
+                    val idLiteral = json.encodeToString(String.serializer(), videoId)
+                    val translatedLiteral = json.encodeToString(String.serializer(), translated)
+                    val originalLiteral = original
+                        ?.let { json.encodeToString(String.serializer(), it) } ?: "null"
+                    engine.evaluateJavascript(
+                        "window.__einkbroDualCaption && " +
+                                "window.__einkbroDualCaption.setCues(" +
+                                "$idLiteral, $translatedLiteral, $originalLiteral)"
+                    )
+                }
+            }
             engine.installUserScript(
                 Assets.get("dual_caption_shim.js")
                     .replace("%%DUAL_CAPTION_LOCALE%%", dualCaptionLocale),

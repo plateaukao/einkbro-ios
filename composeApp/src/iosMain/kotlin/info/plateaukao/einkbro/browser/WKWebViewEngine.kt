@@ -43,6 +43,7 @@ import platform.Foundation.NSURLRequest
 import platform.Foundation.NSValue
 import platform.UIKit.valueWithCGRect
 import platform.UIKit.viewPrintFormatter
+import platform.Foundation.NSSelectorFromString
 import platform.Foundation.NSURLRequestReturnCacheDataElseLoad
 import platform.Foundation.setValue
 import platform.Foundation.NSURLResponse
@@ -140,6 +141,16 @@ class WKWebViewEngine(
             mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone
             // window.open() must reach the UI delegate to open as a new tab.
             preferences.javaScriptCanOpenWindowsAutomatically = true
+            // Element fullscreen (iOS 15.4+, hence the selector guard): let
+            // pages fullscreen a DOM element instead of handing <video> to
+            // AVKit's native player. AVKit paints only the media stream plus
+            // its WebVTT track — nothing the page draws survives there, so
+            // YouTube's DOM captions and the dual-caption overlay vanish on
+            // fullscreen without this. Safari on iPhone has shipped it since
+            // 16.4; sites feature-detect via document.fullscreenEnabled.
+            if (preferences.respondsToSelector(NSSelectorFromString("setElementFullscreenEnabled:"))) {
+                preferences.elementFullscreenEnabled = true
+            }
             // Private browsing: a non-persistent store leaves nothing on disk
             // (cookies, cache, local storage all vanish when it's released).
             if (incognito) websiteDataStore = WKWebsiteDataStore.nonPersistentDataStore()

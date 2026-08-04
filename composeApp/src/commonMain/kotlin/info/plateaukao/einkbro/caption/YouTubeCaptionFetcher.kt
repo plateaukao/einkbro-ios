@@ -8,6 +8,7 @@ import info.plateaukao.einkbro.preference.ConfigManager
 import info.plateaukao.einkbro.util.System
 import info.plateaukao.einkbro.util.platformDefaultLanguage
 import io.ktor.client.plugins.timeout
+import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -171,6 +172,44 @@ class YouTubeCaptionFetcher(
         val track = pickTrack(tracks, platformDefaultLanguage()) ?: return null
         val captionJson = dualCaptionProcessor.processUrl(captionUrl(track.baseUrl)) ?: return null
         return captionJson.takeIf(::isTimedTextWithContent)
+    }
+
+    /**
+     * Timedtext JSON for [pageUrl]'s caption track, translated to [locale] plus the
+     * untranslated original — the dual-caption pair (`dual_caption_shim.js`). The
+     * original may be null (translated alone still serves the in-page overlay, which
+     * draws under the player's own caption); the pair is what native fullscreen
+     * shows, where the page can't draw and the player renders nothing.
+     *
+     * Deliberately narrower than [fetchCaption]: no Gemini fallback and no transcript
+     * cache. The overlay is decoration on top of the player's own captions, so a video
+     * without a caption track simply doesn't get a second line — it must never trigger
+     * a minutes-long transcription behind the user's back.
+     */
+    suspend fun fetchDualCaptionTracks(pageUrl: String, locale: String): Pair<String, String?>? {
+        if (locale.isBlank()) return null
+        val videoId = extractVideoId(pageUrl) ?: return null
+        val tracks = fetchPlayerResponse(videoId)?.captions?.tracklist?.captionTracks
+            ?.filter { it.baseUrl.isNotEmpty() }
+            .orEmpty()
+        val track = pickTrack(tracks, platformDefaultLanguage()) ?: return null
+        // `tlang` asks YouTube for the machine translation of that track; the
+        // ANDROID client's URLs are served without a proof-of-origin token.
+        val translated = fetchTimedText(captionUrl(track.baseUrl) + "&tlang=$locale")
+            ?.takeIf(::isTimedTextWithContent) ?: return null
+        val original = fetchTimedText(captionUrl(track.baseUrl))
+            ?.takeIf(::isTimedTextWithContent)
+        return translated to original
+    }
+
+    private suspend fun fetchTimedText(url: String): String? = try {
+        val response = client.get(url) {
+            header("User-Agent", ANDROID_CLIENT_USER_AGENT)
+            timeout { requestTimeoutMillis = 10_000 }
+        }
+        if (response.status.value == 200) response.bodyAsText() else null
+    } catch (e: Exception) {
+        null
     }
 
     private suspend fun fetchPlayerResponse(videoId: String): PlayerResponse? = try {

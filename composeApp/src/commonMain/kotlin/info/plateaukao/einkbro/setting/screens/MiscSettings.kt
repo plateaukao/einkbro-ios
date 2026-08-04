@@ -11,7 +11,6 @@ import info.plateaukao.einkbro.setting.ListSettingWithEnumItem
 import info.plateaukao.einkbro.setting.NavigateSettingItem
 import info.plateaukao.einkbro.setting.SettingItemInterface
 import info.plateaukao.einkbro.setting.ValueSettingItem
-import info.plateaukao.einkbro.view.EBToast
 import info.plateaukao.einkbro.view.dialog.TranslationLanguageDialog
 import kotlinx.coroutines.launch
 
@@ -80,13 +79,14 @@ fun buildMiscSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
             Res.string.setting_summary_translated_langs,
             config.translation::preferredTranslateLanguageString
         ),
-        // On Android this opens TranslationLanguageDialog.showDualCaptionLocale().
         ActionSettingItem(
             Res.string.setting_dual_caption,
             null,
             Res.string.setting_summary_dual_caption,
         ) {
-            EBToast.show(deps.context, "would open the dual caption language dialog")
+            deps.scope.launch {
+                TranslationLanguageDialog(deps.context).showDualCaptionLocale()
+            }
         },
     )
 }
