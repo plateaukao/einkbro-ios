@@ -1177,48 +1177,6 @@ fun BrowserScreen(
                 }
             }
 
-            if (showOverview) {
-                // Transparent overlay like Android's OverviewDialogController:
-                // the panel sizes to its content at the toolbar edge, the page
-                // stays visible behind, and tapping the empty area closes it.
-                Box(Modifier.fillMaxSize()) {
-                    HistoryAndTabs(
-                        bookmarkManager = AppServices.bookmarkManager,
-                        isHistoryOpen = overviewShowsHistory,
-                        // Anchor the panel at the toolbar's edge, like Android's
-                        // OverviewDialogController (bar at bottom unless on top).
-                        shouldReverseHistory = !config.ui.isToolbarOnTop,
-                        albumList = browserViewModel.albums,
-                        albumFocusIndex = browserViewModel.focusIndex,
-                        onTabIconClick = { overviewShowsHistory = false },
-                        onTabClick = { browserViewModel.showOrJumpToTop(it); showOverview = false },
-                        onTabLongClick = { browserViewModel.closeTab(it) },
-                        records = browserViewModel.records.value,
-                        onHistoryIconClick = { overviewShowsHistory = true },
-                        onHistoryItemClick = {
-                            browserViewModel.loadUrlOrSearch(it.url); showOverview = false
-                        },
-                        onHistoryItemLongClick = { _, _ -> },
-                        addIncognitoTab = {
-                            browserViewModel.newTab(BrowserViewModel.DEFAULT_HOME, incognito = true)
-                            showOverview = false
-                        },
-                        addTab = {
-                            browserViewModel.newTab(BrowserViewModel.DEFAULT_HOME)
-                            showOverview = false
-                        },
-                        closePanel = { showOverview = false },
-                        onDeleteAction = { browserViewModel.clearHistory() },
-                        onCloseAllTabs = {
-                            browserViewModel.albums.value.toList()
-                                .forEach { browserViewModel.closeTab(it) }
-                            showOverview = false
-                        },
-                        launchNewBrowserAction = {},
-                    )
-                }
-            }
-
             if (showUrlInput) {
                 val text = remember {
                     mutableStateOf(
@@ -1504,6 +1462,63 @@ fun BrowserScreen(
             renderStatusbar()
         }
         if (!toolbarAtTop && !config.ui.isVerticalToolbar) renderToolbar()
+    }
+
+    if (showOverview) {
+        // Transparent window-spanning overlay like Android's
+        // OverviewDialogController (layout_overview is constrained to all four
+        // parent edges): the panel's button bar draws OVER the main toolbar
+        // rather than stacking above it. The page stays visible behind, and
+        // tapping the empty area closes it.
+        val overviewBottomInset =
+            if (!config.ui.isToolbarOnTop && !edgeToEdgeToolbar) {
+                // Same lift the toolbar applies when the home-indicator band
+                // is not tap-safe (no gesture deferral).
+                Modifier.windowInsetsPadding(
+                    WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)
+                )
+            } else {
+                Modifier
+            }
+        Box(
+            Modifier.fillMaxSize().windowInsetsPadding(rootInsets)
+                .then(overviewBottomInset)
+        ) {
+            HistoryAndTabs(
+                bookmarkManager = AppServices.bookmarkManager,
+                isHistoryOpen = overviewShowsHistory,
+                // Anchor the panel at the toolbar's edge, like Android's
+                // OverviewDialogController (bar at bottom unless on top).
+                shouldReverseHistory = !config.ui.isToolbarOnTop,
+                albumList = browserViewModel.albums,
+                albumFocusIndex = browserViewModel.focusIndex,
+                onTabIconClick = { overviewShowsHistory = false },
+                onTabClick = { browserViewModel.showOrJumpToTop(it); showOverview = false },
+                onTabLongClick = { browserViewModel.closeTab(it) },
+                records = browserViewModel.records.value,
+                onHistoryIconClick = { overviewShowsHistory = true },
+                onHistoryItemClick = {
+                    browserViewModel.loadUrlOrSearch(it.url); showOverview = false
+                },
+                onHistoryItemLongClick = { _, _ -> },
+                addIncognitoTab = {
+                    browserViewModel.newTab(BrowserViewModel.DEFAULT_HOME, incognito = true)
+                    showOverview = false
+                },
+                addTab = {
+                    browserViewModel.newTab(BrowserViewModel.DEFAULT_HOME)
+                    showOverview = false
+                },
+                closePanel = { showOverview = false },
+                onDeleteAction = { browserViewModel.clearHistory() },
+                onCloseAllTabs = {
+                    browserViewModel.albums.value.toList()
+                        .forEach { browserViewModel.closeTab(it) }
+                    showOverview = false
+                },
+                launchNewBrowserAction = {},
+            )
+        }
     }
 
     if (isFullscreen) {
