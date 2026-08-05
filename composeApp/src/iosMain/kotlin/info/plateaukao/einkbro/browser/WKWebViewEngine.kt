@@ -1062,25 +1062,41 @@ private class EBWKWebView(
 }
 
 // Newline-joined candidate list, best first; Kotlin fetches until one decodes.
-// Prefer rel=icon links (last one wins, same as Android WebView's
-// onReceivedIcon, which never delivers touch icons). Apple touch icons are
-// opaque by convention (white background baked in), so they are only a last
-// resort before the conventional /favicon.ico. SVG icons are skipped — neither
-// Skia nor ImageIO decodes them. Absolute href courtesy of DOM.
+// rel=icon links are ranked by their declared sizes attribute, largest first
+// (sites conventionally list icons smallest-last, so Android-style "last one
+// wins" picks a 16px icon that then blurs at the 36dp render size); no sizes
+// attribute is scored as 32, the common single-favicon case. Apple touch icons
+// are opaque by convention (white background baked in), so they only outrank
+// rel=icons declared smaller than 48px — big enough that upscaling blur beats
+// opacity. SVG icons are skipped — neither Skia nor ImageIO decodes them.
+// Ties keep reverse document order (the old behavior). Absolute href courtesy
+// of DOM.
 private val FAVICON_URL_JS = """
     (function() {
-      var out = [];
-      var push = function(links) {
+      var collect = function(sel, dflt) {
+        var out = [];
+        var links = document.querySelectorAll(sel);
         for (var i = links.length - 1; i >= 0; i--) {
           var link = links[i];
           var path = (link.href || '').split('#')[0].split('?')[0].toLowerCase();
           if (link.type === 'image/svg+xml' || path.slice(-4) === '.svg') continue;
-          out.push(link.href);
+          var best = 0;
+          var nums = ((link.getAttribute('sizes') || '').match(/\d+/g)) || [];
+          for (var j = 0; j < nums.length; j++) best = Math.max(best, parseInt(nums[j], 10));
+          out.push({ href: link.href, size: best || dflt });
         }
+        return out.sort(function(a, b) { return b.size - a.size; });
       };
-      push(document.querySelectorAll("link[rel~='icon']"));
-      push(document.querySelectorAll(
-        "link[rel='apple-touch-icon'], link[rel='apple-touch-icon-precomposed']"));
+      var icons = collect("link[rel~='icon']", 32);
+      var touch = collect(
+        "link[rel='apple-touch-icon'], link[rel='apple-touch-icon-precomposed']", 180);
+      var out = [];
+      var push = function(list) {
+        for (var i = 0; i < list.length; i++) out.push(list[i].href);
+      };
+      push(icons.filter(function(c) { return c.size >= 48; }));
+      push(touch);
+      push(icons.filter(function(c) { return c.size < 48; }));
       out.push(location.origin + '/favicon.ico');
       return out.join('\n');
     })()
