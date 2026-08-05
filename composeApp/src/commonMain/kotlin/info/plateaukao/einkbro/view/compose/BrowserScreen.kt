@@ -41,6 +41,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -91,6 +92,8 @@ import info.plateaukao.einkbro.resources.ic_highlight_color
 import info.plateaukao.einkbro.util.PlatformActions
 import info.plateaukao.einkbro.view.EBToast
 import info.plateaukao.einkbro.view.data.MenuInfo
+import info.plateaukao.einkbro.unit.ViewUnit
+import info.plateaukao.einkbro.view.dialog.BookmarkEditContent
 import info.plateaukao.einkbro.view.dialog.compose.ActionModeMenu
 import info.plateaukao.einkbro.view.dialog.compose.AuthenticationDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.BookmarksDialogContent
@@ -115,10 +118,12 @@ import info.plateaukao.einkbro.view.dialog.compose.TranslationConfigDialogConten
 import info.plateaukao.einkbro.view.dialog.compose.TtsSettingDialogContent
 import info.plateaukao.einkbro.view.handlers.MenuActionHandler
 import info.plateaukao.einkbro.view.handlers.ToolbarActionHandler
+import info.plateaukao.einkbro.view.toolbaricons.ToolbarAction
 import info.plateaukao.einkbro.view.toolbaricons.ToolbarActionInfo
 import info.plateaukao.einkbro.viewmodel.BrowserViewModel
 import info.plateaukao.einkbro.viewmodel.TRANSLATE_API
 import info.plateaukao.einkbro.viewmodel.TranslationViewModel
+import info.plateaukao.einkbro.viewmodel.TtsReadingState
 import info.plateaukao.einkbro.viewmodel.TtsViewModel
 import androidx.compose.runtime.snapshotFlow
 import info.plateaukao.einkbro.database.Record
@@ -186,6 +191,16 @@ fun BrowserScreen(
     var languageConfigApi by remember { mutableStateOf<TRANSLATE_API?>(null) }
     var tocItems by remember { mutableStateOf<List<TocItem>?>(null) }
     var toolbarRefreshTick by remember { mutableStateOf(0) }
+    // "current/total" page counter fed by the engine's scroll callback (Android
+    // BrowserActivity.updatePageInfo); shown by the PageInfo toolbar icon and
+    // the fullscreen info strip.
+    var pageInfo by remember { mutableStateOf("") }
+    // Back long-press shows only the latest N history records (Android
+    // ToolbarActionHandler maps it to OpenHistoryPage(6)); 0 = no limit.
+    var overviewHistoryAmount by remember { mutableStateOf(0) }
+    // Bookmark long-press edits title/folder before saving (Android
+    // BookmarkActionsDelegate.saveBookmark → BookmarkEditDialog).
+    var pendingBookmarkEdit by remember { mutableStateOf<Bookmark?>(null) }
 
     // Mirror of Android BrowserActivity's onSharedPreferenceChanged block: UI
     // prefs apply live. Layout prefs bump the tick, which recomposes the screen
@@ -281,6 +296,9 @@ fun BrowserScreen(
     // Session-scoped services (Phase 6): reading continues after the TTS
     // dialog closes, and translate results survive reopening the popup.
     val ttsViewModel = remember { TtsViewModel() }
+    // Drives the Tts toolbar icon's active state (Android ttsViewModel.isReading()).
+    val ttsIsReading =
+        ttsViewModel.readingState.collectAsState().value != TtsReadingState.IDLE
     var showTaskMenu by remember { mutableStateOf(false) }
     val taskRunner = remember {
         info.plateaukao.einkbro.task.TaskRunner(
@@ -578,6 +596,7 @@ fun BrowserScreen(
             // View state
             BrowserAction.ShowOverview -> {
                 overviewShowsHistory = false
+                overviewHistoryAmount = 0
                 showOverview = !showOverview
             }
             BrowserAction.ToggleFullscreen -> {
@@ -622,16 +641,18 @@ fun BrowserScreen(
             BrowserAction.OpenBookmarkPage -> showBookmarks = true
             is BrowserAction.OpenHistoryPage -> {
                 overviewShowsHistory = true
+                overviewHistoryAmount = action.amount
                 showOverview = true
             }
             is BrowserAction.SaveBookmark -> {
                 val url = action.url ?: browserViewModel.currentUrl.value
                 val title = (action.title ?: browserViewModel.currentTitle.value).ifBlank { url }
                 if (url.isNotBlank()) {
-                    scope.launch {
-                        AppServices.bookmarkManager.insert(Bookmark(title = title, url = url))
-                        EBToast.show(AppServices.context, "Bookmark saved")
-                    }
+                    pendingBookmarkEdit = Bookmark(
+                        title = title,
+                        url = url,
+                        order = if (ViewUnit.isWideLayout(AppServices.context)) 999 else 0,
+                    )
                 }
                 Unit
             }
@@ -706,6 +727,7 @@ fun BrowserScreen(
             }
             BrowserAction.ToggleSwitchTouchAreaAction -> {
                 config.touch.switchTouchAreaAction = !config.touch.switchTouchAreaAction
+                toolbarRefreshTick += 1
                 EBToast.show(
                     AppServices.context,
                     if (config.touch.switchTouchAreaAction) "Touch areas switched"
@@ -794,7 +816,10 @@ fun BrowserScreen(
             BrowserAction.ShowTocDialog -> showToc()
             BrowserAction.RotateScreen ->
                 EBToast.show(AppServices.context, "Rotate your device — iOS controls orientation")
-            BrowserAction.ToggleAudioOnlyMode -> currentHelper?.toggleAudioOnly() ?: Unit
+            BrowserAction.ToggleAudioOnlyMode -> {
+                currentHelper?.toggleAudioOnly()
+                toolbarRefreshTick += 1
+            }
             BrowserAction.ShowSiteSettingsDialog -> showSiteSettings = true
             BrowserAction.ShowUserScriptCommands -> {
                 // Short-tap parity: list this page's registered menu commands, or
@@ -808,6 +833,7 @@ fun BrowserScreen(
             BrowserAction.ToggleBoldFont -> {
                 config.display.boldFontStyle = !config.display.boldFontStyle
                 currentHelper?.updateCssStyle()
+                toolbarRefreshTick += 1
             }
             BrowserAction.ToggleBlackFont -> {
                 config.display.blackFontStyle = !config.display.blackFontStyle
@@ -819,6 +845,7 @@ fun BrowserScreen(
             }
             BrowserAction.ToggleDesktopMode -> {
                 config.browser.desktop = !config.browser.desktop
+                toolbarRefreshTick += 1
                 browserViewModel.reapplyWebConfig()
                 currentEngine?.reload()
                 EBToast.show(
@@ -828,6 +855,7 @@ fun BrowserScreen(
             }
             BrowserAction.ToggleIncognitoMode -> {
                 config.isIncognitoMode = !config.isIncognitoMode
+                toolbarRefreshTick += 1
                 EBToast.show(
                     AppServices.context,
                     if (config.isIncognitoMode) "Incognito on for new tabs"
@@ -876,13 +904,14 @@ fun BrowserScreen(
         WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     )
     LaunchedEffect(engine) {
+        pageInfo = ""
         val scrollEngine = engine ?: return@LaunchedEffect
         // The delegate fires on the main thread mid-gesture; queue the deltas
         // and consume them here so slides stay off the delegate callback and
         // the settle timeout has a suspension point to ride on.
-        val events = Channel<Triple<Int, Int, Int>>(Channel.UNLIMITED)
-        scrollEngine.setScrollChangeHandler { dy, y, maxY ->
-            events.trySend(Triple(dy, y, maxY))
+        val events = Channel<IntArray>(Channel.UNLIMITED)
+        scrollEngine.setScrollChangeHandler { dy, y, maxY, viewport ->
+            events.trySend(intArrayOf(dy, y, maxY, viewport))
         }
         // Hiding the toolbar grows the webview, which shrinks the scrollable
         // range — so a hide near the content end makes WKWebView clamp its
@@ -919,14 +948,18 @@ fun BrowserScreen(
                     continue
                 }
                 // Coalesce whatever piled up while animating/handling.
-                var (dy, y, maxY) = first
+                var (dy, y, maxY, viewport) = first
                 while (true) {
                     val more = events.tryReceive().getOrNull() ?: break
-                    dy += more.first
-                    y = more.second
-                    maxY = more.third
+                    dy += more[0]
+                    y = more[1]
+                    maxY = more[2]
+                    viewport = more[3]
                 }
                 nearBottom = y > maxY - bottomGuard
+                pageInfo = computePageInfo(
+                    y, maxY, viewport, config.touch.pageReservedOffsetInString
+                )
                 when {
                     imeVisible -> Unit
                     !config.ui.shouldHideToolbar -> toolbarHideOffset.snapTo(0f)
@@ -1316,17 +1349,43 @@ fun BrowserScreen(
                         Modifier
                     }
                 Box(slideModifier.then(bottomInset)) {
+                // Live icon active-states (Android ComposeToolbarViewController
+                // .toToolbarActionInfoList): config-backed toggles refresh via
+                // toolbarRefreshTick (bumped by their action branches), the
+                // loading and TTS states are observable and key the remember.
+                val toolbarIsLoading = browserViewModel.progress.value < 1f
                 ComposedToolbar(
                     isVertical = config.ui.isVerticalToolbar,
                     showTabs = showTabStrip && !config.ui.isVerticalToolbar,
-                    toolbarActionInfos = remember(toolbarRefreshTick) {
-                        config.ui.toolbarActions.map { ToolbarActionInfo(it, false) }
+                    toolbarActionInfos = remember(
+                        toolbarRefreshTick, toolbarIsLoading, ttsIsReading, touchPagingEnabled
+                    ) {
+                        config.ui.toolbarActions.map { action ->
+                            val active = when (action) {
+                                ToolbarAction.BoldFont -> config.display.boldFontStyle
+                                ToolbarAction.Refresh -> toolbarIsLoading
+                                ToolbarAction.Desktop -> config.browser.desktop
+                                ToolbarAction.Touch -> touchPagingEnabled
+                                ToolbarAction.TouchDirectionUpDown,
+                                ToolbarAction.TouchDirectionLeftRight ->
+                                    config.touch.switchTouchAreaAction
+                                ToolbarAction.Tts -> ttsIsReading
+                                ToolbarAction.AudioOnly ->
+                                    browserViewModel.currentHelper?.isAudioOnlyOn == true
+                                else -> false
+                            }
+                            ToolbarActionInfo(action, active)
+                        }
                     },
                     title = browserViewModel.currentTitle.value
                         .ifBlank { browserViewModel.currentUrl.value },
-                    tabCount = browserViewModel.albums.value.size.toString(),
-                    pageInfo = "",
-                    isIncognito = browserViewModel.currentAlbum?.incognito == true,
+                    tabCount = ViewUnit.createCountString(
+                        browserViewModel.focusIndex.value + 1,
+                        browserViewModel.albums.value.size,
+                    ),
+                    pageInfo = pageInfo,
+                    isIncognito = config.isIncognitoMode ||
+                        browserViewModel.currentAlbum?.incognito == true,
                     onIconClick = { toolbarActionHandler.handleClick(it) },
                     onIconLongClick = { toolbarActionHandler.handleLongClick(it) },
                     albumList = browserViewModel.albums,
@@ -1369,7 +1428,7 @@ fun BrowserScreen(
             Box(statusbarSlide) {
                 info.plateaukao.einkbro.view.statusbar.Statusbar(
                     items = config.ui.statusbarItems,
-                    pageInfo = "",
+                    pageInfo = pageInfo,
                 )
             }
         }
@@ -1495,8 +1554,16 @@ fun BrowserScreen(
                 onTabIconClick = { overviewShowsHistory = false },
                 onTabClick = { browserViewModel.showOrJumpToTop(it); showOverview = false },
                 onTabLongClick = { browserViewModel.closeTab(it) },
-                records = browserViewModel.records.value,
-                onHistoryIconClick = { overviewShowsHistory = true },
+                // Back long-press caps the list to the latest records (Android
+                // OverviewDialogController.getLatestRecords); records are
+                // newest-first (ORDER BY TIME DESC), so take() keeps the latest.
+                records = browserViewModel.records.value.let {
+                    if (overviewHistoryAmount > 0) it.take(overviewHistoryAmount) else it
+                },
+                onHistoryIconClick = {
+                    overviewShowsHistory = true
+                    overviewHistoryAmount = 0
+                },
                 onHistoryItemClick = {
                     browserViewModel.loadUrlOrSearch(it.url); showOverview = false
                 },
@@ -1585,6 +1652,18 @@ fun BrowserScreen(
                 )
             }
         }
+    }
+    // Bookmark long-press: edit title/url/folder before saving (Android
+    // BookmarkActionsDelegate.saveBookmark → BookmarkEditDialog).
+    pendingBookmarkEdit?.let { pending ->
+        BookmarkEditContent(
+            bookmark = pending,
+            okAction = {
+                pendingBookmarkEdit = null
+                EBToast.show(AppServices.context, "Bookmark saved")
+            },
+            dismissAction = { pendingBookmarkEdit = null },
+        )
     }
     if (showFontDialog) {
         Dialog(
@@ -2246,6 +2325,34 @@ private fun JsPanelDialogContent(
 /** Drops the query string and fragment (Android BrowserUnit.stripUrlQuery). */
 private fun stripUrlQuery(url: String): String =
     url.substringBefore('?').substringBefore('#')
+
+/**
+ * "current/total" page counter (Android WebViewNavigationHelper.updatePageInfo,
+ * plain-scroll branch). The page unit is the viewport minus the page-turn
+ * reserved overlap — the same stride the touch-paging buttons scroll by — and
+ * total is the content height in those units (integer division, as on
+ * Android). Pages that fit the viewport read "1/1".
+ */
+private fun computePageInfo(
+    y: Int,
+    maxY: Int,
+    viewport: Int,
+    reservedOffset: String,
+): String {
+    if (viewport <= 0) return ""
+    val pageHeight = if (reservedOffset.endsWith('%')) {
+        val pct = reservedOffset.dropLast(1).toIntOrNull() ?: 0
+        viewport * (100 - pct) / 100
+    } else {
+        viewport - (reservedOffset.toIntOrNull() ?: 0)
+    }
+    if (pageHeight <= 0) return ""
+    if (maxY <= 0) return "1/1"
+    val total = (maxY + viewport) / pageHeight
+    val current = (y + pageHeight) / pageHeight // == ceil((y + 1) / pageHeight)
+    val info = "$current/$total"
+    return if (info != "0/0") info else "-/-"
+}
 
 private val tocJson = Json { ignoreUnknownKeys = true }
 

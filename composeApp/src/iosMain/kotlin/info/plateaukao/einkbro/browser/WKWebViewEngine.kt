@@ -480,7 +480,7 @@ class WKWebViewEngine(
 
     private var scrollDelegate: ScrollObserver? = null
 
-    override fun setScrollChangeHandler(handler: ((Int, Int, Int) -> Unit)?) {
+    override fun setScrollChangeHandler(handler: ((Int, Int, Int, Int) -> Unit)?) {
         if (handler == null) {
             webView.scrollView.delegate = null
             scrollDelegate = null
@@ -618,6 +618,9 @@ class WKWebViewEngine(
     internal fun notifyFinished() {
         // End the pull-to-refresh spinner once the load completes.
         webView.scrollView.refreshControl?.endRefreshing()
+        // Seed the page counter: without a ping the toolbar/statusbar PageInfo
+        // stays blank until the first scroll event.
+        scrollDelegate?.ping(webView.scrollView)
         stopProgressTimer()
         listener.onProgressChanged(this, 1f)
         listener.onTitleChanged(this, webView.title ?: "")
@@ -1093,7 +1096,7 @@ private class RefreshTarget(private val onRefresh: () -> Unit) : NSObject() {
 /** Streams vertical scroll deltas for the auto-hide-toolbar pref. */
 @OptIn(ExperimentalForeignApi::class)
 private class ScrollObserver(
-    private val onScroll: (Int, Int, Int) -> Unit,
+    private val onScroll: (Int, Int, Int, Int) -> Unit,
 ) : NSObject(), platform.UIKit.UIScrollViewDelegateProtocol {
     private var lastY = 0.0
     // Sub-point remainder carried into the next event: a slow drag delivers
@@ -1103,6 +1106,19 @@ private class ScrollObserver(
     private var residual = 0.0
 
     override fun scrollViewDidScroll(scrollView: platform.UIKit.UIScrollView) {
+        report(scrollView)
+    }
+
+    /** Re-emits the current position with deltaY=0 (page-load ping for the
+     *  page counter) without disturbing the delta bookkeeping. */
+    fun ping(scrollView: platform.UIKit.UIScrollView) {
+        report(scrollView, pingOnly = true)
+    }
+
+    private fun report(
+        scrollView: platform.UIKit.UIScrollView,
+        pingOnly: Boolean = false,
+    ) {
         // Normalize so 0 is the resting top regardless of adjusted insets, and
         // clamp to the scrollable range: rubber-band overshoot then contributes
         // no deltas, so the top/bottom bounce can't wiggle the toolbar slide.
@@ -1113,12 +1129,19 @@ private class ScrollObserver(
         val viewHeight = scrollView.bounds.useContents { this.size.height }
         val maxY = (contentHeight + topInset + bottomInset - viewHeight)
             .coerceAtLeast(0.0)
+        val viewport = (viewHeight - topInset - bottomInset).coerceAtLeast(0.0)
         val y = (rawY + topInset).coerceIn(0.0, maxY)
         val exact = y - lastY + residual
         lastY = y
-        val dy = exact.toInt()
-        residual = exact - dy
-        onScroll(dy, y.toInt(), maxY.toInt())
+        val dy: Int
+        if (pingOnly) {
+            dy = 0
+            residual = 0.0
+        } else {
+            dy = exact.toInt()
+            residual = exact - dy
+        }
+        onScroll(dy, y.toInt(), maxY.toInt(), viewport.toInt())
     }
 }
 

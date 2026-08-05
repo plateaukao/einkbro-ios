@@ -108,7 +108,9 @@ class UiConfig(private val context: Context, private val sp: SharedPreferences) 
                 if (shouldUseLargeToolbarConfig) K_TOOLBAR_ICONS_FOR_LARGE else K_TOOLBAR_ICONS
             val iconListString =
                 sp.getString(key, sp.getString(K_TOOLBAR_ICONS, getDefaultIconStrings())).orEmpty()
-            return iconStringToEnumList(iconListString)
+            // Drop actions no longer offered on the main bar (e.g. RotateScreen,
+            // MoveToBackground) from configs persisted before they were retired.
+            return iconStringToEnumList(iconListString).filter { it.isAddable }
         }
         set(value) {
             sp.edit {

@@ -204,7 +204,7 @@ fun ToolbarConfigPanel(
                 ) {
                     val selectedActions = list.value.map { it.toolbarAction }
                     val otherActionInfos = ToolbarAction.entries
-                        .filter { it !in selectedActions }
+                        .filter { it.isAddable && it !in selectedActions }
                         .toToolbarActionInfoList()
                     itemsIndexed(otherActionInfos) { index, info ->
                         AvailableActionItem(info) { onAddAction(info) }
@@ -278,7 +278,7 @@ private fun HorizontalConfigContent(
                 ) {
                     val selectedActions = list.value.map { it.toolbarAction }
                     val otherActionInfos = ToolbarAction.entries
-                        .filter { it !in selectedActions }
+                        .filter { it.isAddable && it !in selectedActions }
                         .toToolbarActionInfoList()
                     itemsIndexed(otherActionInfos) { index, info ->
                         AvailableActionItem(info) { onAddAction(info) }

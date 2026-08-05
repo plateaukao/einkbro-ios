@@ -92,13 +92,17 @@ interface WebViewEngine {
     fun setAnalyticsBlockEnabled(enabled: Boolean) {}
 
     /**
-     * Reports vertical scrolls: (deltaY, offsetY, maxOffsetY) in points, with
-     * offsetY normalized (0 = resting top) and clamped to [0, maxOffsetY] so
-     * rubber-band overscroll yields no deltas. maxOffsetY is the scrollable
-     * extent, letting the consumer apply Android's near-bottom cutoff
-     * (ChromeSetupDelegate scrollChange). Used for the auto-hide-toolbar pref.
+     * Reports vertical scrolls: (deltaY, offsetY, maxOffsetY, viewportHeight)
+     * in points, with offsetY normalized (0 = resting top) and clamped to
+     * [0, maxOffsetY] so rubber-band overscroll yields no deltas. maxOffsetY is
+     * the scrollable extent, letting the consumer apply Android's near-bottom
+     * cutoff (ChromeSetupDelegate scrollChange). viewportHeight is the visible
+     * content height (bounds minus adjusted insets), the page unit for the
+     * PageInfo counter. Also fired once with deltaY=0 when a page finishes
+     * loading, so the counter has a value before the first scroll. Used for
+     * the auto-hide-toolbar pref and the toolbar/statusbar page counter.
      */
-    fun setScrollChangeHandler(handler: ((Int, Int, Int) -> Unit)?) {}
+    fun setScrollChangeHandler(handler: ((Int, Int, Int, Int) -> Unit)?) {}
 
     /**
      * Installs a two-finger swipe recognizer on the native web view (parity

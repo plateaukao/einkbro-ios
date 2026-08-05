@@ -91,7 +91,12 @@ enum class ToolbarAction(
     DecreaseFont(imageVector = Icons.Outlined.TextDecrease, titleResId = Res.string.font_size_decrease),
     FullScreen(imageVector = Icons.Outlined.Fullscreen, titleResId = Res.string.fullscreen),
     Forward(imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight, titleResId = Res.string.forward),
-    RotateScreen(imageVector = Icons.AutoMirrored.Outlined.RotateRight, titleResId = Res.string.rotate),
+    // iOS controls orientation itself; not offered on the toolbar (ordinal kept).
+    RotateScreen(
+        imageVector = Icons.AutoMirrored.Outlined.RotateRight,
+        titleResId = Res.string.rotate,
+        isAddable = false,
+    ),
     Translation(imageVector = Icons.Outlined.Translate, titleResId = Res.string.translate),
     CloseTab(imageVector = Icons.Outlined.CancelPresentation, titleResId = Res.string.close_tab),
     InputUrl(imageVector = Icons.Outlined.ModeEdit, titleResId = Res.string.input_url),
@@ -126,9 +131,11 @@ enum class ToolbarAction(
         imageVector = Icons.AutoMirrored.Outlined.Segment,
         titleResId = Res.string.inter_translate
     ),
+    // iOS apps can't background themselves; not offered on the toolbar (ordinal kept).
     MoveToBackground(
         imageVector = Icons.Outlined.Minimize,
-        titleResId = Res.string.move_to_background
+        titleResId = Res.string.move_to_background,
+        isAddable = false,
     ),
     TouchDirectionUpDown(
         imageVector = Icons.Outlined.SwipeVertical,
