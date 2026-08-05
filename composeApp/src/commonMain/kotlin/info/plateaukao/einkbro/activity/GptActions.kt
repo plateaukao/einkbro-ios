@@ -48,6 +48,7 @@ import info.plateaukao.einkbro.preference.ChatGPTActionInfo
 import info.plateaukao.einkbro.preference.GptActionDisplay
 import info.plateaukao.einkbro.preference.GptActionScope
 import info.plateaukao.einkbro.preference.GptActionType
+import info.plateaukao.einkbro.preference.ReasoningEffort
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.empty_whitelist_hint
 import info.plateaukao.einkbro.resources.gpt_action_drag_handle
@@ -56,6 +57,12 @@ import info.plateaukao.einkbro.resources.gpt_scope
 import info.plateaukao.einkbro.resources.gpt_scope_text_selection
 import info.plateaukao.einkbro.resources.gpt_scope_whole_page
 import info.plateaukao.einkbro.resources.ic_chat_gpt
+import info.plateaukao.einkbro.resources.reasoning_high
+import info.plateaukao.einkbro.resources.reasoning_low
+import info.plateaukao.einkbro.resources.reasoning_medium
+import info.plateaukao.einkbro.resources.reasoning_off
+import info.plateaukao.einkbro.resources.setting_title_reasoning
+import info.plateaukao.einkbro.resources.system_default
 import info.plateaukao.einkbro.resources.ic_gemini
 import info.plateaukao.einkbro.resources.ic_ollama
 import info.plateaukao.einkbro.resources.list_empty
@@ -330,6 +337,9 @@ fun GptActionDialog(
     val currentActionScope = remember(editActionIndex, action) {
         mutableStateOf(if (isEdit) action.scope else GptActionScope.TextSelection)
     }
+    val currentReasoning = remember(editActionIndex, action) {
+        mutableStateOf(if (isEdit) action.reasoning else ReasoningEffort.Default)
+    }
     val model = remember(editActionIndex, action) { mutableStateOf(action.model) }
 
     AlertDialog(
@@ -438,6 +448,31 @@ fun GptActionDialog(
                         }
                     }
                 }
+                Text(
+                    modifier = Modifier.padding(5.dp),
+                    text = stringResource(Res.string.setting_title_reasoning),
+                    style = MaterialTheme.typography.h6,
+                    color = MaterialTheme.colors.onBackground
+                )
+                FlowRow {
+                    ReasoningEffort.entries.map { reasoningEffort ->
+                        val isSelect = currentReasoning.value == reasoningEffort
+                        val effortLabel = when (reasoningEffort) {
+                            ReasoningEffort.Default -> stringResource(Res.string.system_default)
+                            ReasoningEffort.Off -> stringResource(Res.string.reasoning_off)
+                            ReasoningEffort.Low -> stringResource(Res.string.reasoning_low)
+                            ReasoningEffort.Medium -> stringResource(Res.string.reasoning_medium)
+                            ReasoningEffort.High -> stringResource(Res.string.reasoning_high)
+                        }
+                        SelectableText(
+                            modifier = Modifier.padding(horizontal = 1.dp, vertical = 3.dp),
+                            selected = isSelect,
+                            text = effortLabel,
+                        ) {
+                            currentReasoning.value = reasoningEffort
+                        }
+                    }
+                }
             }
         },
         onDismissRequest = { dismissAction() },
@@ -453,6 +488,7 @@ fun GptActionDialog(
                             model.value,
                             currentActionDisplay.value,
                             currentActionScope.value,
+                            reasoning = currentReasoning.value,
                         )
                     )
                 }

@@ -11,8 +11,24 @@ data class ChatGPTActionInfo (
     val model: String = "",
     val display: GptActionDisplay = GptActionDisplay.Popup,
     val scope: GptActionScope = GptActionScope.TextSelection,
+    val reasoning: ReasoningEffort = ReasoningEffort.Default,
     val id: String = kotlin.random.Random.nextBytes(16).joinToString("") { b -> b.toUByte().toString(16).padStart(2, '0') },
 )
+
+/**
+ * Reasoning/thinking effort for AI requests. On an action, [Default] means
+ * "follow the global Gen AI setting"; on the global setting itself it means
+ * "model default" — no reasoning parameter is sent at all, which matches the
+ * app's behavior before this setting existed.
+ */
+@Serializable
+enum class ReasoningEffort {
+    Default,
+    Off,
+    Low,
+    Medium,
+    High,
+}
 
 @Serializable
 enum class GptActionType {

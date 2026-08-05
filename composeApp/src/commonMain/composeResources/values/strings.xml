@@ -690,4 +690,11 @@
     <string name="test_connection_testing">Testing…</string>
     <string name="test_connection_success">Connection OK (%1$s)</string>
     <string name="test_connection_failed">Connection failed: %1$s</string>
+    <string name="setting_title_reasoning">Reasoning effort</string>
+    <string name="setting_summary_reasoning">Thinking effort for AI requests; each AI action can override it</string>
+    <string name="reasoning_model_default">Model default</string>
+    <string name="reasoning_off">Off</string>
+    <string name="reasoning_low">Low</string>
+    <string name="reasoning_medium">Medium</string>
+    <string name="reasoning_high">High</string>
 </resources>

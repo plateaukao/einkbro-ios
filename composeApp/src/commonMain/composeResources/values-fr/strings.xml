@@ -549,4 +549,11 @@
     <string name="test_connection_testing">Test en cours…</string>
     <string name="test_connection_success">Connexion OK (%1$s)</string>
     <string name="test_connection_failed">Échec de la connexion : %1$s</string>
+    <string name="setting_title_reasoning">Effort de raisonnement</string>
+    <string name="setting_summary_reasoning">Effort de réflexion pour les requêtes IA ; chaque action IA peut le remplacer</string>
+    <string name="reasoning_model_default">Défaut du modèle</string>
+    <string name="reasoning_off">Désactivé</string>
+    <string name="reasoning_low">Faible</string>
+    <string name="reasoning_medium">Moyen</string>
+    <string name="reasoning_high">Élevé</string>
 </resources>

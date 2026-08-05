@@ -99,7 +99,9 @@ Volume-key paging & volume-back (no API); vi bindings & e-ink DEEP image mode
 share-to-last-target, forced rotation (constrained), new-window/ExtraBrowser,
 default text-selection menu, UA client-hints, drag-URL-to-action, autofill
 switch, form-autofill; MHT/save-for-later lossy → webarchive; cookie gating via
-content-rules (approximate).
+content-rules (approximate); translate-image API key (`imageApiKey`) — dropped
+with the Papago provider removal (2026-07, decided 2026-08-05), so a Papago
+OCR port would need to re-add it.
 
 ## Suggested order for future sessions
 

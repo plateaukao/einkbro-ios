@@ -63,6 +63,19 @@ fun buildChatGptSettingItems(deps: SettingScreenDeps): List<SettingItemInterface
                 Res.string.google_gemini
             )
         ),
+        ListSettingWithEnumItem(
+            Res.string.setting_title_reasoning,
+            null,
+            Res.string.setting_summary_reasoning,
+            config.ai::reasoningEffort,
+            listOf(
+                Res.string.reasoning_model_default,
+                Res.string.reasoning_off,
+                Res.string.reasoning_low,
+                Res.string.reasoning_medium,
+                Res.string.reasoning_high
+            )
+        ),
         NavigateSettingItem(
             Res.string.openai,
             destination = SettingRoute.GptOpenAi,

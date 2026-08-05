@@ -25,6 +25,11 @@ data class ToolChatRequest(
     val tools: List<ToolDefinition>? = null,
     @SerialName("tool_choice") val toolChoice: String? = null,
     val stream: Boolean = false,
+    // Reasoning controls; null values are omitted from the JSON (explicitNulls
+    // is off for this file's encoder). Android OpenAiRepository.chatWithTools parity.
+    @SerialName("reasoning_effort") val reasoningEffort: String? = null,
+    @SerialName("enable_thinking") val enableThinking: Boolean? = null,
+    @SerialName("chat_template_kwargs") val chatTemplateKwargs: ChatTemplateKwargs? = null,
 )
 
 @Serializable
@@ -77,11 +82,19 @@ suspend fun OpenAiRepository.chatWithTools(
         "https://api.openai.com"
     }
     val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
+    // The enable_thinking pair is self-hosted-only: api.openai.com rejects
+    // requests with parameters it doesn't know.
+    val effort = config.ai.resolveReasoningEffort(gptActionInfo)
+    val enableThinking =
+        if (gptActionInfo.actionType == GptActionType.SelfHosted) effort.toEnableThinking() else null
     val payload = ToolChatRequest(
         model = gptActionInfo.model,
         messages = messages,
         tools = tools,
         toolChoice = "auto",
+        reasoningEffort = effort.toOpenAiEffort(),
+        enableThinking = enableThinking,
+        chatTemplateKwargs = enableThinking?.let { ChatTemplateKwargs(it) },
     )
     val response = HttpClientProvider.client.post("$serverUrl/v1/chat/completions") {
         contentType(ContentType.Application.Json)

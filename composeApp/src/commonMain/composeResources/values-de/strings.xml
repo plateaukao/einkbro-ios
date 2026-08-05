@@ -541,4 +541,11 @@ Dies zu deaktivieren ist sicherer, schneller und spart Datenvolumen. Manche Inha
     <string name="test_connection_testing">Wird getestet…</string>
     <string name="test_connection_success">Verbindung OK (%1$s)</string>
     <string name="test_connection_failed">Verbindung fehlgeschlagen: %1$s</string>
+    <string name="setting_title_reasoning">Denkaufwand</string>
+    <string name="setting_summary_reasoning">Denkaufwand für KI-Anfragen; jede KI-Aktion kann ihn überschreiben</string>
+    <string name="reasoning_model_default">Modellstandard</string>
+    <string name="reasoning_off">Aus</string>
+    <string name="reasoning_low">Niedrig</string>
+    <string name="reasoning_medium">Mittel</string>
+    <string name="reasoning_high">Hoch</string>
 </resources>

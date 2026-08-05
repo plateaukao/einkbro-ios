@@ -605,4 +605,11 @@
     <string name="test_connection_testing">测试中…</string>
     <string name="test_connection_success">连接正常（%1$s）</string>
     <string name="test_connection_failed">连接失败：%1$s</string>
+    <string name="setting_title_reasoning">推理强度</string>
+    <string name="setting_summary_reasoning">AI 请求的思考强度；每个 AI 动作可单独覆盖</string>
+    <string name="reasoning_model_default">模型默认</string>
+    <string name="reasoning_off">关闭</string>
+    <string name="reasoning_low">低</string>
+    <string name="reasoning_medium">中</string>
+    <string name="reasoning_high">高</string>
 </resources>

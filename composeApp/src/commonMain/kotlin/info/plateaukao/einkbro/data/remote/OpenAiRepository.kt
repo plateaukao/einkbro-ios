@@ -4,6 +4,7 @@ import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.preference.ChatGPTActionInfo
 import info.plateaukao.einkbro.preference.ConfigManager
 import info.plateaukao.einkbro.preference.GptActionType
+import info.plateaukao.einkbro.preference.ReasoningEffort
 import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.header
@@ -69,6 +70,27 @@ class OpenAiRepository(
         null
     }
 
+    /** Chat request with the resolved reasoning effort applied (Android
+     *  createCompletionRequest). The enable_thinking pair is self-hosted-only:
+     *  api.openai.com rejects requests with parameters it doesn't know. */
+    private fun buildChatRequest(
+        messages: List<ChatMessage>,
+        gptActionInfo: ChatGPTActionInfo,
+        stream: Boolean = false,
+    ): ChatRequest {
+        val effort = config.ai.resolveReasoningEffort(gptActionInfo)
+        val isSelfHosted = gptActionInfo.actionType == GptActionType.SelfHosted
+        val enableThinking = if (isSelfHosted) effort.toEnableThinking() else null
+        return ChatRequest(
+            model = gptActionInfo.model,
+            messages = messages,
+            stream = stream,
+            reasoningEffort = effort.toOpenAiEffort(),
+            enableThinking = enableThinking,
+            chatTemplateKwargs = enableThinking?.let { ChatTemplateKwargs(it) },
+        )
+    }
+
     suspend fun chatCompletion(
         messages: List<ChatMessage>,
         gptActionInfo: ChatGPTActionInfo,
@@ -76,7 +98,12 @@ class OpenAiRepository(
         val response = client.post("${getServerUrl(gptActionInfo.actionType)}$COMPLETION_PATH") {
             contentType(ContentType.Application.Json)
             header("Authorization", "Bearer ${config.ai.gptApiKey}")
-            setBody(json.encodeToString(ChatRequest.serializer(), ChatRequest(gptActionInfo.model, messages)))
+            setBody(
+                json.encodeToString(
+                    ChatRequest.serializer(),
+                    buildChatRequest(messages, gptActionInfo),
+                )
+            )
         }
         if (response.status.value != 200) null
         else json.decodeFromString(ChatCompletion.serializer(), response.bodyAsText())
@@ -121,7 +148,7 @@ class OpenAiRepository(
                     setBody(
                         json.encodeToString(
                             ChatRequest.serializer(),
-                            ChatRequest(gptActionInfo.model, messages, stream = true),
+                            buildChatRequest(messages, gptActionInfo, stream = true),
                         )
                     )
                 }.execute { response ->
@@ -196,6 +223,18 @@ class OpenAiRepository(
                                 GeminiSafetySetting("HARM_CATEGORY_HARASSMENT", "BLOCK_ONLY_HIGH"),
                                 GeminiSafetySetting("HARM_CATEGORY_DANGEROUS_CONTENT", "BLOCK_NONE"),
                             ),
+                            // Thought parts are filtered from the reply below, so
+                            // includeThoughts only signals "still thinking" work.
+                            generationConfig = config.ai.resolveReasoningEffort(gptActionInfo)
+                                .toGeminiThinkingBudget()
+                                ?.let {
+                                    GeminiGenerationConfig(
+                                        GeminiThinkingConfig(
+                                            thinkingBudget = it,
+                                            includeThoughts = it > 0,
+                                        )
+                                    )
+                                },
                         ),
                     )
                 )
@@ -234,7 +273,7 @@ class OpenAiRepository(
                 setBody(
                     json.encodeToString(
                         ChatRequest.serializer(),
-                        ChatRequest(gptActionInfo.model, messages),
+                        buildChatRequest(messages, gptActionInfo),
                     )
                 )
             }
@@ -259,6 +298,30 @@ class OpenAiRepository(
     private fun getServerUrl(gptActionType: GptActionType): String =
         if (gptActionType == GptActionType.SelfHosted) config.ai.gptUrl
         else "https://api.openai.com"
+
+    internal fun ReasoningEffort.toOpenAiEffort(): String? = when (this) {
+        ReasoningEffort.Default -> null
+        ReasoningEffort.Off -> "none"
+        ReasoningEffort.Low -> "low"
+        ReasoningEffort.Medium -> "medium"
+        ReasoningEffort.High -> "high"
+    }
+
+    internal fun ReasoningEffort.toEnableThinking(): Boolean? = when (this) {
+        ReasoningEffort.Default -> null
+        ReasoningEffort.Off -> false
+        else -> true
+    }
+
+    // thinkingBudget in tokens: 0 disables thinking; the tiers follow the
+    // low/medium/high budgets Google uses for its own effort mapping.
+    private fun ReasoningEffort.toGeminiThinkingBudget(): Int? = when (this) {
+        ReasoningEffort.Default -> null
+        ReasoningEffort.Off -> 0
+        ReasoningEffort.Low -> 1024
+        ReasoningEffort.Medium -> 8192
+        ReasoningEffort.High -> 24576
+    }
 
     companion object {
         private const val COMPLETION_PATH = "/v1/chat/completions"

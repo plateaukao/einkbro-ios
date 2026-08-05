@@ -603,4 +603,11 @@
     <string name="test_connection_testing">테스트 중…</string>
     <string name="test_connection_success">연결 성공 (%1$s)</string>
     <string name="test_connection_failed">연결 실패: %1$s</string>
+    <string name="setting_title_reasoning">추론 강도</string>
+    <string name="setting_summary_reasoning">AI 요청의 사고 강도이며, 각 AI 동작에서 재정의할 수 있습니다</string>
+    <string name="reasoning_model_default">모델 기본값</string>
+    <string name="reasoning_off">끄기</string>
+    <string name="reasoning_low">낮음</string>
+    <string name="reasoning_medium">중간</string>
+    <string name="reasoning_high">높음</string>
 </resources>

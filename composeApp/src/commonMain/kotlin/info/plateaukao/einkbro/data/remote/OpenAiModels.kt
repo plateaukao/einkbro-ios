@@ -37,6 +37,20 @@ data class ChatRequest(
     val model: String,
     val messages: List<ChatMessage>,
     val stream: Boolean = false,
+    // Reasoning controls. All default to null and are then omitted from the
+    // JSON, keeping the pre-existing wire format for requests that leave
+    // reasoning at "model default". (Android OpenAiRepository parity.)
+    @SerialName("reasoning_effort") val reasoningEffort: String? = null,
+    @SerialName("enable_thinking") val enableThinking: Boolean? = null,
+    @SerialName("chat_template_kwargs") val chatTemplateKwargs: ChatTemplateKwargs? = null,
+)
+
+// Qwen3-style thinking switch for self-hosted servers: vLLM/SGLang/llama.cpp
+// take it inside chat_template_kwargs, DashScope-like servers take
+// enable_thinking at the top level; sending both covers both.
+@Serializable
+data class ChatTemplateKwargs(
+    @SerialName("enable_thinking") val enableThinking: Boolean,
 )
 
 @Serializable
@@ -93,7 +107,15 @@ data class TTSRequest(
 data class GeminiRequestData(
     val contents: List<GeminiContent>,
     val safety_settings: List<GeminiSafetySetting> = emptyList(),
+    // null = omit thinkingConfig entirely and let the model use its default.
+    val generationConfig: GeminiGenerationConfig? = null,
 )
+
+@Serializable
+data class GeminiThinkingConfig(val thinkingBudget: Int, val includeThoughts: Boolean = false)
+
+@Serializable
+data class GeminiGenerationConfig(val thinkingConfig: GeminiThinkingConfig)
 
 @Serializable
 data class GeminiContent(

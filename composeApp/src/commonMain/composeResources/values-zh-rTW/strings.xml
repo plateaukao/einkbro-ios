@@ -597,4 +597,11 @@
     <string name="test_connection_testing">測試中…</string>
     <string name="test_connection_success">連線正常（%1$s）</string>
     <string name="test_connection_failed">連線失敗：%1$s</string>
+    <string name="setting_title_reasoning">推理強度</string>
+    <string name="setting_summary_reasoning">AI 請求的思考強度；每個 AI 動作可個別覆寫</string>
+    <string name="reasoning_model_default">模型預設</string>
+    <string name="reasoning_off">關閉</string>
+    <string name="reasoning_low">低</string>
+    <string name="reasoning_medium">中</string>
+    <string name="reasoning_high">高</string>
 </resources>
