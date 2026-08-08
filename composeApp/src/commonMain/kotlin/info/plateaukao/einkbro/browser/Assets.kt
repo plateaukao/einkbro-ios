@@ -80,6 +80,9 @@ object Assets {
         "userscript_runtime.js",
         // EPUB export (Phase I): capture the page as a chapter (reader XHTML + images).
         "get_epub_chapter.js",
+        // Built-in start page (shared verbatim with Android's assets/start_page.html);
+        // StartPageRenderer fills the {{...}} placeholders.
+        "start_page.html",
         // Chat-with-web page (shared verbatim with Android's assets/chat.html)
         // plus its bundled markdown renderer; materialized to a directory by
         // ChatWebInterface so relative script URLs resolve from a file load.

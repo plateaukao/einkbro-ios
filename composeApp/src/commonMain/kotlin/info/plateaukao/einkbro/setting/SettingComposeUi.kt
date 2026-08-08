@@ -297,7 +297,13 @@ fun <T : Enum<T>> ListSettingItemUi(
 ) {
     val context = LocalContext.current
     var currentValueString =
-        remember(setting) { mutableStateOf(context.getString(setting.options[setting.config.get().ordinal])) }
+        // Look up by values, not ordinal: an item may offer a subset of the
+        // enum (e.g. new-tab behavior hides SHOW_RECENT_BOOKMARKS) while the
+        // enum keeps its ordinals for persistence parity with Android.
+        remember(setting) {
+            val index = setting.values.indexOf(setting.config.get())
+            mutableStateOf(context.getString(setting.options[index.coerceAtLeast(0)]))
+        }
     val coroutineScope = rememberCoroutineScope()
     SettingItemUi(
         setting = setting,
@@ -308,7 +314,7 @@ fun <T : Enum<T>> ListSettingItemUi(
             val selectedIndex = dialogManager.getSelectedOption(
                 setting.titleResId,
                 setting.options,
-                setting.config.get().ordinal
+                setting.values.indexOf(setting.config.get())
             ) ?: return@launch
             // javaClass.enumConstants isn't available in common code; the item
             // carries its enum constants (see ListSettingWithEnumItem factory).

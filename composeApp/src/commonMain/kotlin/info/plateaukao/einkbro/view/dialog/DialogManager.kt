@@ -23,9 +23,12 @@ class DialogManager(private val context: Context = Context()) {
     )
 
     class SelectOptionRequest(
-        val title: String,
+        val title: String?,
         val options: List<String>,
         val selectedIndex: Int,
+        /** Plain tappable rows: no title bar clutter, no radio buttons
+         *  (Android StartPageItemDialog.showPlainListDialog). */
+        val plain: Boolean = false,
         val onResult: (Int?) -> Unit,
     )
 
@@ -97,6 +100,25 @@ class DialogManager(private val context: Context = Context()) {
             title = blockingString(titleId),
             options = listSettings,
             selectedIndex = defaultValue,
+        ) { result ->
+            pendingSelectOption.value = null
+            if (cont.isActive) cont.resume(result)
+        }
+        cont.invokeOnCancellation { pendingSelectOption.value = null }
+    }
+
+    /** Plain tappable rows (no radio buttons; no title row when [title] is
+     *  null) — Android StartPageItemDialog.showPlainListDialog. Cancelling
+     *  (tap outside) resumes null. */
+    suspend fun getPlainListSelection(
+        title: String?,
+        names: List<String>,
+    ): Int? = suspendCancellableCoroutine { cont ->
+        pendingSelectOption.value = SelectOptionRequest(
+            title = title,
+            options = names,
+            selectedIndex = -1,
+            plain = true,
         ) { result ->
             pendingSelectOption.value = null
             if (cont.isActive) cont.resume(result)

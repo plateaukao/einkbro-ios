@@ -1,6 +1,7 @@
 package info.plateaukao.einkbro.setting.screens
 
 import info.plateaukao.einkbro.preference.FabPosition
+import info.plateaukao.einkbro.preference.NewTabBehavior
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.*
 import info.plateaukao.einkbro.setting.ActionSettingItem
@@ -142,6 +143,9 @@ fun buildUiSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
                 Res.string.setting_summary_nav_pos_custom,
             )
         ),
+        // Recent-bookmarks is retired from the picker (the start page is its
+        // successor); the enum entry stays so persisted ordinals keep matching
+        // Android, and a legacy pref still dispatches in BrowserScreen.
         ListSettingWithEnumItem(
             Res.string.setting_title_plus_behavior,
             null,
@@ -150,8 +154,13 @@ fun buildUiSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
             listOf(
                 Res.string.plus_start_input_url,
                 Res.string.plus_show_homepage,
-                Res.string.plus_show_bookmarks,
-            )
+                Res.string.plus_show_start_page,
+            ),
+            values = listOf(
+                NewTabBehavior.START_INPUT,
+                NewTabBehavior.SHOW_HOME,
+                NewTabBehavior.SHOW_START_PAGE,
+            ),
         ),
         ActionSettingItem(
             Res.string.setting_clear_recent_bookmarks,

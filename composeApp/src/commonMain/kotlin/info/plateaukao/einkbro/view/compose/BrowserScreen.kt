@@ -524,6 +524,10 @@ fun BrowserScreen(
                         showBookmarks = true
                     }
                 }
+                info.plateaukao.einkbro.preference.NewTabBehavior.SHOW_START_PAGE ->
+                    browserViewModel.newTab(
+                        info.plateaukao.einkbro.util.Constants.START_PAGE_URL
+                    )
             }
             BrowserAction.DuplicateTab ->
                 browserViewModel.newTab(browserViewModel.currentUrl.value)
@@ -1211,11 +1215,15 @@ fun BrowserScreen(
             }
 
             if (showUrlInput) {
+                // Android InputBarDelegate: in-app pages (start page, error
+                // page) don't prefill the input bar with their fake url.
+                val prefill = browserViewModel.currentUrl.value
+                    .takeUnless { it.startsWith("einkbro://") }.orEmpty()
                 val text = remember {
                     mutableStateOf(
                         TextFieldValue(
-                            browserViewModel.currentUrl.value,
-                            selection = TextRange(0, browserViewModel.currentUrl.value.length),
+                            prefill,
+                            selection = TextRange(0, prefill.length),
                         )
                     )
                 }
@@ -2138,6 +2146,25 @@ fun BrowserScreen(
                     onDismiss = { showTaskMenu = false },
                 )
             }
+        }
+    }
+
+    // Start page: einkbro://focus_input opens the native URL input bar;
+    // einkbro://add_start_item runs the add/delete-tile dialog flow.
+    LaunchedEffect(browserViewModel.pendingFocusInput.value) {
+        if (browserViewModel.pendingFocusInput.value) {
+            browserViewModel.pendingFocusInput.value = false
+            showUrlInput = true
+        }
+    }
+    LaunchedEffect(browserViewModel.pendingStartPageAdd.value) {
+        val engine = browserViewModel.pendingStartPageAdd.value ?: return@LaunchedEffect
+        // Reset only after the dialog flow finishes: clearing the state first
+        // would restart this effect and cancel the suspended dialog request.
+        try {
+            info.plateaukao.einkbro.view.dialog.StartPageItemDialog(engine).show()
+        } finally {
+            browserViewModel.pendingStartPageAdd.value = null
         }
     }
 

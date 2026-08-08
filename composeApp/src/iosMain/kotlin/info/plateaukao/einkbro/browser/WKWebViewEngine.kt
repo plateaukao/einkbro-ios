@@ -7,6 +7,7 @@ import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.view.EBToast
 import platform.Foundation.NSDate
 import platform.Foundation.timeIntervalSince1970
+import info.plateaukao.einkbro.util.Constants
 import info.plateaukao.einkbro.util.FileStore
 import info.plateaukao.einkbro.view.Album
 import kotlin.math.abs
@@ -222,6 +223,13 @@ class WKWebViewEngine(
     }
 
     override fun loadUrl(url: String) {
+        // Android EBWebView.loadUrl: the sentinel renders the built-in start
+        // page instead of fetching anything (new-tab pref, home, tab restore).
+        if (url == Constants.START_PAGE_URL) {
+            album.isLoaded = true
+            StartPageRenderer.loadStartPage(this)
+            return
+        }
         val nsUrl = NSURL.URLWithString(url) ?: return
         // Pre-redirect host of this load; fetchFavicon consumes it so the icon
         // is also keyed the way Android keys it (originalUrl.host — the host a
@@ -244,8 +252,8 @@ class WKWebViewEngine(
         notifyStarted()
     }
 
-    override fun loadHtml(html: String) {
-        webView.loadHTMLString(html, baseURL = null)
+    override fun loadHtml(html: String, baseUrl: String?) {
+        webView.loadHTMLString(html, baseURL = baseUrl?.let { NSURL.URLWithString(it) })
         notifyStarted()
     }
 
@@ -728,6 +736,10 @@ class WKWebViewEngine(
 
     internal fun reportUserScriptInstall(url: String) =
         listener.onUserScriptInstallRequested(this, url)
+
+    internal fun reportFocusInput() = listener.onFocusInputRequested(this)
+
+    internal fun reportStartPageAddItem() = listener.onStartPageAddItemRequested(this)
 }
 
 // Of the same-selector-family navigation callbacks (didStart/didCommit/
@@ -791,8 +803,21 @@ private class NavigationDelegate(
             if (!engine.retryErrorPage()) engine.reload()
             return
         }
-        // Internal einkbro:// (the error page's own base URL): render it, never
-        // hand it to the OS or show the leave-app dialog.
+        // Start page actions (assets/start_page.html; Android EBWebViewClient
+        // .handleUri): cancel the fake navigation and run the native flow.
+        if (url?.absoluteString?.startsWith("einkbro://add_start_item") == true) {
+            decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
+            engine.reportStartPageAddItem()
+            return
+        }
+        if (url?.absoluteString?.startsWith("einkbro://focus_input") == true) {
+            decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
+            engine.reportFocusInput()
+            return
+        }
+        // Internal einkbro:// (the error page's and start page's own base
+        // URLs): render it, never hand it to the OS or show the leave-app
+        // dialog.
         if (scheme == "einkbro") {
             decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyAllow)
             return

@@ -17,8 +17,12 @@ interface WebViewEngine {
 
     fun loadUrl(url: String)
 
-    /** Loads an in-memory HTML string (translate-by-screen result, Phase M). */
-    fun loadHtml(html: String)
+    /**
+     * Loads an in-memory HTML string (translate-by-screen result, Phase M).
+     * [baseUrl] becomes the document/history url — the start page loads with
+     * the einkbro://startpage sentinel so the tab persists and restores.
+     */
+    fun loadHtml(html: String, baseUrl: String? = null)
 
     /** Loads a local file (grants sandbox read access to its directory). */
     fun loadFile(path: String)
@@ -177,6 +181,15 @@ interface WebViewEngineListener {
      * script (UserScriptListScreen with installUrl).
      */
     fun onUserScriptInstallRequested(engine: WebViewEngine, url: String) {}
+
+    /**
+     * einkbro://focus_input from the start page (Android WebViewCallback
+     * .focusOnInput): the host should open the native URL input bar.
+     */
+    fun onFocusInputRequested(engine: WebViewEngine) {}
+
+    /** einkbro://add_start_item: the host should run [StartPageItemDialog]. */
+    fun onStartPageAddItemRequested(engine: WebViewEngine) {}
 }
 
 enum class JsDialogType { ALERT, CONFIRM, PROMPT }

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.browser.WebViewEngine
+import info.plateaukao.einkbro.browser.StartPageBridge
 import info.plateaukao.einkbro.browser.WebViewEngineListener
 import info.plateaukao.einkbro.browser.Assets
 import info.plateaukao.einkbro.browser.ContentBlocker
@@ -55,6 +56,11 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     val pendingJsDialog = mutableStateOf<info.plateaukao.einkbro.browser.JsDialogRequest?>(null)
     // .user.js navigation: URL to offer as a userscript install.
     val pendingUserScriptInstall = mutableStateOf<String?>(null)
+
+    // Start page (einkbro://focus_input, einkbro://add_start_item): ticks the
+    // UI to open the URL input bar / the add-tile dialog for this engine.
+    val pendingFocusInput = mutableStateOf(false)
+    val pendingStartPageAdd = mutableStateOf<WebViewEngine?>(null)
 
     // Parity Phase C: a tab awaiting close confirmation (confirmTabClose pref).
     val pendingTabClose = mutableStateOf<Album?>(null)
@@ -179,6 +185,9 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             }
             registerInteractionBridge(engine)
         }
+        // Android EBWebView init: the start-page search bridge is attached to
+        // every tab; its handlers gate on the current url being the sentinel.
+        StartPageBridge.attach(engine, this)
         albums.value = albums.value + album
         if (activate) {
             focusIndex.value = albums.value.lastIndex
@@ -832,7 +841,9 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         // AI chat tabs never write history (Android NinjaWebViewClient skips
         // chat.html: "has no standalone meaning") and never auto-translate.
         if (engine.album.isAIPage) return
-        if (url.isBlank() || url == "about:blank") return
+        // In-app pages (start page, error page) never write history (Android
+        // EBWebViewClient excludes einkbro:// urls the same way).
+        if (url.isBlank() || url == "about:blank" || url.startsWith("einkbro://")) return
         // Signal the UI to auto-translate this site if the user marked it.
         if (engine === currentEngine) {
             lastFinishedUrl = url
@@ -917,6 +928,14 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         pendingUserScriptInstall.value = url
     }
 
+    override fun onFocusInputRequested(engine: WebViewEngine) {
+        if (engine === currentEngine) pendingFocusInput.value = true
+    }
+
+    override fun onStartPageAddItemRequested(engine: WebViewEngine) {
+        if (engine === currentEngine) pendingStartPageAdd.value = engine
+    }
+
     override fun shouldRouteLinkToSplit(engine: WebViewEngine, url: String): Boolean {
         // "Link here": a main-pane link tap loads in the open second pane instead.
         if (engine !== currentEngine) return false
@@ -928,6 +947,11 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     private suspend fun reloadRecords() {
         records.value = historyDao.getAllHistory().map { it.toRecord() }
+    }
+
+    /** Start-page bridge: history suggestions need the records loaded once. */
+    suspend fun ensureRecordsLoaded() {
+        if (records.value.isEmpty()) reloadRecords()
     }
 
     private fun persistTabs() {
@@ -958,7 +982,8 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     }
 
     companion object {
-        const val DEFAULT_HOME = "https://en.wikipedia.org"
+        // Android Constants.DEFAULT_HOME_URL: the built-in start page.
+        const val DEFAULT_HOME = info.plateaukao.einkbro.util.Constants.START_PAGE_URL
 
         // Desktop Safari UA (mirrors Android's UA_DESKTOP_PREFIX switch).
         const val DESKTOP_USER_AGENT =

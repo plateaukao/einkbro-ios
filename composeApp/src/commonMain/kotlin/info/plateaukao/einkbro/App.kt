@@ -263,7 +263,9 @@ private fun SelectOptionDialogHost() {
     val req = request ?: return
     AlertDialog(
         onDismissRequest = { req.onResult(null) },
-        title = { Text(req.title, color = MaterialTheme.colors.onBackground) },
+        title = req.title?.let { title ->
+            { Text(title, color = MaterialTheme.colors.onBackground) }
+        },
         text = {
             Column(
                 Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState())
@@ -276,10 +278,14 @@ private fun SelectOptionDialogHost() {
                             .padding(vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(
-                            selected = index == req.selectedIndex,
-                            onClick = { req.onResult(index) },
-                        )
+                        // Plain mode (start-page add flow): tappable rows only,
+                        // matching Android's AlertDialog.setItems look.
+                        if (!req.plain) {
+                            RadioButton(
+                                selected = index == req.selectedIndex,
+                                onClick = { req.onResult(index) },
+                            )
+                        }
                         Text(
                             text = option,
                             modifier = Modifier.padding(start = 8.dp),
@@ -290,9 +296,13 @@ private fun SelectOptionDialogHost() {
             }
         },
         confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = { req.onResult(null) }) {
-                Text("Cancel", color = MaterialTheme.colors.onBackground)
+        dismissButton = if (req.plain) {
+            { }
+        } else {
+            {
+                TextButton(onClick = { req.onResult(null) }) {
+                    Text("Cancel", color = MaterialTheme.colors.onBackground)
+                }
             }
         },
         backgroundColor = MaterialTheme.colors.background,
