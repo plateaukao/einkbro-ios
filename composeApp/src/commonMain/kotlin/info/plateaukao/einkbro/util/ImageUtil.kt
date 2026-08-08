@@ -1,13 +1,12 @@
 package info.plateaukao.einkbro.util
 
 /**
- * Result of analyzing a start-page background image: the average colors of the
- * outermost pixel rows (used to extend the image into the letterbox areas) and
- * whether the image is predominantly dark (picks the page theme).
+ * Result of analyzing a start-page background image: the average color of the
+ * top pixel row (used to extend the bottom-anchored image upward) and whether
+ * the image is predominantly dark (picks the page theme).
  */
 data class ImageStats(
     val topColor: String,
-    val bottomColor: String,
     val isDark: Boolean,
 )
 

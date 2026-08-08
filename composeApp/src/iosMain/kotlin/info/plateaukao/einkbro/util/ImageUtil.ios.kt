@@ -102,7 +102,6 @@ actual object ImageUtil {
         }
         return ImageStats(
             topColor = averageRowColor(buffer, bytesPerRow, row = 0),
-            bottomColor = averageRowColor(buffer, bytesPerRow, row = sample - 1),
             isDark = luma / (sample * sample) < 128,
         )
     }
