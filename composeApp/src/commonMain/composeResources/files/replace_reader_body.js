@@ -9,7 +9,7 @@
     document.innerHTMLCache = document.body.innerHTML;
     if (article) {
         article.readingTime = getReadingTime(article.length, document.documentElement.lang.substring(0, 2));
-        document.body.outerHTML = createHtmlBody(article);
+        document.body.outerHTML = createHtmlBodyWithUrl(article, location.href);
         disableSiteStyleSheets();
         var viewport = document.getElementsByName('viewport')[0];
         if (viewport) viewport.setAttribute('content', 'width=device-width');
