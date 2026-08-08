@@ -1730,15 +1730,21 @@ fun BrowserScreen(
             // Per-site JS/adblock/UA overrides apply to future loads.
             browserViewModel.reapplyWebConfig()
         }
-        Dialog(onDismissRequest = dismissSiteSettings) {
-            DialogFrame(onDismiss = dismissSiteSettings) {
-                SiteSettingsDialogContent(
+        if (ViewUnit.isTablet(AppServices.context)) {
+            Dialog(onDismissRequest = dismissSiteSettings) {
+                DialogFrame(onDismiss = dismissSiteSettings) {
+                    SiteSettingsDialogContent(
+                        url = browserViewModel.currentUrl.value,
+                        onDismiss = dismissSiteSettings,
+                    )
+                }
+            }
+        } else {
+            // On phones the dialog is too cramped; use the whole screen (Android parity).
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+                info.plateaukao.einkbro.activity.SiteSettingsScreen(
                     url = browserViewModel.currentUrl.value,
-                    onDismiss = {
-                        showSiteSettings = false
-                        // Per-site JS/adblock/UA overrides apply to future loads.
-                        browserViewModel.reapplyWebConfig()
-                    },
+                    onClose = dismissSiteSettings,
                 )
             }
         }
