@@ -2,12 +2,18 @@ package info.plateaukao.einkbro.util
 
 import platform.UIKit.UIApplication
 import platform.UIKit.UIDevice
+import platform.UIKit.UIScreen
+import platform.UIKit.UIUserInterfaceStyle
 
 actual object HostBridge {
 
     actual fun setKeepAwake(enabled: Boolean) {
         UIApplication.sharedApplication.idleTimerDisabled = enabled
     }
+
+    actual fun isSystemDarkMode(): Boolean =
+        UIScreen.mainScreen.traitCollection.userInterfaceStyle ==
+            UIUserInterfaceStyle.UIUserInterfaceStyleDark
 
     /**
      * Swift owns the real status-bar lever: scene-based apps ignore the legacy

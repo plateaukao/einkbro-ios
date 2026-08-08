@@ -2173,6 +2173,16 @@ fun BrowserScreen(
             browserViewModel.pendingStartPageAdd.value = null
         }
     }
+    // einkbro://config_start_page (wordmark tap): rename the heading or
+    // set/remove the background image.
+    LaunchedEffect(browserViewModel.pendingStartPageConfig.value) {
+        val engine = browserViewModel.pendingStartPageConfig.value ?: return@LaunchedEffect
+        try {
+            info.plateaukao.einkbro.view.dialog.StartPageConfigDialog(engine).show()
+        } finally {
+            browserViewModel.pendingStartPageConfig.value = null
+        }
+    }
 
     // A *.user.js navigation was intercepted: open the manager in install mode
     // (Android launches UserScriptListActivity with the script URL).

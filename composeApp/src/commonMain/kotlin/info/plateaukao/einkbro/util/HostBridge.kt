@@ -9,6 +9,9 @@ expect object HostBridge {
     /** Prevents the screen from auto-locking while true (idle timer). */
     fun setKeepAwake(enabled: Boolean)
 
+    /** Whether the OS is currently in dark appearance (DarkMode.SYSTEM). */
+    fun isSystemDarkMode(): Boolean
+
     /** Hides the system status bar (clock/signal/battery overlay). */
     fun setStatusBarHidden(hidden: Boolean)
 

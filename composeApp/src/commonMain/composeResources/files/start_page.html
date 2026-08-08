@@ -1,7 +1,10 @@
 <html>
 <head>
-    <title>EinkBro</title>
+    <title>{{TITLE}}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- declaring a scheme keeps WebView's algorithmic darkening from
+         re-darkening a page that already themes itself -->
+    <meta name="color-scheme" content="{{COLOR_SCHEME}}">
     <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html {
@@ -37,6 +40,8 @@
         font-weight: 700;
         letter-spacing: 1px;
         margin-bottom: 28px;
+        color: #000;
+        text-decoration: none;
     }
     .search-wrap {
         width: 100%;
@@ -186,29 +191,30 @@
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    /* Follows the app's dark-mode setting: the browser forces the page's
-       prefers-color-scheme (overrideUserInterfaceStyle on iOS), so dark mode
-       here tracks Settings > Dark mode (or the system, when set to follow). */
-    @media (prefers-color-scheme: dark) {
-        body { background: #000; color: #fff; }
-        .search-wrap { border-color: #fff; background: #000; }
-        .search-bar svg { color: #fff; }
-        .search-bar input { color: #fff; }
-        .search-bar input::placeholder { color: #aaa; }
-        #fakeCaret { background: #fff; }
-        .sugg { border-top-color: #fff; }
-        .sugg .row:active { background: #333; }
-        .sugg .row + .row { border-top-color: #666; }
-        .sugg .u { color: #aaa; }
-        .tile { color: #fff; }
-        .tile-icon { border-color: #fff; }
-        .tile:active .tile-icon { background: #333; }
-    }
+    /* dark theme: applied when the app is in dark mode, or when the chosen
+       background image is dark */
+    body.dark { background: #000; color: #fff; }
+    body.dark .wordmark { color: #fff; }
+    body.dark .search-wrap { border-color: #fff; background: #000; }
+    body.dark .search-bar svg { color: #fff; }
+    body.dark .search-bar input { color: #fff; }
+    body.dark .search-bar input::placeholder { color: #999; }
+    body.dark #fakeCaret { background: #fff; }
+    body.dark .sugg { border-top-color: #fff; }
+    body.dark .sugg .row:active { background: #333; }
+    body.dark .sugg .row + .row { border-top-color: #666; }
+    body.dark .sugg .u { color: #999; }
+    body.dark .tile { color: #fff; }
+    body.dark .tile-icon { background: #fff; }
+    /* the icon boxes stay white, so their content must stay dark */
+    body.dark .tile-icon svg { color: #000; }
+    body.dark .tile-icon .fallback { color: #000; }
     </style>
+    {{BG_STYLE}}
 </head>
-<body>
+<body class="{{THEME_CLASS}}">
     <div class="top-spacer"></div>
-    <div class="wordmark">EinkBro</div>
+    <a class="wordmark" href="einkbro://config_start_page">{{TITLE}}</a>
     <div class="search-wrap">
         <div class="search-bar">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">

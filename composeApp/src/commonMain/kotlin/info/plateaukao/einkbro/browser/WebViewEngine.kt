@@ -190,6 +190,9 @@ interface WebViewEngineListener {
 
     /** einkbro://add_start_item: the host should run [StartPageItemDialog]. */
     fun onStartPageAddItemRequested(engine: WebViewEngine) {}
+
+    /** einkbro://config_start_page (wordmark tap): run [StartPageConfigDialog]. */
+    fun onStartPageConfigRequested(engine: WebViewEngine) {}
 }
 
 enum class JsDialogType { ALERT, CONFIRM, PROMPT }

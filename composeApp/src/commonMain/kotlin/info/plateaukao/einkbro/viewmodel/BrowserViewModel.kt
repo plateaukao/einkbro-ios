@@ -61,6 +61,7 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     // UI to open the URL input bar / the add-tile dialog for this engine.
     val pendingFocusInput = mutableStateOf(false)
     val pendingStartPageAdd = mutableStateOf<WebViewEngine?>(null)
+    val pendingStartPageConfig = mutableStateOf<WebViewEngine?>(null)
 
     // Parity Phase C: a tab awaiting close confirmation (confirmTabClose pref).
     val pendingTabClose = mutableStateOf<Album?>(null)
@@ -934,6 +935,10 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
 
     override fun onStartPageAddItemRequested(engine: WebViewEngine) {
         if (engine === currentEngine) pendingStartPageAdd.value = engine
+    }
+
+    override fun onStartPageConfigRequested(engine: WebViewEngine) {
+        if (engine === currentEngine) pendingStartPageConfig.value = engine
     }
 
     override fun shouldRouteLinkToSplit(engine: WebViewEngine, url: String): Boolean {

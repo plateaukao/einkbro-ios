@@ -740,6 +740,7 @@ class WKWebViewEngine(
     internal fun reportFocusInput() = listener.onFocusInputRequested(this)
 
     internal fun reportStartPageAddItem() = listener.onStartPageAddItemRequested(this)
+    internal fun reportStartPageConfig() = listener.onStartPageConfigRequested(this)
 }
 
 // Of the same-selector-family navigation callbacks (didStart/didCommit/
@@ -813,6 +814,11 @@ private class NavigationDelegate(
         if (url?.absoluteString?.startsWith("einkbro://focus_input") == true) {
             decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
             engine.reportFocusInput()
+            return
+        }
+        if (url?.absoluteString?.startsWith("einkbro://config_start_page") == true) {
+            decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
+            engine.reportStartPageConfig()
             return
         }
         // Internal einkbro:// (the error page's and start page's own base
