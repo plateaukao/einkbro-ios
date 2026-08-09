@@ -2,6 +2,9 @@ package info.plateaukao.einkbro.unit
 
 import android.content.Context
 import androidx.compose.ui.text.AnnotatedString
+import info.plateaukao.einkbro.resources.Res
+import info.plateaukao.einkbro.resources.toast_copy_successful
+import info.plateaukao.einkbro.util.PlatformActions
 import info.plateaukao.einkbro.util.Uri
 import info.plateaukao.einkbro.view.EBToast
 
@@ -25,13 +28,21 @@ object IntentUnit {
     fun createResultLauncher(host: Any?, action: (Any?) -> Unit = {}): Any? = null
 
     fun gotoSettings(context: Context) {}
-    fun gotoSystemTtsSettings(context: Context) {}
+
+    fun gotoSystemTtsSettings(context: Context) {
+        // iOS has no public deep link to the system voice list
+        // (Settings > Accessibility > Spoken Content); app-settings: is the
+        // closest public destination. Private App-Prefs: paths are rejected
+        // by App Store review.
+        PlatformActions.openUrl("app-settings:")
+    }
     fun readCurrentArticle(context: Context) {}
 }
 
 object ShareUtil {
     fun copyToClipboard(context: Context, text: String) {
-        EBToast.show(context, "copied: $text")
+        PlatformActions.copyToClipboard(text)
+        EBToast.show(context, Res.string.toast_copy_successful)
     }
 
     fun startServingFile(context: Context, port: Int = 8080) {}
