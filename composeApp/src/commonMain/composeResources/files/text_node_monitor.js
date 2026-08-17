@@ -95,24 +95,12 @@ function getTranslatableText(element) {
 // The callback resolves maybeRequestTranslation/getTranslatableText as globals at call
 // time, so re-injected definitions apply to the reused observer too.
 window._translateObserver = window._translateObserver || new IntersectionObserver((entries) => {
+  // Single request path shared with the rebind scan: it checks the already-translated
+  // marker for the current mode, the text cache, AND _translateRequested — otherwise
+  // this callback re-requests elements whose bind-time request is still in flight.
   entries.forEach((entry) => {
     if (!entry.isIntersecting) return;
-    if (window._translateInPlace) {
-      // Single request path shared with the rebind scan: checks data-original-html,
-      // the text cache, AND _translateRequested — otherwise this callback re-requests
-      // elements whose bind-time request is still awaiting its response.
-      maybeRequestTranslation(entry.target);
-      return;
-    }
-    var text = getTranslatableText(entry.target);
-    if (text.trim() === "") return;
-    var nextNode = entry.target.nextElementSibling;
-    // The empty-sibling check only holds until the response arrives, so guard in-flight
-    // requests with _translateRequested here too.
-    if (nextNode && nextNode.textContent === "" && !window._translateRequested.has(entry.target)) {
-      window._translateRequested.add(entry.target);
-      androidApp.getTranslation(text, entry.target.id, "myCallback");
-    }
+    maybeRequestTranslation(entry.target);
   });
 }, { rootMargin: "400px" });
 
@@ -121,9 +109,28 @@ window._translateObservedNodes = window._translateObservedNodes || new WeakSet()
 // Track which nodes already had their initial visibility-check translation kicked off.
 window._translateRequested = window._translateRequested || new WeakSet();
 
+// Whether this marker is already carrying its translation. In-place mode stamps the
+// element itself; by-paragraph mode fills the sibling placeholder, which starts empty.
+function isTranslationApplied(targetNode) {
+  if (window._translateInPlace) return targetNode.hasAttribute('data-original-html');
+  var placeholder = targetNode.nextElementSibling;
+  return !placeholder || placeholder.textContent !== "";
+}
+
 function maybeRequestTranslation(targetNode) {
-  if (!window._translateInPlace) return;
-  if (targetNode.hasAttribute('data-original-html')) return;
+  if (isTranslationApplied(targetNode)) return;
+  if (window._translateRequested.has(targetNode)) return;
+
+  // Viewport gate first, before any work that writes to the DOM. Applying a cached
+  // translation dirties layout, so a write here would force the next element's
+  // getBoundingClientRect to re-run layout — the same read/write interleaving that makes
+  // a marking pass quadratic. Gating first bounds the writes to the handful of markers
+  // actually near the viewport; everything else is picked up when it scrolls into view.
+  var r = targetNode.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return;
+  // Match the IntersectionObserver's rootMargin so we don't translate way-off-screen content.
+  if (r.top > window.innerHeight + 400 || r.bottom < -400) return;
+
   var text = getTranslatableText(targetNode);
   if (text.trim() === "") return;
   // If this exact text was translated before in this session, apply instantly.
@@ -132,24 +139,29 @@ function maybeRequestTranslation(targetNode) {
     _applyTranslationToElement(targetNode, cached);
     return;
   }
-  if (window._translateRequested.has(targetNode)) return;
-  var r = targetNode.getBoundingClientRect();
-  if (r.width === 0 || r.height === 0) return;
-  // Match the IntersectionObserver's rootMargin so we don't translate way-off-screen content.
-  if (r.top > window.innerHeight + 400 || r.bottom < -400) return;
   window._translateRequested.add(targetNode);
   androidApp.getTranslation(text, targetNode.id, "myCallback");
 }
 
+// Only newly-marked elements need the initial visibility scan. maybeRequestTranslation
+// now runs in both modes, and this is re-entered on every MutationObserver rebind, so
+// probing every marker would call getBoundingClientRect across the whole page several
+// times a second on a page that keeps mutating. Elements already bound are the
+// IntersectionObserver's responsibility from then on.
 function bindObserverToTargets() {
-  document.querySelectorAll('.to-translate').forEach(function(targetNode) {
-    if (!window._translateObservedNodes.has(targetNode)) {
-      window._translateObserver.observe(targetNode);
-      window._translateObservedNodes.add(targetNode);
-    }
+  var fresh = [];
+  var all = document.querySelectorAll('.to-translate');
+  for (var i = 0; i < all.length; i++) {
+    if (!window._translateObservedNodes.has(all[i])) fresh.push(all[i]);
+  }
+  fresh.forEach(function(targetNode) {
+    window._translateObserver.observe(targetNode);
+    window._translateObservedNodes.add(targetNode);
     // IntersectionObserver isn't reliable for elements that were already on-screen at the
     // moment we observed them (e.g. content marked after lazy hydration completed). Do an
-    // initial visibility scan so currently-visible markers get translated immediately.
+    // initial visibility scan so currently-visible markers get translated immediately —
+    // in by-paragraph mode this is what stops the first batch waiting on the observer's
+    // first asynchronous delivery.
     maybeRequestTranslation(targetNode);
   });
 }
