@@ -25,9 +25,10 @@ targets:
     # Default-browser support is blocked the same way. Being offered in
     # Settings > Apps > Default Apps > Browser needs
     # com.apple.developer.web-browser, a MANAGED entitlement Apple grants only
-    # on request (email default-app-requests@apple.com; reported waits run
-    # weeks to months). Two things change once it is granted, so this cannot be
-    # a drop-in edit:
+    # on request. Request it via the web form (Account Holder must be signed in):
+    # developer.apple.com/contact/request/default-browser-entitlement
+    # (reported waits run weeks). Two things change once it is granted, so this
+    # cannot be a drop-in edit:
     #   - managed entitlements require MANUAL signing, so CODE_SIGN_STYLE below
     #     must move off Automatic and a matching profile must be installed;
     #   - Info.plist likely also needs http/https listed in CFBundleURLTypes
