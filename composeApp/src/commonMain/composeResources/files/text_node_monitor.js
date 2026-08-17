@@ -65,10 +65,16 @@ function myCallback(elementId, originalText, responseString) {
         }
     }
 
-    // Empty response = the native side failed to translate. Clear the in-flight flag so a
-    // later IntersectionObserver event or rebind scan can retry this element.
+    // Empty response = the native side failed to translate. Clear the in-flight flag and
+    // queue the element so a later IntersectionObserver event or rebind scan retries it.
+    // The rebind scan only looks at new markers, so without the queue a failure on an
+    // already-bound element would never be picked up again unless the reader happened to
+    // scroll it back through the viewport.
     if (!responseString) {
-        if (el) window._translateRequested.delete(el);
+        if (el) {
+            window._translateRequested.delete(el);
+            window._translateRetryQueue.add(el);
+        }
         return;
     }
 
@@ -78,12 +84,11 @@ function myCallback(elementId, originalText, responseString) {
     _applyTranslationToElement(el, responseString);
 }
 
-// Shared with translate_by_paragraph.js (which loads first and defines the implementation).
-// Defined defensively here too in case this file is loaded standalone.
+// Shared with translate_by_paragraph.js (which loads first and defines the implementation,
+// including why stripping images is unnecessary). Defined defensively here too in case this
+// file is loaded standalone.
 window._translateGetTextExcludingImages = window._translateGetTextExcludingImages || function(element) {
-    var clone = element.cloneNode(true);
-    clone.querySelectorAll('img').forEach(function(img) { img.remove(); });
-    return clone.textContent;
+    return element.textContent;
 };
 function getTranslatableText(element) {
     return window._translateGetTextExcludingImages(element);
@@ -108,6 +113,10 @@ window._translateObserver = window._translateObserver || new IntersectionObserve
 window._translateObservedNodes = window._translateObservedNodes || new WeakSet();
 // Track which nodes already had their initial visibility-check translation kicked off.
 window._translateRequested = window._translateRequested || new WeakSet();
+// Elements whose translation came back empty and that deserve another attempt. Held
+// explicitly so the rebind scan can retry exactly those instead of re-probing every marker
+// on the page looking for work — see bindObserverToTargets.
+window._translateRetryQueue = window._translateRetryQueue || new Set();
 
 // Whether this marker is already carrying its translation. In-place mode stamps the
 // element itself; by-paragraph mode fills the sibling placeholder, which starts empty.
@@ -154,6 +163,14 @@ function bindObserverToTargets() {
   for (var i = 0; i < all.length; i++) {
     if (!window._translateObservedNodes.has(all[i])) fresh.push(all[i]);
   }
+
+  var retries = [];
+  window._translateRetryQueue.forEach(function (el) {
+    // Skip nodes that are only in the queue because they're about to be bound below.
+    if (el.isConnected && window._translateObservedNodes.has(el)) retries.push(el);
+  });
+  window._translateRetryQueue.clear();
+
   fresh.forEach(function(targetNode) {
     window._translateObserver.observe(targetNode);
     window._translateObservedNodes.add(targetNode);
@@ -164,6 +181,7 @@ function bindObserverToTargets() {
     // first asynchronous delivery.
     maybeRequestTranslation(targetNode);
   });
+  retries.forEach(maybeRequestTranslation);
 }
 
 // Exposed so translate_by_paragraph.js's MutationObserver can re-bind for newly-added

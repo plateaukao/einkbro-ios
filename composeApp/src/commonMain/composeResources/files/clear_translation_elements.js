@@ -20,6 +20,9 @@
     window._translateRebindObserver = null;
     window._translateObservedNodes = null;
     window._translateRequested = null;
+    // Unlike the two WeakSets above, the retry queue is a plain Set, so leaving it
+    // populated would hold strong references to the elements this reset detaches.
+    window._translateRetryQueue = null;
     // 4. Clear the text cache so restored nodes aren't instantly re-translated.
     if (window._translateTextCache) {
         try { window._translateTextCache.clear(); } catch (e) {}
