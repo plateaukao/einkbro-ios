@@ -27,13 +27,19 @@ targets:
     # com.apple.developer.web-browser, a MANAGED entitlement Apple grants only
     # on request. Request it via the web form (Account Holder must be signed in):
     # developer.apple.com/contact/request/default-browser-entitlement
-    # (reported waits run weeks). Two things change once it is granted, so this
-    # cannot be a drop-in edit:
+    # (reported waits run weeks).
+    #
+    # PRECONDITION, learned the hard way: Apple rejected the 2026-08-11 request
+    # because the SHIPPING App Store binary did not list http/https in
+    # CFBundleURLTypes. The request is validated mechanically against the
+    # released build's Info.plist — a "will be added in the next release"
+    # promise in the justification text is not accepted. Info.plist now
+    # declares http/https (inert without the entitlement); that build must be
+    # LIVE on the App Store before re-submitting the request.
+    #
+    # Remaining change once Apple grants it:
     #   - managed entitlements require MANUAL signing, so CODE_SIGN_STYLE below
-    #     must move off Automatic and a matching profile must be installed;
-    #   - Info.plist likely also needs http/https listed in CFBundleURLTypes
-    #     (confirm against Apple's "Preparing your app to be the default web
-    #     browser" doc at grant time — it is inert without the entitlement).
+    #     must move off Automatic and a matching profile must be installed.
     # The receiving side is already implemented: iOSApp.swift's onOpenURL hands
     # every incoming URL to handleExternalUrl, and ExternalUrlBridge.normalize
     # passes non-einkbro:// URLs through unchanged, so http(s) hand-offs already

@@ -41,6 +41,23 @@
 				<string>einkbro</string>
 			</array>
 		</dict>
+		<!-- Required by Apple before the com.apple.developer.web-browser
+		     entitlement request is reviewed: the request is validated against
+		     the SHIPPING App Store binary's Info.plist, not against a promise
+		     in the justification text. Inert until the entitlement is granted
+		     (iOS ignores http/https claims from apps that don't hold it), but
+		     it must already be in a released build at request time.
+		     iOSApp.swift's onOpenURL -> handleExternalUrl already navigates
+		     directly to the requested URL, which is the behavior Apple tests. -->
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>info.plateaukao.einkbro.ios.web</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>http</string>
+				<string>https</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>9</string>
