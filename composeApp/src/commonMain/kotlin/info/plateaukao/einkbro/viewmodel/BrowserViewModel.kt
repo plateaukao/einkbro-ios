@@ -13,6 +13,7 @@ import info.plateaukao.einkbro.browser.createWebViewEngine
 import info.plateaukao.einkbro.view.WebContentHelper
 import info.plateaukao.einkbro.database.HistoryRecord
 import info.plateaukao.einkbro.database.Record
+import info.plateaukao.einkbro.database.RecordType
 import info.plateaukao.einkbro.preference.AlbumInfo
 import info.plateaukao.einkbro.preference.SaveHistoryMode
 import info.plateaukao.einkbro.util.System
@@ -954,6 +955,36 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         records.value = historyDao.getAllHistory().map { it.toRecord() }
     }
 
+    /**
+     * Android RecordRepository.listEntries: the input bar's unfiltered list is
+     * bookmarks (when the pref is on) followed by history, minus history rows
+     * that duplicate a bookmark (Record.equals is title+url).
+     */
+    suspend fun inputBarRecords(includeBookmarks: Boolean): List<Record> {
+        if (!includeBookmarks) return records.value
+        val bookmarks = AppServices.bookmarkManager.getAllBookmarks()
+            .filter { !it.isDirectory }
+            .map { Record(title = it.title, url = it.url, time = 0, type = RecordType.Bookmark) }
+        return bookmarks + records.value.filter { it !in bookmarks }
+    }
+
+    /**
+     * Android RecordRepository.listLatestHistoryPerDomain: the favicon grid
+     * shows one entry per host (the most recent visit), so a site browsed
+     * fifty times is still a single icon. Capped so the grid stays a quick
+     * pick list rather than a wall of icons.
+     */
+    fun latestHistoryPerDomain(limit: Int = HISTORY_GRID_MAX_DOMAINS): List<Record> {
+        val seen = LinkedHashMap<String, Record>()
+        for (record in records.value) {
+            val host = info.plateaukao.einkbro.util.Uri.parse(record.url).host ?: continue
+            if (seen.containsKey(host)) continue
+            seen[host] = record
+            if (seen.size >= limit) break
+        }
+        return seen.values.toList()
+    }
+
     /** Start-page bridge: history suggestions need the records loaded once. */
     suspend fun ensureRecordsLoaded() {
         if (records.value.isEmpty()) reloadRecords()
@@ -987,6 +1018,9 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     }
 
     companion object {
+        /** Most favicons the input bar's history grid shows (one per domain). */
+        const val HISTORY_GRID_MAX_DOMAINS = 20
+
         // Android Constants.DEFAULT_HOME_URL: the built-in start page.
         const val DEFAULT_HOME = info.plateaukao.einkbro.util.Constants.START_PAGE_URL
 

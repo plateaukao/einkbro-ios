@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionOnScreen
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -154,11 +155,12 @@ private fun ThumbnailHistoryItem(
                 contentDescription = null,
             )
         } else {
-            Icon(
+            // No favicon stored for this host: the app logo, same fallback as
+            // the bookmark list, instead of the generic history clock.
+            Image(
                 modifier = Modifier.size(32.dp),
-                imageVector = vectorResource(Res.drawable.ic_history),
+                painter = painterResource(Res.drawable.ic_launcher),
                 contentDescription = null,
-                tint = MaterialTheme.colors.onBackground,
             )
         }
     }
@@ -226,14 +228,14 @@ private fun RecordItem(
             }
 
             else -> {
-                Icon(
+                // History row without a stored favicon: app logo, not the clock.
+                Image(
                     modifier = Modifier
                         .align(Alignment.CenterVertically)
                         .size(30.dp)
                         .padding(end = 5.dp),
-                    imageVector = vectorResource(Res.drawable.ic_history),
+                    painter = painterResource(Res.drawable.ic_launcher),
                     contentDescription = null,
-                    tint = MaterialTheme.colors.onBackground
                 )
             }
         }

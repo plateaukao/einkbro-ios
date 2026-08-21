@@ -1227,20 +1227,41 @@ fun BrowserScreen(
                         )
                     )
                 }
-                val recordsState = remember(browserViewModel.records.value.size) {
+                val thumbnailGrid = config.ui.showHistoryThumbnailGrid
+                // Android SearchSuggestionViewModel.initSuggestions: the
+                // unfiltered list is bookmarks (pref) + history; the favicon
+                // grid instead shows the latest visit per domain.
+                var historyAndBookmarkRecords by remember {
                     mutableStateOf(browserViewModel.records.value)
+                }
+                val recordsState = remember {
+                    mutableStateOf(
+                        if (thumbnailGrid) browserViewModel.latestHistoryPerDomain()
+                        else browserViewModel.records.value
+                    )
+                }
+                var suggestionQuery by remember { mutableStateOf("") }
+                LaunchedEffect(browserViewModel.records.value) {
+                    historyAndBookmarkRecords =
+                        browserViewModel.inputBarRecords(config.browser.showBookmarksInInputBar)
+                    if (suggestionQuery.isEmpty()) {
+                        recordsState.value =
+                            if (thumbnailGrid) browserViewModel.latestHistoryPerDomain()
+                            else historyAndBookmarkRecords
+                    }
                 }
                 val urlFocusRequester = remember { FocusRequester() }
                 LaunchedEffect(Unit) { urlFocusRequester.requestFocus() }
                 // Android SearchSuggestionViewModel.updateSuggestions: filter
                 // local history/bookmarks by the query and, when enabled, put up
                 // to 4 engine suggestions ahead of them (debounced per keystroke).
-                var suggestionQuery by remember { mutableStateOf("") }
                 LaunchedEffect(Unit) {
                     snapshotFlow { suggestionQuery }.collectLatest { query ->
-                        val all = browserViewModel.records.value
+                        val all = historyAndBookmarkRecords
                         if (query.isEmpty()) {
-                            recordsState.value = all
+                            recordsState.value =
+                                if (thumbnailGrid) browserViewModel.latestHistoryPerDomain()
+                                else all
                             return@collectLatest
                         }
                         val filtered = all.filter {
@@ -1278,14 +1299,15 @@ fun BrowserScreen(
                 Box(Modifier.fillMaxSize().imePadding()) {
                     AutoCompleteTextField(
                         focusRequester = urlFocusRequester,
-                        // Behavior pref: surface bookmarks (with favicons) in the
-                        // input bar's suggestion list.
-                        bookmarkManager = if (config.browser.showBookmarksInInputBar)
-                            AppServices.bookmarkManager else null,
+                        // Favicon source for every row; which rows appear
+                        // (bookmarks or not) is decided by inputBarRecords.
+                        bookmarkManager = AppServices.bookmarkManager,
                         // Android InputBarDelegate: the text field sits at the
                         // toolbar's edge — bottom toolbar puts the input bottom.
                         shouldReverse = !config.ui.isToolbarOnTop,
-                        showHistoryThumbnailGrid = config.ui.showHistoryThumbnailGrid,
+                        // Android: `showHistoryThumbnailGrid && !inputHasTyped`
+                        // — typing switches to the filtered list.
+                        showHistoryThumbnailGrid = thumbnailGrid && suggestionQuery.isEmpty(),
                         text = text,
                         recordList = recordsState,
                         onTextSubmit = {
