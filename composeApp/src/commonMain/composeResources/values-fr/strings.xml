@@ -562,4 +562,25 @@
     <string name="reasoning_low">Faible</string>
     <string name="reasoning_medium">Moyen</string>
     <string name="reasoning_high">Élevé</string>
+    <string name="setting_title_ui_theme">Thème</string>
+    <string name="theme_section_color">Couleur</string>
+    <string name="setting_summary_ui_theme">Couleur d\'accentuation pour les boutons, bordures et boîtes de dialogue</string>
+    <string name="setting_title_border">Bordure</string>
+    <string name="setting_title_fill">Remplissage</string>
+    <string name="backup_category_userscripts">Scripts utilisateur</string>
+    <string name="backup_category_transcripts">Transcriptions vidéo</string>
+    <string name="backup_category_chat_sessions">Sessions de chat IA</string>
+    <string name="site_settings_scope">Appliquer à</string>
+    <string name="site_settings_scope_whole_site">Tout le site</string>
+    <string name="site_settings_other_rules">Autres règles sur ce site</string>
+    <string name="site_settings_inherited_from">de %1$s</string>
+    <string name="site_settings_remove_rule">Supprimer la règle</string>
+    <string name="site_rule_part_off">%1$s (désactivé)</string>
+    <string name="site_settings_reset_to_inherited">Tout réinitialiser sur hérité</string>
+    <string name="setting_title_site_rules">Sites configurés</string>
+    <string name="setting_summary_site_rules">Consulter, modifier ou supprimer les réglages par site sans visiter chaque site</string>
+    <string name="site_rules_empty_hint">Les réglages enregistrés depuis le menu Paramètres du site d\'une page apparaissent ici</string>
+    <string name="site_rules_no_overrides">Aucun remplacement</string>
+    <string name="site_rules_delete_confirm">Supprimer tous les réglages pour %1$s ?</string>
+    <string name="site_rules_delete_all_confirm">Supprimer les réglages de tous les sites ?</string>
 </resources>

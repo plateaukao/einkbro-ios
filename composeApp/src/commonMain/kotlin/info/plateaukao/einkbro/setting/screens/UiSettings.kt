@@ -40,6 +40,11 @@ fun buildUiSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
                 EBToast.show(deps.context, "Restart the app to apply the language")
             }
         },
+        ActionSettingItem(
+            Res.string.setting_title_ui_theme,
+            null,
+            Res.string.setting_summary_ui_theme,
+        ) { deps.onOpenThemeDialog() },
         BooleanSettingItem(
             Res.string.hide_statusbar,
             null,

@@ -36,5 +36,7 @@ object AppServices {
             )
         }
         config = ConfigManager(context, sharedPreferences)
+        // Android EinkBroApplication: seed the live theme state from prefs.
+        info.plateaukao.einkbro.view.compose.UiThemeState.syncFrom(config.display)
     }
 }

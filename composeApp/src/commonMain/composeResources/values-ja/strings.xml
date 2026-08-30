@@ -559,4 +559,25 @@
     <string name="reasoning_low">低</string>
     <string name="reasoning_medium">中</string>
     <string name="reasoning_high">高</string>
+    <string name="setting_title_ui_theme">テーマ</string>
+    <string name="theme_section_color">カラー</string>
+    <string name="setting_summary_ui_theme">ボタン・枠線・ダイアログのアクセントカラー</string>
+    <string name="setting_title_border">枠線</string>
+    <string name="setting_title_fill">塗りつぶし</string>
+    <string name="backup_category_userscripts">ユーザースクリプト</string>
+    <string name="backup_category_transcripts">動画の文字起こし</string>
+    <string name="backup_category_chat_sessions">AIチャットセッション</string>
+    <string name="site_settings_scope">適用範囲</string>
+    <string name="site_settings_scope_whole_site">サイト全体</string>
+    <string name="site_settings_other_rules">このサイトの他のルール</string>
+    <string name="site_settings_inherited_from">%1$s から継承</string>
+    <string name="site_settings_remove_rule">ルールを削除</string>
+    <string name="site_rule_part_off">%1$s（オフ）</string>
+    <string name="site_settings_reset_to_inherited">すべて継承値に戻す</string>
+    <string name="setting_title_site_rules">設定済みサイト</string>
+    <string name="setting_summary_site_rules">各サイトを開かずにサイトごとの設定を確認・編集・削除します</string>
+    <string name="site_rules_empty_hint">ページのサイト設定メニューから保存した設定がここに表示されます</string>
+    <string name="site_rules_no_overrides">上書きなし</string>
+    <string name="site_rules_delete_confirm">%1$s のすべての設定を削除しますか？</string>
+    <string name="site_rules_delete_all_confirm">すべてのサイトの設定を削除しますか？</string>
 </resources>

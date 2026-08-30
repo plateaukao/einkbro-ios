@@ -25,7 +25,7 @@ class BookmarkManager(private val database: AppDatabase) {
     // (ConfigManager property setters).
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; coerceInputValues = true }
 
     // Mirrors Android BookmarkManager: favicons are kept in memory so lookups
     // from composition (remember { getFavicon(...) }) stay synchronous.
@@ -82,6 +82,10 @@ class BookmarkManager(private val database: AppDatabase) {
         }
     }
 
+    fun deleteDomainConfiguration(key: String) {
+        ioScope.launch { domainConfigurationDao.deleteByDomain(key) }
+    }
+
     /** Same row write as [addDomainConfiguration], but awaited — restore needs
      *  the rows in place before it re-reads them to refresh the in-memory map. */
     suspend fun upsertDomainConfiguration(data: DomainConfigurationData) {
@@ -97,6 +101,7 @@ class BookmarkManager(private val database: AppDatabase) {
         domainConfigurationDao.getAll().mapNotNull {
             runCatching {
                 json.decodeFromString(DomainConfigurationData.serializer(), it.configuration)
+                    .normalizedLegacyFlags()
             }.getOrNull()
         }
 

@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import info.plateaukao.einkbro.view.compose.ebItemFrame
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
@@ -60,7 +61,7 @@ fun ActionModeMenu(
             .background(MaterialTheme.colors.background)
             .wrapContentHeight()
             .width(280.dp)
-            .border(1.dp, MaterialTheme.colors.onBackground, RoundedCornerShape(7.dp))
+            .ebItemFrame()
     ) {
         val menuInfos = menus.value
         items(menuInfos.size) { index ->

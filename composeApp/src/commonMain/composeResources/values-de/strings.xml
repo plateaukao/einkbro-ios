@@ -554,4 +554,25 @@ Dies zu deaktivieren ist sicherer, schneller und spart Datenvolumen. Manche Inha
     <string name="reasoning_low">Niedrig</string>
     <string name="reasoning_medium">Mittel</string>
     <string name="reasoning_high">Hoch</string>
+    <string name="setting_title_ui_theme">Design</string>
+    <string name="theme_section_color">Farbe</string>
+    <string name="setting_summary_ui_theme">Akzentfarbe für Schaltflächen, Rahmen und Dialoge</string>
+    <string name="setting_title_border">Rahmen</string>
+    <string name="setting_title_fill">Füllung</string>
+    <string name="backup_category_userscripts">Userscripts</string>
+    <string name="backup_category_transcripts">Video-Transkripte</string>
+    <string name="backup_category_chat_sessions">KI-Chat-Sitzungen</string>
+    <string name="site_settings_scope">Anwenden auf</string>
+    <string name="site_settings_scope_whole_site">Gesamte Website</string>
+    <string name="site_settings_other_rules">Weitere Regeln für diese Website</string>
+    <string name="site_settings_inherited_from">von %1$s</string>
+    <string name="site_settings_remove_rule">Regel entfernen</string>
+    <string name="site_rule_part_off">%1$s (aus)</string>
+    <string name="site_settings_reset_to_inherited">Alles auf Geerbt zurücksetzen</string>
+    <string name="setting_title_site_rules">Konfigurierte Websites</string>
+    <string name="setting_summary_site_rules">Website-Einstellungen prüfen, bearbeiten oder entfernen, ohne jede Website zu besuchen</string>
+    <string name="site_rules_empty_hint">Hier erscheinen Einstellungen, die über das Website-Einstellungen-Menü einer Seite gespeichert wurden</string>
+    <string name="site_rules_no_overrides">Keine Überschreibungen</string>
+    <string name="site_rules_delete_confirm">Alle Einstellungen für %1$s entfernen?</string>
+    <string name="site_rules_delete_all_confirm">Die Einstellungen aller Websites entfernen?</string>
 </resources>

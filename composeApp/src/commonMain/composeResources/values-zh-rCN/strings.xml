@@ -618,4 +618,25 @@
     <string name="reasoning_low">低</string>
     <string name="reasoning_medium">中</string>
     <string name="reasoning_high">高</string>
+    <string name="setting_title_ui_theme">主题</string>
+    <string name="theme_section_color">颜色</string>
+    <string name="setting_summary_ui_theme">按钮、边框和对话框的强调色</string>
+    <string name="setting_title_border">边框</string>
+    <string name="setting_title_fill">填充</string>
+    <string name="backup_category_userscripts">用户脚本</string>
+    <string name="backup_category_transcripts">视频转录文本</string>
+    <string name="backup_category_chat_sessions">AI 聊天会话</string>
+    <string name="site_settings_scope">应用于</string>
+    <string name="site_settings_scope_whole_site">整个网站</string>
+    <string name="site_settings_other_rules">此网站的其他规则</string>
+    <string name="site_settings_inherited_from">继承自 %1$s</string>
+    <string name="site_settings_remove_rule">删除规则</string>
+    <string name="site_rule_part_off">%1$s（关）</string>
+    <string name="site_settings_reset_to_inherited">全部重置为继承值</string>
+    <string name="setting_title_site_rules">已配置的网站</string>
+    <string name="setting_summary_site_rules">无需逐个访问网站即可查看、编辑或删除各网站的设置</string>
+    <string name="site_rules_empty_hint">在页面的“网站设置”菜单中保存的设置会显示在这里</string>
+    <string name="site_rules_no_overrides">无覆盖项</string>
+    <string name="site_rules_delete_confirm">删除 %1$s 的所有设置？</string>
+    <string name="site_rules_delete_all_confirm">删除所有网站的设置？</string>
 </resources>

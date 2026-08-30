@@ -124,7 +124,7 @@ fun FastToggleItemList(
             onClicked(false)
         }
 
-        Divider(thickness = 1.dp, color = MaterialTheme.colors.onBackground)
+        Divider(thickness = 1.dp, color = MaterialTheme.colors.primary)
 
         ToggleItem(
             state = config.browser.shareLocation,

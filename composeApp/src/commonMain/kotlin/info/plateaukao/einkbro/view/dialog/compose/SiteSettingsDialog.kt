@@ -50,6 +50,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import info.plateaukao.einkbro.resources.whitelist_add
+import info.plateaukao.einkbro.resources.menu_edit
+import info.plateaukao.einkbro.resources.default_value_hint
+import info.plateaukao.einkbro.resources.translation_mode
+import info.plateaukao.einkbro.resources.site_settings_reset_to_inherited
+import info.plateaukao.einkbro.resources.site_settings_remove_rule
+import info.plateaukao.einkbro.resources.site_settings_inherited_from
+import info.plateaukao.einkbro.resources.site_settings_other_rules
+import info.plateaukao.einkbro.resources.site_settings_scope_whole_site
+import info.plateaukao.einkbro.resources.site_settings_scope
+import info.plateaukao.einkbro.preference.DomainConfigManager
+import info.plateaukao.einkbro.database.SiteRuleKey
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.SwitchDefaults
+import androidx.compose.material.Switch
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -83,15 +101,14 @@ fun SiteSettingsDialogContent(
 ) {
     val config = AppServices.config
     val context = LocalContext.current
-    val host = Uri.parse(url).host.orEmpty()
     val maxDialogHeight = (screenHeightDp() * 0.85f).dp
     SiteSettingsContent(
         modifier = Modifier
             .fillMaxWidth(0.9f)
             .widthIn(min = 300.dp, max = 420.dp)
             .heightIn(max = maxDialogHeight),
-        host = host,
-        domainConfig = config.getDomainConfig(url),
+        url = url,
+        domainConfigs = config.domain,
         globalFontSize = config.display.fontSize,
         globalFontType = config.display.fontType,
         globalBoldFont = config.display.boldFontStyle,
@@ -111,15 +128,26 @@ fun SiteSettingsDialogContent(
             config.updateDomainConfig(updatedConfig)
             onDismiss()
         },
+        onDeleteRule = { key ->
+            config.deleteSiteRule(key)
+            onDismiss()
+        },
         onDismiss = onDismiss,
     )
 }
 
+/**
+ * Editor for one site rule (Android SiteSettingsContent). The rule being
+ * edited is chosen with the scope picker under the title: the host (whole
+ * site) or any path prefix of the current URL. Fields left at "default" fall
+ * through to the next rule up the chain (path -> host -> global), and the hint
+ * under each row says where the value currently comes from.
+ */
 @Composable
 fun SiteSettingsContent(
     modifier: Modifier,
-    host: String,
-    domainConfig: DomainConfigurationData,
+    url: String,
+    domainConfigs: DomainConfigManager,
     globalFontSize: Int,
     globalFontType: FontType,
     globalBoldFont: Boolean,
@@ -133,48 +161,120 @@ fun SiteSettingsContent(
     globalTranslationMode: TranslationMode,
     onEditText: (title: String, initial: String, onResult: (String) -> Unit) -> Unit,
     onSave: (DomainConfigurationData) -> Unit,
+    onDeleteRule: (key: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var fontSize by remember { mutableStateOf(domainConfig.fontSize) }
-    var fontType by remember { mutableStateOf(domainConfig.fontType) }
-    var boldFont by remember { mutableStateOf(domainConfig.boldFontStyle) }
-    var blackFont by remember { mutableStateOf(domainConfig.blackFontStyle) }
-    var fontBoldness by remember { mutableStateOf(domainConfig.fontBoldness) }
-    var whiteBackground by remember { mutableStateOf(domainConfig.shouldUseWhiteBackground) }
-    var invertColor by remember { mutableStateOf(domainConfig.shouldInvertColor) }
-    var desktopMode by remember { mutableStateOf(domainConfig.desktopMode) }
-    var viewportWidth by remember { mutableStateOf(domainConfig.desktopViewportWidth) }
-    var javascript by remember { mutableStateOf(domainConfig.enableJavascript) }
-    var adBlock by remember { mutableStateOf(domainConfig.enableAdBlock) }
-    var cookies by remember { mutableStateOf(domainConfig.enableCookies) }
-    var translateSite by remember { mutableStateOf(domainConfig.shouldTranslateSite) }
-    var translationMode by remember { mutableStateOf(domainConfig.translationMode) }
-    var customCss by remember { mutableStateOf(domainConfig.customCss.orEmpty()) }
-    var postLoadJs by remember { mutableStateOf(domainConfig.postLoadJavascript.orEmpty()) }
+    val host = SiteRuleKey.hostOfUrl(url).orEmpty()
+    val candidateKeys = remember(url) { SiteRuleKey.candidateKeysFor(url) }
+    // Open on the rule that is actually in effect for this page.
+    val initialKey = remember(url) {
+        domainConfigs.matchingKeys(url).firstOrNull() ?: candidateKeys.firstOrNull() ?: host
+    }
+    var selectedKey by remember(url) { mutableStateOf(initialKey) }
 
-    val overrideCount = listOf(
-        fontSize != null,
-        fontType != null,
-        boldFont != null,
-        blackFont != null,
-        fontBoldness != null,
-        whiteBackground,
-        invertColor,
-        desktopMode != null,
-        viewportWidth != null,
-        javascript != null,
-        adBlock != null,
-        cookies != null,
-        translateSite,
-        customCss.isNotBlank(),
-        postLoadJs.isNotBlank(),
-    ).count { it }
+    val rule = remember(selectedKey) { domainConfigs.getRuleOrNew(selectedKey) }
+    val ruleExists = remember(selectedKey) { domainConfigs.getRule(selectedKey) != null }
+    val isHostRule = SiteRuleKey.pathOf(selectedKey).isEmpty()
+    // What this rule inherits: the chain for the rule's own scope, minus itself.
+    val scopeUrl = "https://$selectedKey"
+    val parentRules = remember(selectedKey) {
+        domainConfigs.matchingRules(scopeUrl).filter { it.domain != selectedKey }
+    }
+    val inherited = remember(selectedKey) { domainConfigs.getInheritedConfig(scopeUrl, selectedKey) }
+
+    val defaultHint = stringResource(Res.string.default_value_hint)
+    @Composable
+    fun hintFor(field: (DomainConfigurationData) -> Any?): String {
+        val source = parentRules.firstOrNull { field(it) != null } ?: return defaultHint
+        return stringResource(Res.string.site_settings_inherited_from, source.domain)
+    }
+    // stringResource is @Composable, so resolve hints up front
+    val hintFontSize = hintFor { it.fontSize }
+    val hintFontType = hintFor { it.fontType }
+    val hintBoldFont = hintFor { it.boldFontStyle }
+    val hintBlackFont = hintFor { it.blackFontStyle }
+    val hintFontBoldness = hintFor { it.fontBoldness }
+    val hintWhiteBackground = hintFor { it.shouldUseWhiteBackground }
+    val hintInvertColor = hintFor { it.shouldInvertColor }
+    val hintDesktopMode = hintFor { it.desktopMode }
+    val hintViewportWidth = hintFor { it.desktopViewportWidth }
+    val hintJavascript = hintFor { it.enableJavascript }
+    val hintAdBlock = hintFor { it.enableAdBlock }
+    val hintCookies = hintFor { it.enableCookies }
+    val hintTranslateSite = hintFor { it.shouldTranslateSite }
+    val hintTranslationMode = hintFor { it.translationMode }
+
+    var fontSize by remember(selectedKey) { mutableStateOf(rule.fontSize) }
+    var fontType by remember(selectedKey) { mutableStateOf(rule.fontType) }
+    var boldFont by remember(selectedKey) { mutableStateOf(rule.boldFontStyle) }
+    var blackFont by remember(selectedKey) { mutableStateOf(rule.blackFontStyle) }
+    var fontBoldness by remember(selectedKey) { mutableStateOf(rule.fontBoldness) }
+    var whiteBackground by remember(selectedKey) { mutableStateOf(rule.shouldUseWhiteBackground) }
+    var invertColor by remember(selectedKey) { mutableStateOf(rule.shouldInvertColor) }
+    var desktopMode by remember(selectedKey) { mutableStateOf(rule.desktopMode) }
+    var viewportWidth by remember(selectedKey) { mutableStateOf(rule.desktopViewportWidth) }
+    var javascript by remember(selectedKey) { mutableStateOf(rule.enableJavascript) }
+    var adBlock by remember(selectedKey) { mutableStateOf(rule.enableAdBlock) }
+    var cookies by remember(selectedKey) { mutableStateOf(rule.enableCookies) }
+    var translateSite by remember(selectedKey) { mutableStateOf(rule.shouldTranslateSite) }
+    var translationMode by remember(selectedKey) { mutableStateOf(rule.translationMode) }
+    var customCss by remember(selectedKey) { mutableStateOf(rule.customCss.orEmpty()) }
+    var customCssEnabled by remember(selectedKey) { mutableStateOf(rule.customCssEnabled) }
+    var postLoadJs by remember(selectedKey) { mutableStateOf(rule.postLoadJavascript.orEmpty()) }
+    var postLoadJsEnabled by remember(selectedKey) { mutableStateOf(rule.postLoadJavascriptEnabled) }
+
+    fun buildRule() = rule.copy(
+        fontSize = fontSize,
+        fontType = fontType,
+        boldFontStyle = boldFont,
+        blackFontStyle = blackFont,
+        fontBoldness = fontBoldness,
+        shouldUseWhiteBackground = whiteBackground,
+        shouldInvertColor = invertColor,
+        desktopMode = desktopMode,
+        desktopViewportWidth = viewportWidth,
+        enableJavascript = javascript,
+        enableAdBlock = adBlock,
+        enableCookies = cookies,
+        shouldTranslateSite = translateSite,
+        translationMode = translationMode,
+        customCss = customCss.ifBlank { null },
+        postLoadJavascript = postLoadJs.ifBlank { null },
+        customCssEnabled = customCssEnabled,
+        postLoadJavascriptEnabled = postLoadJsEnabled,
+    )
+
+    val overrideCount = buildRule().overrideCount
+
+    // Effective fallbacks for each row: inherited from a parent rule, else global.
+    val fbFontSize = inherited.fontSize ?: globalFontSize
+    val fbFontType = inherited.fontType ?: globalFontType
+    val fbBoldFont = inherited.boldFontStyle ?: globalBoldFont
+    val fbBlackFont = inherited.blackFontStyle ?: globalBlackFont
+    val fbFontBoldness = inherited.fontBoldness ?: globalFontBoldness
+    val fbWhiteBackground = inherited.shouldUseWhiteBackground ?: false
+    val fbInvertColor = inherited.shouldInvertColor ?: false
+    val fbDesktopMode = inherited.desktopMode ?: globalDesktopMode
+    val fbViewportWidth = inherited.desktopViewportWidth ?: defaultViewportWidth
+    val fbJavascript = inherited.enableJavascript ?: globalJavascript
+    val fbAdBlock = inherited.enableAdBlock ?: globalAdBlock
+    val fbCookies = inherited.enableCookies ?: globalCookies
+    val fbTranslateSite = inherited.shouldTranslateSite ?: false
+    val fbTranslationMode = inherited.translationMode ?: globalTranslationMode
 
     Column(
         modifier = modifier.padding(16.dp),
     ) {
-        // Title block: caption + prominent host + override count
         DialogTitle(host = host, overrideCount = overrideCount)
+
+        Spacer(Modifier.height(4.dp))
+
+        ScopePicker(
+            selectedKey = selectedKey,
+            candidateKeys = candidateKeys,
+            existingRules = domainConfigs.rulesForHost(host),
+            onSelect = { selectedKey = it },
+        )
 
         Spacer(Modifier.height(8.dp))
         HorizontalSeparator()
@@ -186,145 +286,160 @@ fun SiteSettingsContent(
         ) {
             SectionHeader(stringResource(Res.string.setting_section_typography))
 
-            // Font Size — stepper
             NullableIntStepperRow(
                 label = stringResource(Res.string.font_size),
                 value = fontSize,
-                globalValue = globalFontSize,
+                globalValue = fbFontSize,
                 min = 50,
                 max = 250,
                 step = 10,
                 displayValue = { "${it}%" },
+                fallbackHint = hintFontSize,
                 onValueChange = { fontSize = it },
             )
 
-            // Font Type
             NullableDropdownRow(
                 label = stringResource(Res.string.font_type),
                 value = fontType,
-                globalValue = globalFontType,
+                globalValue = fbFontType,
                 options = FontType.entries,
                 optionLabel = { stringResource(it.resId) },
+                fallbackHint = hintFontType,
                 onValueChange = { fontType = it },
             )
 
-            // Bold Font
             NullableBooleanRow(
                 label = stringResource(Res.string.bold_font),
                 value = boldFont,
-                globalValue = globalBoldFont,
+                globalValue = fbBoldFont,
                 defaultOnActivate = true,
                 onIconRes = Res.drawable.ic_bold_font_active,
                 offIconRes = Res.drawable.ic_bold_font,
+                fallbackHint = hintBoldFont,
                 onValueChange = { boldFont = it },
             )
 
-            // Font Boldness — nested under Bold Font with a left rail
             NestedNullableIntStepper(
                 value = fontBoldness,
-                globalValue = globalFontBoldness,
+                globalValue = fbFontBoldness,
                 min = 500,
                 max = 900,
                 step = 100,
-                enabled = (boldFont ?: globalBoldFont),
+                enabled = (boldFont ?: fbBoldFont),
                 onValueChange = { fontBoldness = it },
+                hint = hintFontBoldness,
             )
 
-            // Black Font
             NullableBooleanRow(
                 label = stringResource(Res.string.black_font),
                 value = blackFont,
-                globalValue = globalBlackFont,
+                globalValue = fbBlackFont,
                 defaultOnActivate = true,
                 onIcon = Icons.TwoTone.Copyright,
                 offIcon = Icons.Outlined.Copyright,
+                fallbackHint = hintBlackFont,
                 onValueChange = { blackFont = it },
             )
 
             SectionHeader(stringResource(Res.string.setting_title_ui))
 
-            // White Background (always per-site, non-nullable boolean)
-            BooleanRow(
+            NullableBooleanRow(
                 label = stringResource(Res.string.white_background),
                 value = whiteBackground,
+                globalValue = fbWhiteBackground,
+                defaultOnActivate = true,
                 onIconRes = Res.drawable.ic_white_background_active,
                 offIconRes = Res.drawable.ic_white_background,
+                fallbackHint = hintWhiteBackground,
                 onValueChange = { whiteBackground = it },
             )
 
-            // Invert Color (always per-site, non-nullable boolean)
-            BooleanRow(
+            NullableBooleanRow(
                 label = stringResource(Res.string.menu_invert_color),
                 value = invertColor,
+                globalValue = fbInvertColor,
+                defaultOnActivate = true,
                 onIcon = Icons.Outlined.InvertColorsOff,
                 offIcon = Icons.Outlined.InvertColors,
+                fallbackHint = hintInvertColor,
                 onValueChange = { invertColor = it },
             )
 
             SectionHeader(stringResource(Res.string.setting_title_behavior))
 
-            // Desktop Mode
             NullableBooleanRow(
                 label = stringResource(Res.string.desktop_mode),
                 value = desktopMode,
-                globalValue = globalDesktopMode,
+                globalValue = fbDesktopMode,
                 onIconRes = Res.drawable.icon_desktop_activate,
                 offIconRes = Res.drawable.icon_desktop,
+                fallbackHint = hintDesktopMode,
                 onValueChange = { desktopMode = it },
             )
 
-            // Force Desktop Viewport Width — nested under Desktop Mode
             NestedNullableIntStepper(
                 value = viewportWidth,
-                globalValue = defaultViewportWidth,
+                globalValue = fbViewportWidth,
                 min = 800,
                 max = 2400,
                 step = 80,
-                enabled = (desktopMode ?: globalDesktopMode),
+                enabled = (desktopMode ?: fbDesktopMode),
                 onValueChange = { viewportWidth = it },
                 label = stringResource(Res.string.site_force_viewport_width),
-                hint = stringResource(Res.string.site_force_viewport_width_hint),
+                hint = if (inherited.desktopViewportWidth != null) hintViewportWidth
+                    else stringResource(Res.string.site_force_viewport_width_hint),
             )
 
-            // JavaScript
             NullableBooleanRow(
                 label = stringResource(Res.string.setting_title_javascript),
                 value = javascript,
-                globalValue = globalJavascript,
+                globalValue = fbJavascript,
                 onIcon = Icons.Outlined.Code,
                 offIcon = Icons.Outlined.CodeOff,
+                fallbackHint = hintJavascript,
                 onValueChange = { javascript = it },
             )
 
-            // AdBlock
             NullableBooleanRow(
                 label = stringResource(Res.string.setting_title_adblock),
                 value = adBlock,
-                globalValue = globalAdBlock,
+                globalValue = fbAdBlock,
                 onIcon = Icons.Outlined.Block,
                 offIcon = Icons.Outlined.DoNotDisturbOff,
+                fallbackHint = hintAdBlock,
                 onValueChange = { adBlock = it },
             )
 
-            // Cookies
             NullableBooleanRow(
                 label = stringResource(Res.string.setting_title_cookie),
                 value = cookies,
-                globalValue = globalCookies,
+                globalValue = fbCookies,
                 onIcon = Icons.TwoTone.Cookie,
                 offIcon = Icons.Outlined.Cookie,
+                fallbackHint = hintCookies,
                 onValueChange = { cookies = it },
             )
 
             SectionHeader(stringResource(Res.string.action_category_translation))
 
-            // Translation: checkbox (always translate) on its own row, mode dropdown nested below
-            TranslationRow(
-                translateSite = translateSite,
-                translationMode = translationMode,
-                globalTranslationMode = globalTranslationMode,
-                onTranslateSiteChange = { translateSite = it },
-                onTranslationModeChange = { translationMode = it },
+            NullableBooleanRow(
+                label = stringResource(Res.string.action_category_translation),
+                value = translateSite,
+                globalValue = fbTranslateSite,
+                defaultOnActivate = true,
+                onIcon = Icons.Outlined.Translate,
+                offIcon = Icons.Outlined.Translate,
+                fallbackHint = hintTranslateSite,
+                onValueChange = { translateSite = it },
+            )
+            NestedNullableDropdown(
+                value = translationMode,
+                globalValue = fbTranslationMode,
+                options = TranslationMode.entries,
+                optionLabel = { stringResource(it.labelResId) },
+                enabled = (translateSite ?: fbTranslateSite),
+                fallbackHint = hintTranslationMode,
+                onValueChange = { translationMode = it },
             )
 
             SectionHeader(stringResource(Res.string.setting_section_advanced))
@@ -333,14 +448,30 @@ fun SiteSettingsContent(
             EditTextButtonRow(
                 label = cssLabel,
                 hasContent = customCss.isNotBlank(),
-                onClick = { onEditText(cssLabel, customCss) { customCss = it } },
+                enabled = customCssEnabled,
+                onEnabledChange = { customCssEnabled = it },
+                onClick = {
+                    onEditText(cssLabel, customCss) {
+                        // Newly written code is meant to take effect; saving the
+                        // editor unchanged must not flip a switched-off script back on.
+                        if (it.isNotBlank() && it != customCss) customCssEnabled = true
+                        customCss = it
+                    }
+                },
             )
 
             val jsLabel = stringResource(Res.string.site_post_load_js)
             EditTextButtonRow(
                 label = jsLabel,
                 hasContent = postLoadJs.isNotBlank(),
-                onClick = { onEditText(jsLabel, postLoadJs) { postLoadJs = it } },
+                enabled = postLoadJsEnabled,
+                onEnabledChange = { postLoadJsEnabled = it },
+                onClick = {
+                    onEditText(jsLabel, postLoadJs) {
+                        if (it.isNotBlank() && it != postLoadJs) postLoadJsEnabled = true
+                        postLoadJs = it
+                    }
+                },
             )
         }
 
@@ -352,42 +483,49 @@ fun SiteSettingsContent(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            OutlinedButton(
-                onClick = {
-                    fontSize = null; fontType = null; boldFont = null; blackFont = null
-                    fontBoldness = null; desktopMode = null; viewportWidth = null; javascript = null
-                    adBlock = null; cookies = null
-                    whiteBackground = false; invertColor = false
-                    translateSite = false; translationMode = null
-                    customCss = ""; postLoadJs = ""
-                },
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colors.onBackground,
-                ),
-            ) {
-                Text(stringResource(Res.string.reset_to_global), fontSize = 13.sp)
+            if (!isHostRule && ruleExists) {
+                // A path rule with nothing set is pointless, so "reset" removes it.
+                OutlinedButton(
+                    onClick = { onDeleteRule(selectedKey) },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colors.onBackground,
+                    ),
+                ) {
+                    Text(stringResource(Res.string.site_settings_remove_rule), fontSize = 13.sp)
+                }
+            } else {
+                OutlinedButton(
+                    onClick = {
+                        fontSize = null; fontType = null; boldFont = null; blackFont = null
+                        fontBoldness = null; desktopMode = null; viewportWidth = null; javascript = null
+                        adBlock = null; cookies = null
+                        whiteBackground = null; invertColor = null
+                        translateSite = null; translationMode = null
+                        customCss = ""; postLoadJs = ""
+                        customCssEnabled = true; postLoadJsEnabled = true
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colors.onBackground,
+                    ),
+                ) {
+                    Text(
+                        stringResource(
+                            if (isHostRule) Res.string.reset_to_global
+                            else Res.string.site_settings_reset_to_inherited
+                        ),
+                        fontSize = 13.sp,
+                    )
+                }
             }
             Button(
                 onClick = {
-                    val updated = domainConfig.copy(
-                        fontSize = fontSize,
-                        fontType = fontType,
-                        boldFontStyle = boldFont,
-                        blackFontStyle = blackFont,
-                        fontBoldness = fontBoldness,
-                        shouldUseWhiteBackground = whiteBackground,
-                        shouldInvertColor = invertColor,
-                        desktopMode = desktopMode,
-                        desktopViewportWidth = viewportWidth,
-                        enableJavascript = javascript,
-                        enableAdBlock = adBlock,
-                        enableCookies = cookies,
-                        shouldTranslateSite = translateSite,
-                        translationMode = translationMode,
-                        customCss = customCss.ifBlank { null },
-                        postLoadJavascript = postLoadJs.ifBlank { null },
-                    )
-                    onSave(updated)
+                    val updated = buildRule()
+                    if (!isHostRule && updated.isEmpty) {
+                        // saving an empty path rule == removing it
+                        if (ruleExists) onDeleteRule(selectedKey) else onDismiss()
+                    } else {
+                        onSave(updated)
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(
                     backgroundColor = MaterialTheme.colors.onBackground,
@@ -396,6 +534,181 @@ fun SiteSettingsContent(
             ) {
                 // android.R.string.ok has no CMP counterpart in strings.xml
                 Text("OK", fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+/**
+ * "Apply to" row: a dropdown over every path prefix of the current URL plus
+ * any other rules already stored for this host. Rules that exist are marked
+ * with their override count so the user can see which scopes are in play.
+ */
+@Composable
+private fun ScopePicker(
+    selectedKey: String,
+    candidateKeys: List<String>,
+    existingRules: List<DomainConfigurationData>,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val existingByKey = existingRules.associateBy { it.domain }
+    val otherRules = existingRules.filter { it.domain !in candidateKeys }
+    val color = MaterialTheme.colors.onBackground
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(Res.string.site_settings_scope),
+            fontSize = 12.sp,
+            color = color.copy(alpha = 0.6f),
+        )
+        Spacer(Modifier.width(8.dp))
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = color),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+        ) {
+            Text(
+                text = scopeLabel(selectedKey),
+                modifier = Modifier.weight(1f),
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Start,
+            )
+            Icon(
+                imageVector = Icons.Outlined.ArrowDropDown,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                candidateKeys.forEach { key ->
+                    ScopeMenuItem(
+                        key = key,
+                        overrideCount = existingByKey[key]?.overrideCount ?: 0,
+                        selected = key == selectedKey,
+                        onClick = { onSelect(key); expanded = false },
+                    )
+                }
+                if (otherRules.isNotEmpty()) {
+                    HorizontalSeparator()
+                    Text(
+                        text = stringResource(Res.string.site_settings_other_rules),
+                        fontSize = 11.sp,
+                        color = color.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    )
+                    otherRules.forEach { other ->
+                        ScopeMenuItem(
+                            key = other.domain,
+                            overrideCount = other.overrideCount,
+                            selected = other.domain == selectedKey,
+                            onClick = { onSelect(other.domain); expanded = false },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Host rules read as the whole site; path rules show just their path. */
+@Composable
+private fun scopeLabel(key: String): String {
+    val path = SiteRuleKey.pathOf(key)
+    return if (path.isEmpty()) stringResource(Res.string.site_settings_scope_whole_site) else path
+}
+
+@Composable
+private fun ScopeMenuItem(
+    key: String,
+    overrideCount: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    DropdownMenuItem(onClick = onClick) {
+        Text(
+            text = scopeLabel(key),
+            modifier = Modifier.weight(1f),
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (overrideCount > 0) {
+            Spacer(Modifier.width(12.dp))
+            OverrideBadge(overrideCount)
+        }
+    }
+}
+
+/** Nested dropdown override (translation mode) under its parent toggle, with a rail. */
+@Composable
+private fun <T> NestedNullableDropdown(
+    value: T?,
+    globalValue: T,
+    options: List<T>,
+    optionLabel: @Composable (T) -> String,
+    enabled: Boolean,
+    fallbackHint: String,
+    onValueChange: (T?) -> Unit,
+) {
+    val hasOverride = value != null
+    val effectiveValue = value ?: globalValue
+    var expanded by remember { mutableStateOf(false) }
+    val color = if (enabled && hasOverride) MaterialTheme.colors.onBackground
+        else MaterialTheme.colors.onBackground.copy(alpha = 0.55f)
+
+    NestedRail(enabled = enabled) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(
+                checked = hasOverride,
+                enabled = enabled,
+                onCheckedChange = { checked -> onValueChange(if (checked) effectiveValue else null) },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colors.onBackground,
+                    uncheckedColor = MaterialTheme.colors.onBackground,
+                    checkmarkColor = MaterialTheme.colors.background,
+                ),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = stringResource(Res.string.translation_mode), fontSize = 13.sp, color = color)
+                if (!hasOverride) {
+                    Text(
+                        text = fallbackHint,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.45f),
+                    )
+                }
+            }
+            OutlinedButton(
+                onClick = { if (enabled && hasOverride) expanded = true },
+                enabled = enabled && hasOverride,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = color),
+            ) {
+                Text(optionLabel(effectiveValue), fontSize = 12.sp)
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                ) {
+                    options.forEach { option ->
+                        DropdownMenuItem(onClick = {
+                            onValueChange(option)
+                            expanded = false
+                        }) {
+                            Text(optionLabel(option))
+                        }
+                    }
+                }
             }
         }
     }
@@ -470,13 +783,14 @@ private fun NullableBooleanRow(
     offIcon: ImageVector? = null,
     onIconRes: DrawableResource? = null,
     offIconRes: DrawableResource? = null,
+    fallbackHint: String = stringResource(Res.string.default_value_hint),
     onValueChange: (Boolean?) -> Unit,
 ) {
     val hasOverride = value != null
     val effectiveValue = value ?: globalValue
     val color = if (hasOverride) MaterialTheme.colors.onBackground
         else MaterialTheme.colors.onBackground.copy(alpha = 0.55f)
-    val defaultHint = stringResource(Res.string.default_value_hint)
+    val defaultHint = fallbackHint
 
     Row(
         modifier = Modifier
@@ -522,45 +836,6 @@ private fun NullableBooleanRow(
     }
 }
 
-/**
- * A row for non-nullable per-site booleans (white background, invert color).
- * Aligns to the left edge (no leading checkbox space) — these aren't overrides.
- */
-@Composable
-private fun BooleanRow(
-    label: String,
-    value: Boolean,
-    onIcon: ImageVector? = null,
-    offIcon: ImageVector? = null,
-    onIconRes: DrawableResource? = null,
-    offIconRes: DrawableResource? = null,
-    onValueChange: (Boolean) -> Unit,
-) {
-    val color = MaterialTheme.colors.onBackground
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .noRippleClickable { onValueChange(!value) },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        StateIcon(
-            isOn = value,
-            onIcon = onIcon, offIcon = offIcon,
-            onIconRes = onIconRes, offIconRes = offIconRes,
-            tint = color,
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = label,
-            modifier = Modifier.weight(1f),
-            fontSize = 14.sp,
-            color = color,
-        )
-    }
-}
-
 @Composable
 private fun StateIcon(
     isOn: Boolean,
@@ -594,79 +869,6 @@ private fun StateIcon(
  * mode dropdown nested below with a left rail (only enabled when translateSite is true).
  */
 @Composable
-private fun TranslationRow(
-    translateSite: Boolean,
-    translationMode: TranslationMode?,
-    globalTranslationMode: TranslationMode,
-    onTranslateSiteChange: (Boolean) -> Unit,
-    onTranslationModeChange: (TranslationMode?) -> Unit,
-) {
-    val effectiveMode = translationMode ?: globalTranslationMode
-    var expanded by remember { mutableStateOf(false) }
-    val color = if (translateSite) MaterialTheme.colors.onBackground
-        else MaterialTheme.colors.onBackground.copy(alpha = 0.55f)
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Checkbox(
-            checked = translateSite,
-            onCheckedChange = { onTranslateSiteChange(it) },
-            colors = CheckboxDefaults.colors(
-                checkedColor = MaterialTheme.colors.onBackground,
-                uncheckedColor = MaterialTheme.colors.onBackground,
-                checkmarkColor = MaterialTheme.colors.background,
-            ),
-        )
-        Icon(
-            imageVector = Icons.Outlined.Translate,
-            contentDescription = null,
-            modifier = Modifier.size(28.dp),
-            tint = color,
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = stringResource(Res.string.action_category_translation),
-            modifier = Modifier.weight(1f),
-            fontSize = 14.sp,
-            color = color,
-        )
-    }
-
-    NestedRail(enabled = translateSite) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Spacer(Modifier.weight(1f))
-            OutlinedButton(
-                onClick = { if (translateSite) expanded = true },
-                enabled = translateSite,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = color),
-            ) {
-                Text(stringResource(effectiveMode.labelResId), fontSize = 12.sp)
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false },
-                ) {
-                    TranslationMode.entries.forEach { mode ->
-                        DropdownMenuItem(onClick = {
-                            onTranslationModeChange(mode)
-                            expanded = false
-                        }) {
-                            Text(stringResource(mode.labelResId))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun Modifier.noRippleClickable(enabled: Boolean = true, onClick: () -> Unit): Modifier =
     this.clickable(
         interactionSource = remember { MutableInteractionSource() },
@@ -688,13 +890,14 @@ private fun NullableIntStepperRow(
     max: Int,
     step: Int,
     displayValue: (Int) -> String,
+    fallbackHint: String = stringResource(Res.string.default_value_hint),
     onValueChange: (Int?) -> Unit,
 ) {
     val hasOverride = value != null
     val effectiveValue = value ?: globalValue
     val color = if (hasOverride) MaterialTheme.colors.onBackground
         else MaterialTheme.colors.onBackground.copy(alpha = 0.55f)
-    val defaultHint = stringResource(Res.string.default_value_hint)
+    val defaultHint = fallbackHint
 
     Row(
         modifier = Modifier
@@ -871,6 +1074,7 @@ private fun <T> NullableDropdownRow(
     globalValue: T,
     options: List<T>,
     optionLabel: @Composable (T) -> String,
+    fallbackHint: String = stringResource(Res.string.default_value_hint),
     onValueChange: (T?) -> Unit,
 ) {
     val hasOverride = value != null
@@ -878,7 +1082,7 @@ private fun <T> NullableDropdownRow(
     var expanded by remember { mutableStateOf(false) }
     val color = if (hasOverride) MaterialTheme.colors.onBackground
         else MaterialTheme.colors.onBackground.copy(alpha = 0.55f)
-    val defaultHint = stringResource(Res.string.default_value_hint)
+    val defaultHint = fallbackHint
 
     Row(
         modifier = Modifier
@@ -933,15 +1137,20 @@ private fun <T> NullableDropdownRow(
 }
 
 /**
- * A row that opens a full-screen editor for a per-site CSS / JS override.
+ * A row that opens a full-screen editor for a per-site CSS / JS override,
+ * with a switch to keep the code but stop applying it.
  */
 @Composable
 private fun EditTextButtonRow(
     label: String,
     hasContent: Boolean,
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
     onClick: () -> Unit,
 ) {
-    val color = if (hasContent) MaterialTheme.colors.onBackground
+    // Dim when there is nothing to apply, or the saved script is switched off.
+    val active = hasContent && enabled
+    val color = if (active) MaterialTheme.colors.onBackground
         else MaterialTheme.colors.onBackground.copy(alpha = 0.55f)
     Row(
         modifier = Modifier
@@ -949,6 +1158,22 @@ private fun EditTextButtonRow(
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Temporarily disable the script without deleting it. Always shown so
+        // the switch is discoverable; inert until there is code to switch.
+        Switch(
+            checked = active,
+            enabled = hasContent,
+            onCheckedChange = onEnabledChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colors.primary,
+                checkedTrackColor = MaterialTheme.colors.primary,
+                uncheckedThumbColor = Color.Gray,
+                uncheckedTrackColor = Color.Gray,
+                disabledUncheckedThumbColor = Color.LightGray,
+                disabledUncheckedTrackColor = Color.LightGray,
+            ),
+        )
+        Spacer(Modifier.width(8.dp))
         Text(
             text = label,
             modifier = Modifier.weight(1f),

@@ -21,6 +21,7 @@ import info.plateaukao.einkbro.util.NoDimAlertDialog as AlertDialog
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
+import info.plateaukao.einkbro.view.compose.onTopBar
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.TextField
@@ -109,7 +110,7 @@ fun GptActionsScreen(
                 config.ai.deleteAllGptActions()
             }) {
                 Icon(
-                    tint = MaterialTheme.colors.onPrimary,
+                    tint = MaterialTheme.colors.onTopBar,
                     imageVector = Icons.Filled.Delete,
                     contentDescription = stringResource(Res.string.menu_delete)
                 )
@@ -119,7 +120,7 @@ fun GptActionsScreen(
                 showDialog = true
             }) {
                 Icon(
-                    tint = MaterialTheme.colors.onPrimary,
+                    tint = MaterialTheme.colors.onTopBar,
                     imageVector = Icons.Filled.Add,
                     contentDescription = stringResource(Res.string.whitelist_add)
                 )

@@ -202,31 +202,29 @@ class BrowserToolsImpl(
 
     // ── Domain config ───────────────────────────────────────────────────
 
-    private fun initialHost(): String? {
-        val url = initialSnapshot?.url ?: return null
-        return Uri.parse(url).host?.takeIf { it.isNotBlank() }
-    }
+    private fun initialUrl(): String? =
+        initialSnapshot?.url?.takeIf { Uri.parse(it).host?.isNotBlank() == true }
 
+    // Resolved along the site-rule chain (path rule, then host rule); writes
+    // land in the rule that already sets the field, else the host rule.
     override fun getInitialDomainJavascript(): String {
-        val host = initialHost() ?: return ""
-        return config.domainConfigurationMap[host]?.postLoadJavascript.orEmpty()
+        val url = initialUrl() ?: return ""
+        return config.getPostLoadJavascript(url).orEmpty()
     }
 
     override fun getInitialDomainCss(): String {
-        val host = initialHost() ?: return ""
-        return config.domainConfigurationMap[host]?.customCss.orEmpty()
+        val url = initialUrl() ?: return ""
+        return config.getCustomCss(url).orEmpty()
     }
 
     override fun setInitialDomainJavascript(code: String) {
-        val host = initialHost() ?: return
-        val current = config.domainConfigurationMap[host] ?: DomainConfigurationData(host)
-        config.updateDomainConfig(current.copy(postLoadJavascript = code.ifBlank { null }))
+        val url = initialUrl() ?: return
+        config.setPostLoadJavascript(url, code)
     }
 
     override fun setInitialDomainCss(code: String) {
-        val host = initialHost() ?: return
-        val current = config.domainConfigurationMap[host] ?: DomainConfigurationData(host)
-        config.updateDomainConfig(current.copy(customCss = code.ifBlank { null }))
+        val url = initialUrl() ?: return
+        config.setCustomCss(url, code)
     }
 
     private fun parseLinks(raw: String): List<BrowserTools.Link> {

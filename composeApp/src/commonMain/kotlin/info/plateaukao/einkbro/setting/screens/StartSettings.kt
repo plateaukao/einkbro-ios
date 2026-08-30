@@ -13,6 +13,12 @@ import info.plateaukao.einkbro.view.EBToast
 fun buildStartSettingItems(deps: SettingScreenDeps): List<SettingItemInterface> {
     val config = deps.config
     return listOf(
+        ActionSettingItem(
+            Res.string.setting_title_site_rules,
+            null,
+            Res.string.setting_summary_site_rules,
+        ) { deps.onOpenSiteRules() },
+        DividerSettingItem(),
         BooleanSettingItem(
             Res.string.setting_title_images,
             null,

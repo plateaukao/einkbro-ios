@@ -853,6 +853,15 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     }
 
     override fun onUrlChanged(engine: WebViewEngine, url: String) {
+        // Android NinjaWebViewClient.applyPathRulesForNavigation: a pushState /
+        // hash navigation can cross into a different path rule without a load,
+        // so re-assert the per-site config when the matching rule chain changes.
+        val previous = if (engine === currentEngine) currentUrl.value else engine.currentUrl().orEmpty()
+        if (previous.isNotBlank() && previous != url &&
+            config.matchingKeys(previous) != config.matchingKeys(url)
+        ) {
+            applyWebConfig(engine, url)
+        }
         if (engine === currentEngine) currentUrl.value = url
     }
 

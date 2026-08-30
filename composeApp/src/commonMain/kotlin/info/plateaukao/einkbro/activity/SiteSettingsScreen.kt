@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.site_settings
-import info.plateaukao.einkbro.util.Uri
 import info.plateaukao.einkbro.view.compose.ListScaffold
 import info.plateaukao.einkbro.view.compose.MyTheme
 import info.plateaukao.einkbro.view.dialog.compose.DEFAULT_DESKTOP_VIEWPORT_WIDTH
@@ -40,7 +39,6 @@ fun SiteSettingsScreen(
     onClose: () -> Unit,
 ) {
     val config = AppServices.config
-    val host = Uri.parse(url).host.orEmpty()
     var editorRequest by remember { mutableStateOf<EditorRequest?>(null) }
 
     Box(Modifier.fillMaxSize()) {
@@ -58,8 +56,8 @@ fun SiteSettingsScreen(
                     modifier = Modifier
                         .widthIn(max = 600.dp)
                         .fillMaxHeight(),
-                    host = host,
-                    domainConfig = config.getDomainConfig(url),
+                    url = url,
+                    domainConfigs = config.domain,
                     globalFontSize = config.display.fontSize,
                     globalFontType = config.display.fontType,
                     globalBoldFont = config.display.boldFontStyle,
@@ -76,6 +74,10 @@ fun SiteSettingsScreen(
                     },
                     onSave = { updatedConfig ->
                         config.updateDomainConfig(updatedConfig)
+                        onClose()
+                    },
+                    onDeleteRule = { key ->
+                        config.deleteSiteRule(key)
                         onClose()
                     },
                     onDismiss = onClose,

@@ -703,4 +703,25 @@
     <string name="reasoning_low">Low</string>
     <string name="reasoning_medium">Medium</string>
     <string name="reasoning_high">High</string>
+    <string name="setting_title_ui_theme">Theme</string>
+    <string name="theme_section_color">Color</string>
+    <string name="setting_summary_ui_theme">Accent color for buttons, borders, and dialogs</string>
+    <string name="setting_title_border">Border</string>
+    <string name="setting_title_fill">Fill</string>
+    <string name="backup_category_userscripts">Userscripts</string>
+    <string name="backup_category_transcripts">Video Transcripts</string>
+    <string name="backup_category_chat_sessions">AI Chat Sessions</string>
+    <string name="site_settings_scope">Apply to</string>
+    <string name="site_settings_scope_whole_site">Whole site</string>
+    <string name="site_settings_other_rules">Other rules on this site</string>
+    <string name="site_settings_inherited_from">from %1$s</string>
+    <string name="site_settings_remove_rule">Remove Rule</string>
+    <string name="site_rule_part_off">%1$s (off)</string>
+    <string name="site_settings_reset_to_inherited">Reset All to Inherited</string>
+    <string name="setting_title_site_rules">Configured sites</string>
+    <string name="setting_summary_site_rules">Review, edit or remove per-site settings without visiting each site</string>
+    <string name="site_rules_empty_hint">Settings saved from the Site Settings menu on a page show up here</string>
+    <string name="site_rules_no_overrides">No overrides</string>
+    <string name="site_rules_delete_confirm">Remove all settings for %1$s?</string>
+    <string name="site_rules_delete_all_confirm">Remove the settings of every site?</string>
 </resources>

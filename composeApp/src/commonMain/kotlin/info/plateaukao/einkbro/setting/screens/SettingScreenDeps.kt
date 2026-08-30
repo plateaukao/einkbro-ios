@@ -33,6 +33,10 @@ class SettingScreenDeps(
     val onOpenWhitelist: (WhiteListType) -> Unit = {},
     /** Opens the hide/reorder-menu-items editor (Android MenuItemHideActivity). */
     val onOpenMenuItemHide: () -> Unit = {},
+    /** Opens the theme (color / border / fill) picker (Android ThemeColorDialogFragment). */
+    val onOpenThemeDialog: () -> Unit = {},
+    /** Opens the list of every site rule (Android SiteRuleListActivity). */
+    val onOpenSiteRules: () -> Unit = {},
 )
 
 interface BackupOps {

@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
+import info.plateaukao.einkbro.view.compose.onTopBar
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -80,7 +81,7 @@ fun DataListScreen(
                 }
             }) {
                 Icon(
-                    tint = MaterialTheme.colors.onPrimary,
+                    tint = MaterialTheme.colors.onTopBar,
                     imageVector = Icons.Filled.Delete,
                     contentDescription = stringResource(Res.string.menu_delete)
                 )
@@ -92,7 +93,7 @@ fun DataListScreen(
                 ) { whitelist.value += it }
             }) {
                 Icon(
-                    tint = MaterialTheme.colors.onPrimary,
+                    tint = MaterialTheme.colors.onTopBar,
                     imageVector = Icons.Filled.Add,
                     contentDescription = stringResource(Res.string.whitelist_add)
                 )

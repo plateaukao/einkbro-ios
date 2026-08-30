@@ -74,9 +74,11 @@ class ConfigManager(
 
     // Per-domain configuration (extracted to DomainConfigManager); forwards kept so
     // existing call sites are unchanged.
-    val domain = DomainConfigManager(display, browser, translation) {
-        bookmarkManager.addDomainConfiguration(it)
-    }
+    val domain = DomainConfigManager(
+        display, browser, translation,
+        persist = { bookmarkManager.addDomainConfiguration(it) },
+        remove = { bookmarkManager.deleteDomainConfiguration(it) },
+    )
 
     var domainConfigurationMap: MutableMap<String, DomainConfigurationData>
         get() = domain.domainConfigurationMap
@@ -144,6 +146,31 @@ class ConfigManager(
     fun getDomainConfig(url: String): DomainConfigurationData = domain.getDomainConfig(url)
 
     fun updateDomainConfig(config: DomainConfigurationData) = domain.updateDomainConfig(config)
+
+    // Path-scoped site rules (Android DomainConfigManager): the editor works on
+    // one rule key at a time and shows what the rest of the chain would give.
+    fun getEffectiveConfig(url: String): DomainConfigurationData = domain.getEffectiveConfig(url)
+
+    fun getInheritedConfig(url: String, excludingKey: String): DomainConfigurationData =
+        domain.getInheritedConfig(url, excludingKey)
+
+    fun matchingKeys(url: String): List<String> = domain.matchingKeys(url)
+
+    fun getRule(key: String): DomainConfigurationData? = domain.getRule(key)
+
+    fun getRuleOrNew(key: String): DomainConfigurationData = domain.getRuleOrNew(key)
+
+    fun rulesForHost(host: String): List<DomainConfigurationData> = domain.rulesForHost(host)
+
+    fun allSiteRules(): List<DomainConfigurationData> = domain.allRules()
+
+    fun deleteSiteRule(key: String) = domain.deleteRule(key)
+
+    fun setTranslationMode(url: String, mode: TranslationMode) = domain.setTranslationMode(url, mode)
+
+    fun setPostLoadJavascript(url: String, code: String?) = domain.setPostLoadJavascript(url, code)
+
+    fun setCustomCss(url: String, code: String?) = domain.setCustomCss(url, code)
 
     var recentBookmarks: List<RecentBookmark>
         get() {

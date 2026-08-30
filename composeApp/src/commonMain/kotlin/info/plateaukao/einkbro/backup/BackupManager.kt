@@ -12,6 +12,15 @@ import info.plateaukao.einkbro.database.HistoryRecord
 import info.plateaukao.einkbro.database.VideoTranscript
 import info.plateaukao.einkbro.epub.ZipReader
 import info.plateaukao.einkbro.epub.ZipWriter
+import info.plateaukao.einkbro.resources.Res
+import info.plateaukao.einkbro.resources.backup_category_all_preferences
+import info.plateaukao.einkbro.resources.backup_category_bookmarks
+import info.plateaukao.einkbro.resources.backup_category_chat_sessions
+import info.plateaukao.einkbro.resources.backup_category_database_data
+import info.plateaukao.einkbro.resources.backup_category_gpt_settings
+import info.plateaukao.einkbro.resources.backup_category_history
+import info.plateaukao.einkbro.resources.backup_category_transcripts
+import info.plateaukao.einkbro.resources.backup_category_userscripts
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -63,6 +72,18 @@ import kotlin.io.encoding.ExperimentalEncodingApi
  * .mht / .epub / .pdf payloads, so the read-later list, `saved_pages` and the
  * saved EPUB/PDF lists are excluded in both directions.
  */
+/** Android BackupUnit.BackupCategory: what the backup/restore pickers offer. */
+enum class BackupCategory(val displayNameRes: org.jetbrains.compose.resources.StringResource) {
+    ALL_PREFERENCES(Res.string.backup_category_all_preferences),
+    GPT_SETTINGS(Res.string.backup_category_gpt_settings),
+    BOOKMARKS(Res.string.backup_category_bookmarks),
+    HISTORY(Res.string.backup_category_history),
+    DATABASE_DATA(Res.string.backup_category_database_data),
+    USERSCRIPTS(Res.string.backup_category_userscripts),
+    TRANSCRIPTS(Res.string.backup_category_transcripts),
+    CHAT_SESSIONS(Res.string.backup_category_chat_sessions),
+}
+
 @OptIn(ExperimentalEncodingApi::class)
 object BackupManager {
 
@@ -261,48 +282,25 @@ object BackupManager {
     // --- per-site rules (translation/CSS/JS/font per host) ---
 
     /**
-     * Android's `DomainConfigurationData.mergedWith`: this (local) rule with
-     * every unset field filled in from [fallback]. The four always-present
-     * toggles have no "unset" state here, so a toggle the backup turned on is
-     * added (never turned off).
+     * Android BackupUnit.restoreDatabaseData for site rules: merged field by
+     * field, local wins, the backup fills whatever the local rule leaves unset
+     * (or the whole rule when there is none); a rule left empty is dropped.
+     * Returns the number of rules created or extended.
      */
-    private fun DomainConfigurationData.mergedWith(fallback: DomainConfigurationData) =
-        DomainConfigurationData(
-            domain = domain,
-            shouldFixScroll = shouldFixScroll || fallback.shouldFixScroll,
-            shouldTranslateSite = shouldTranslateSite || fallback.shouldTranslateSite,
-            shouldUseWhiteBackground = shouldUseWhiteBackground || fallback.shouldUseWhiteBackground,
-            shouldInvertColor = shouldInvertColor || fallback.shouldInvertColor,
-            fontSize = fontSize ?: fallback.fontSize,
-            fontType = fontType ?: fallback.fontType,
-            boldFontStyle = boldFontStyle ?: fallback.boldFontStyle,
-            blackFontStyle = blackFontStyle ?: fallback.blackFontStyle,
-            fontBoldness = fontBoldness ?: fallback.fontBoldness,
-            desktopMode = desktopMode ?: fallback.desktopMode,
-            desktopViewportWidth = desktopViewportWidth ?: fallback.desktopViewportWidth,
-            enableJavascript = enableJavascript ?: fallback.enableJavascript,
-            enableAdBlock = enableAdBlock ?: fallback.enableAdBlock,
-            enableCookies = enableCookies ?: fallback.enableCookies,
-            translationMode = translationMode ?: fallback.translationMode,
-            customCss = customCss?.takeIf { it.isNotBlank() } ?: fallback.customCss,
-            postLoadJavascript = postLoadJavascript?.takeIf { it.isNotBlank() }
-                ?: fallback.postLoadJavascript,
-        )
-
-    /** Merges rules in; returns the number of rules created or extended. */
     private suspend fun mergeDomainConfigs(imported: List<DomainConfigurationData>): Int {
         if (imported.isEmpty()) return 0
-        val local = bookmarkManager.getAllDomainConfigurations().associateBy { it.domain }.toMutableMap()
+        val local = bookmarkManager.getAllDomainConfigurations()
+            .associateBy({ it.domain }, { it.normalizedLegacyFlags() }).toMutableMap()
         var changed = 0
-        imported.forEach { rule ->
-            if (rule.domain.isBlank()) return@forEach
+        imported.forEach { raw ->
+            if (raw.domain.isBlank()) return@forEach
+            val rule = raw.normalizedLegacyFlags()
             val existing = local[rule.domain]
             val merged = existing?.mergedWith(rule) ?: rule
-            if (merged != existing) {
-                bookmarkManager.upsertDomainConfiguration(merged)
-                local[rule.domain] = merged
-                changed++
-            }
+            if (merged.isEmpty || merged == existing) return@forEach
+            bookmarkManager.upsertDomainConfiguration(merged)
+            local[rule.domain] = merged
+            changed++
         }
         // The in-memory map is otherwise only hydrated at launch, and the user
         // may not relaunch right away.
@@ -624,35 +622,98 @@ object BackupManager {
      * see the class doc for the per-table rules. Returns null when the zip
      * holds nothing EinkBro recognises.
      */
-    suspend fun importBackupZip(bytes: ByteArray): RestoreSummary? {
+    suspend fun importBackupZip(
+        bytes: ByteArray,
+        categories: Set<BackupCategory> = BackupCategory.entries.toSet(),
+    ): RestoreSummary? {
         val entries = ZipReader.read(bytes) ?: return null
         val s = RestoreSummary()
         fun found() { s.recognized = true }
+        fun wanted(c: BackupCategory) = c in categories
 
         // Preferences. Android's ALL_PREFERENCES supersedes its GPT_SETTINGS
         // subset (same keys); both go through the same fill-missing-only path.
-        entries["prefs.json"]?.let { s.prefs += importPrefsJson(it.decodeToString()); found() }
-        entries.filterKeys { it.startsWith("shared_prefs/") && it.endsWith(".xml") }
-            .forEach { (_, xml) -> s.prefs += importAndroidPrefsXml(xml.decodeToString()); found() }
-        entries[GPT_SETTINGS_FILE]?.let { s.prefs += importPrefsJson(it.decodeToString()); found() }
-
-        entries[BOOKMARKS_FILE]?.let { s.bookmarks += importBookmarks(it.decodeToString()); found() }
-        entries[HISTORY_FILE]?.let { s.history += importHistory(it.decodeToString()); found() }
-        // Older iOS backups carried the per-site rules as their own entry.
-        entries["domain_configs.json"]?.let {
-            val rules = runCatching {
-                json.decodeFromString(ListSerializer(DomainConfigurationData.serializer()), it.decodeToString())
-            }.getOrDefault(emptyList())
-            s.siteRules += mergeDomainConfigs(rules); found()
+        if (wanted(BackupCategory.ALL_PREFERENCES)) {
+            entries["prefs.json"]?.let { s.prefs += importPrefsJson(it.decodeToString()); found() }
+            entries.filterKeys { it.startsWith("shared_prefs/") && it.endsWith(".xml") }
+                .forEach { (_, xml) -> s.prefs += importAndroidPrefsXml(xml.decodeToString()); found() }
         }
-        entries[DATABASE_DATA_FILE]?.let { if (importDatabaseData(it.decodeToString(), s)) found() }
-        importUserscripts(entries).let { if (it > 0 || entries.keys.any { k -> k.startsWith(USERSCRIPTS_DIR) }) { s.userscripts += it; found() } }
-        entries[TRANSCRIPTS_FILE]?.let { s.transcripts += importTranscripts(it.decodeToString()); found() }
-        entries[CHAT_SESSIONS_FILE]?.let { s.chatSessions += importChatSessions(it.decodeToString()); found() }
+        if (wanted(BackupCategory.GPT_SETTINGS) && !wanted(BackupCategory.ALL_PREFERENCES)) {
+            entries[GPT_SETTINGS_FILE]?.let { s.prefs += importPrefsJson(it.decodeToString()); found() }
+        }
+
+        if (wanted(BackupCategory.BOOKMARKS)) {
+            entries[BOOKMARKS_FILE]?.let { s.bookmarks += importBookmarks(it.decodeToString()); found() }
+        }
+        if (wanted(BackupCategory.HISTORY)) {
+            entries[HISTORY_FILE]?.let { s.history += importHistory(it.decodeToString()); found() }
+        }
+        if (wanted(BackupCategory.DATABASE_DATA)) {
+            // Older iOS backups carried the per-site rules as their own entry.
+            entries["domain_configs.json"]?.let {
+                val rules = runCatching {
+                    json.decodeFromString(ListSerializer(DomainConfigurationData.serializer()), it.decodeToString())
+                }.getOrDefault(emptyList())
+                s.siteRules += mergeDomainConfigs(rules); found()
+            }
+            entries[DATABASE_DATA_FILE]?.let { if (importDatabaseData(it.decodeToString(), s)) found() }
+        }
+        if (wanted(BackupCategory.USERSCRIPTS)) {
+            importUserscripts(entries).let {
+                if (it > 0 || entries.keys.any { k -> k.startsWith(USERSCRIPTS_DIR) }) { s.userscripts += it; found() }
+            }
+        }
+        if (wanted(BackupCategory.TRANSCRIPTS)) {
+            entries[TRANSCRIPTS_FILE]?.let { s.transcripts += importTranscripts(it.decodeToString()); found() }
+        }
+        if (wanted(BackupCategory.CHAT_SESSIONS)) {
+            entries[CHAT_SESSIONS_FILE]?.let { s.chatSessions += importChatSessions(it.decodeToString()); found() }
+        }
 
         // Config delegates read the prefs store live, so restored settings apply on
         // next read; a relaunch guarantees everything (incl. cached sub-configs).
+        // Theme prefs are mirrored into Compose state, so retint now.
+        if (s.prefs > 0) info.plateaukao.einkbro.view.compose.UiThemeState.syncFrom(AppServices.config.display)
         return s.takeIf { it.recognized }
+    }
+
+    /**
+     * Android BackupUnit.getAvailableCategoryOptions: the categories a zip holds,
+     * each with the raw byte size of its entries, in enum order. Derived from
+     * the entries themselves (not the manifest) so older iOS zips without
+     * `_manifest.json` still restore. Null when nothing is recognised.
+     */
+    fun scanCategories(bytes: ByteArray): List<Pair<BackupCategory, Long>>? {
+        val entries = ZipReader.read(bytes) ?: return null
+        val sizes = LinkedHashMap<BackupCategory, Long>()
+        entries.forEach { (name, data) ->
+            categoryForEntry(name)?.let { sizes[it] = (sizes[it] ?: 0L) + data.size }
+        }
+        if (sizes.isEmpty()) return null
+        return BackupCategory.entries.filter { it in sizes }.map { it to sizes.getValue(it) }
+    }
+
+    private fun categoryForEntry(name: String): BackupCategory? = when {
+        name == "prefs.json" || name.startsWith("shared_prefs/") -> BackupCategory.ALL_PREFERENCES
+        name == GPT_SETTINGS_FILE -> BackupCategory.GPT_SETTINGS
+        name == BOOKMARKS_FILE -> BackupCategory.BOOKMARKS
+        name == HISTORY_FILE -> BackupCategory.HISTORY
+        name == DATABASE_DATA_FILE || name == "domain_configs.json" -> BackupCategory.DATABASE_DATA
+        name.startsWith(USERSCRIPTS_DIR) -> BackupCategory.USERSCRIPTS
+        name == TRANSCRIPTS_FILE -> BackupCategory.TRANSCRIPTS
+        name == CHAT_SESSIONS_FILE -> BackupCategory.CHAT_SESSIONS
+        else -> null
+    }
+
+    /** android.text.format.Formatter.formatShortFileSize stand-in. */
+    fun formatShortFileSize(bytes: Long): String = when {
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> "${(bytes + 512) / 1024} KB"
+        else -> {
+            val mb = bytes / (1024.0 * 1024.0)
+            val tenths = (mb * 10 + 0.5).toLong()
+            "${tenths / 10}.${tenths % 10} MB"
+        }
     }
 
     // --- preferences ---

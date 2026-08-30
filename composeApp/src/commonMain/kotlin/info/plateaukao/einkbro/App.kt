@@ -21,6 +21,9 @@ import androidx.compose.foundation.verticalScroll
 import info.plateaukao.einkbro.util.NoDimAlertDialog as AlertDialog
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
+import androidx.compose.ui.draw.alpha
+import androidx.compose.runtime.toMutableStateList
+import androidx.compose.material.Checkbox
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.RadioButton
 import androidx.compose.material.Surface
@@ -90,6 +93,7 @@ fun App() {
                     ToastOverlay(Modifier.align(Alignment.BottomCenter))
                     OkCancelDialogHost()
                     SelectOptionDialogHost()
+                    MultiSelectDialogHost()
                     TextInputDialogHost()
                 }
                 return@Surface
@@ -149,6 +153,7 @@ fun App() {
                 ToastOverlay(Modifier.align(Alignment.BottomCenter))
                 OkCancelDialogHost()
                 SelectOptionDialogHost()
+                MultiSelectDialogHost()
                 TextInputDialogHost()
             }
         }
@@ -306,6 +311,70 @@ private fun SelectOptionDialogHost() {
                 TextButton(onClick = { req.onResult(null) }) {
                     Text("Cancel", color = MaterialTheme.colors.onBackground)
                 }
+            }
+        },
+        backgroundColor = MaterialTheme.colors.background,
+    )
+}
+
+/** Multi-choice list with OK/Cancel (Android AlertDialog.setMultiChoiceItems);
+ *  used by the backup/restore category pickers. */
+@Composable
+private fun MultiSelectDialogHost() {
+    val request by DialogManager.pendingMultiSelect
+    val req = request ?: return
+    val checked = remember(req) { req.initiallyChecked.toMutableStateList() }
+    AlertDialog(
+        onDismissRequest = { req.onResult(null) },
+        title = { Text(req.title, color = MaterialTheme.colors.onBackground) },
+        text = {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState())
+            ) {
+                req.options.forEachIndexed { index, option ->
+                    // locked: forced on while its master is checked
+                    val master = req.lockedBy[index]
+                    val locked = master != null && checked.getOrNull(master) == true
+                    fun toggle() {
+                        if (locked) return
+                        val now = !checked[index]
+                        checked[index] = now
+                        // checking a master also checks everything it locks
+                        req.lockedBy.forEach { (dep, m) -> if (m == index && now) checked[dep] = true }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = !locked) { toggle() }
+                            .padding(vertical = 6.dp)
+                            .alpha(if (locked) 0.5f else 1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = checked[index],
+                            onCheckedChange = { toggle() },
+                            enabled = !locked,
+                        )
+                        Text(
+                            text = option,
+                            modifier = Modifier.padding(start = 8.dp),
+                            color = MaterialTheme.colors.onBackground,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val selected = checked.withIndex().filter { it.value }.map { it.index }.toSet()
+                if (selected.isNotEmpty()) req.onResult(selected)
+            }) {
+                Text("OK", color = MaterialTheme.colors.onBackground)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { req.onResult(null) }) {
+                Text("Cancel", color = MaterialTheme.colors.onBackground)
             }
         },
         backgroundColor = MaterialTheme.colors.background,

@@ -162,6 +162,13 @@ fun BrowserScreen(
     var fontDialogForReader by remember { mutableStateOf(false) }
     var showFastToggle by remember { mutableStateOf(false) }
     var showSiteSettings by remember { mutableStateOf(false) }
+    // URL the site-settings editor opens on: the current page, or `https://<key>`
+    // when a rule is picked from the configured-sites list.
+    var siteSettingsUrl by remember { mutableStateOf("") }
+    var showSiteRules by remember { mutableStateOf(false) }
+    // Editing from the configured-sites list: the list steps aside for the
+    // editor and comes back when it closes (Android's activity result).
+    var returnToSiteRules by remember { mutableStateOf(false) }
     var showTouchAreaDialog by remember { mutableStateOf(false) }
     var showHighlights by remember { mutableStateOf(false) }
     var showSavedPages by remember { mutableStateOf(false) }
@@ -824,7 +831,10 @@ fun BrowserScreen(
                 currentHelper?.toggleAudioOnly()
                 toolbarRefreshTick += 1
             }
-            BrowserAction.ShowSiteSettingsDialog -> showSiteSettings = true
+            BrowserAction.ShowSiteSettingsDialog -> {
+                siteSettingsUrl = browserViewModel.currentUrl.value
+                showSiteSettings = true
+            }
             BrowserAction.ShowUserScriptCommands -> {
                 // Short-tap parity: list this page's registered menu commands, or
                 // fall back to the manager when the page registered none.
@@ -1751,12 +1761,16 @@ fun BrowserScreen(
             showSiteSettings = false
             // Per-site JS/adblock/UA overrides apply to future loads.
             browserViewModel.reapplyWebConfig()
+            if (returnToSiteRules) {
+                returnToSiteRules = false
+                showSiteRules = true
+            }
         }
         if (ViewUnit.isTablet(AppServices.context)) {
             Dialog(onDismissRequest = dismissSiteSettings) {
                 DialogFrame(onDismiss = dismissSiteSettings) {
                     SiteSettingsDialogContent(
-                        url = browserViewModel.currentUrl.value,
+                        url = siteSettingsUrl,
                         onDismiss = dismissSiteSettings,
                     )
                 }
@@ -1765,7 +1779,7 @@ fun BrowserScreen(
             // On phones the dialog is too cramped; use the whole screen (Android parity).
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
                 info.plateaukao.einkbro.activity.SiteSettingsScreen(
-                    url = browserViewModel.currentUrl.value,
+                    url = siteSettingsUrl,
                     onClose = dismissSiteSettings,
                 )
             }
@@ -1801,6 +1815,7 @@ fun BrowserScreen(
                 initialRoute = settingsInitialRoute,
                 onClose = { showSettings = false },
                 onOpenUserScripts = { showSettings = false; showUserScripts = true },
+                onOpenSiteRules = { showSettings = false; showSiteRules = true },
                 onOpenGptActions = { showSettings = false; showGptActions = true },
                 onOpenGptQueries = { showSettings = false; showGptQueries = true },
                 onOpenToolbarConfig = { showSettings = false; showToolbarConfig = true },
@@ -2144,6 +2159,21 @@ fun BrowserScreen(
         }
     }
 
+    if (showSiteRules) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            info.plateaukao.einkbro.activity.SiteRuleListScreen(
+                onClose = { showSiteRules = false; browserViewModel.reapplyWebConfig() },
+                // the rule key becomes a synthetic URL so the editor opens on that scope
+                onEdit = { key ->
+                    siteSettingsUrl = "https://$key"
+                    showSiteRules = false
+                    returnToSiteRules = true
+                    showSiteSettings = true
+                },
+            )
+        }
+    }
+
     if (showMenuItemHide) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
             info.plateaukao.einkbro.activity.MenuItemHideScreen(
@@ -2477,7 +2507,7 @@ private fun SplitPane(
             SplitBarButton("Close") { browserViewModel.closeSplitScreen() }
         }
         androidx.compose.material.Divider(
-            color = MaterialTheme.colors.onBackground.copy(alpha = 0.3f),
+            color = MaterialTheme.colors.primary.copy(alpha = 0.3f),
         )
         if (splitEngine != null && splitAlbum != null) {
             key(splitAlbum.id) {

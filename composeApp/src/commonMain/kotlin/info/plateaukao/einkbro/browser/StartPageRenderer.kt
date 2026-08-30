@@ -1,7 +1,15 @@
 package info.plateaukao.einkbro.browser
 
 import info.plateaukao.einkbro.AppServices
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
 import info.plateaukao.einkbro.preference.DarkMode
+import info.plateaukao.einkbro.preference.GRADIENT_END_FRACTION
+import info.plateaukao.einkbro.preference.GRADIENT_START_FRACTION
+import info.plateaukao.einkbro.preference.UiFill
+import info.plateaukao.einkbro.preference.palette
+import info.plateaukao.einkbro.view.compose.UiThemeState
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.app_name
 import info.plateaukao.einkbro.resources.main_omnibox_input_hint
@@ -101,6 +109,8 @@ object StartPageRenderer {
             .replace("{{TITLE}}", startPageTitle().escapeHtml())
             .replace("{{COLOR_SCHEME}}", if (darkTheme || backgroundBytes != null) "dark" else "light")
             .replace("{{THEME_CLASS}}", if (darkTheme) "dark" else "")
+            // a custom background image owns the look; otherwise the app theme does
+            .replace("{{THEME_STYLE}}", if (backgroundBytes == null) themeStyle(darkTheme) else "")
             .replace(
                 "{{BG_STYLE}}",
                 backgroundBytes?.let { backgroundStyle(it, stats, darkTheme) } ?: ""
@@ -112,6 +122,71 @@ object StartPageRenderer {
 
     fun startPageTitle(): String =
         AppServices.config.startPageTitle.ifBlank { blockingString(Res.string.app_name) }
+
+    /**
+     * CSS overrides applying the app theme to the start page (Android
+     * BookmarkRenderer.themeStyle): background and text colors, accent
+     * borders (search bar, tiles, wordmark), and the selected fill (tonal,
+     * gradient at the chosen angle/level, or the repeating patterns) as the
+     * page background.
+     */
+    private fun themeStyle(darkTheme: Boolean): String {
+        val palette = UiThemeState.current.value.palette(UiThemeState.customColor.value)
+        val inverted = UiThemeState.inverted.value
+        val night = inverted || darkTheme
+        fun hex(c: Color) = "#" + (c.toArgb() and 0xFFFFFF).toString(16).padStart(6, '0').uppercase()
+        val bg = when {
+            inverted -> palette.onBackground
+            darkTheme -> Color.Black
+            else -> palette.background
+        }
+        val fg = when {
+            inverted -> palette.background
+            darkTheme -> palette.onBackgroundDark
+            else -> palette.onBackground
+        }
+        val accent = if (night) palette.accentDark else palette.accent
+        val tonal = lerp(bg, accent, if (night) 0.16f else 0.10f)
+        val line = lerp(bg, accent, if (night) 0.16f else 0.12f)
+        val fill = UiThemeState.uiFill.value
+        val level = UiThemeState.gradientLevel.value
+        fun gl(f: Float) = (f * level / 100f).coerceIn(0f, 0.9f)
+        val g1 = hex(lerp(bg, accent, gl(GRADIENT_START_FRACTION)))
+        val g2 = hex(lerp(bg, accent, gl(GRADIENT_END_FRACTION)))
+        // our angle: 0 = left-to-right; CSS: 0deg = to top, clockwise
+        val cssAngle = (UiThemeState.gradientAngle.value + 90).mod(360)
+        val bgCss = when (fill) {
+            UiFill.NONE -> hex(bg)
+            UiFill.TONAL -> hex(tonal)
+            UiFill.GRADIENT -> "linear-gradient(${cssAngle}deg, $g1, $g2)"
+            UiFill.STRIPES ->
+                "repeating-linear-gradient(135deg, ${hex(bg)} 0 12.5px, ${hex(line)} 12.5px 14px)"
+            UiFill.DOTS -> "radial-gradient(circle, ${hex(line)} 1.5px, ${hex(bg)} 1.6px)"
+            UiFill.GRAPH ->
+                "repeating-linear-gradient(to right, ${hex(line)} 0 1px, transparent 1px 16px), " +
+                    "repeating-linear-gradient(to bottom, ${hex(line)} 0 1px, ${hex(bg)} 1px 16px)"
+            UiFill.RULED ->
+                "repeating-linear-gradient(to bottom, ${hex(bg)} 0 17px, ${hex(line)} 17px 18px)"
+            UiFill.CROSSHATCH ->
+                "repeating-linear-gradient(135deg, ${hex(line)} 0 1px, transparent 1px 16px), " +
+                    "repeating-linear-gradient(45deg, ${hex(line)} 0 1px, ${hex(bg)} 1px 16px)"
+        }
+        val bgSize = if (fill == UiFill.DOTS) "background-size: 14px 14px !important;" else ""
+        return """
+    <style>
+    body { background: $bgCss !important; $bgSize color: ${hex(fg)} !important; }
+    .wordmark { color: ${hex(accent)} !important; }
+    .search-wrap { border-color: ${hex(accent)} !important; background: ${hex(bg)} !important; }
+    .search-bar svg { color: ${hex(fg)} !important; }
+    .search-bar input { color: ${hex(fg)} !important; }
+    #fakeCaret { background: ${hex(fg)} !important; }
+    .sugg { border-top-color: ${hex(accent)} !important; }
+    .tile { color: ${hex(fg)} !important; }
+    .tile-icon { border-color: ${hex(accent)} !important; background: ${hex(bg)} !important; }
+    .tile-icon svg { color: ${hex(fg)} !important; }
+    .tile-icon .fallback { color: ${hex(fg)} !important; }
+    </style>"""
+    }
 
     private fun isAppDarkMode(): Boolean = when (AppServices.config.display.darkMode) {
         DarkMode.DISABLED -> false

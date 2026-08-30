@@ -52,12 +52,7 @@ fun TranslationConfigDialogContent(
         translationMode = translationMode.value,
         startExpanded = true,
         translationModeChanged = {
-            val host = Uri.parse(url).host
-            if (host != null) {
-                val domainConfig = config.getDomainConfig(url)
-                domainConfig.translationMode = it
-                config.updateDomainConfig(domainConfig)
-            }
+            if (Uri.parse(url).host != null) config.setTranslationMode(url, it)
             translationMode.value = it
             if (translateDirectly || config.shouldTranslateSite(url)) {
                 onToggledAction(true)

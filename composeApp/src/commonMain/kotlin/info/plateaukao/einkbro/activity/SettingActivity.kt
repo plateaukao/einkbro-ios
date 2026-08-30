@@ -52,6 +52,7 @@ import info.plateaukao.einkbro.activity.SettingRoute.Toolbar
 import info.plateaukao.einkbro.activity.SettingRoute.Ui
 import info.plateaukao.einkbro.activity.SettingRoute.UserAgent
 import info.plateaukao.einkbro.resources.Res
+import info.plateaukao.einkbro.resources.dialog_title_restore_categories
 import info.plateaukao.einkbro.resources.*
 import info.plateaukao.einkbro.setting.DividerSettingItem
 import info.plateaukao.einkbro.setting.GesturePickerScreen
@@ -82,6 +83,7 @@ import info.plateaukao.einkbro.view.EBToast
 import kotlinx.datetime.toLocalDateTime
 import info.plateaukao.einkbro.view.dialog.DialogManager
 import info.plateaukao.einkbro.view.compose.MyTheme
+import info.plateaukao.einkbro.view.compose.onTopBar
 import android.content.Context
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -128,11 +130,36 @@ private class RealBackupOps(
 
     override fun importAppData() {
         info.plateaukao.einkbro.util.FilePicker.pick { _, bytes ->
-            scope.launch {
-                val summary = info.plateaukao.einkbro.backup.BackupManager.importBackupZip(bytes)
-                EBToast.show(context, summary?.describe() ?: "Not a valid EinkBro backup")
-            }
+            scope.launch { restoreWithPicker(bytes, "Not a valid EinkBro backup") }
         }
+    }
+
+    /**
+     * Android SettingActivity restore flow: scan the zip, let the user pick
+     * the categories (all pre-checked; All Preferences locks Gen AI, whose
+     * keys it already contains), then merge the chosen ones in.
+     */
+    private suspend fun restoreWithPicker(bytes: ByteArray, invalidMessage: String) {
+        val backup = info.plateaukao.einkbro.backup.BackupManager
+        val options = backup.scanCategories(bytes)
+        if (options.isNullOrEmpty()) {
+            EBToast.show(context, invalidMessage)
+            return
+        }
+        val categories = options.map { it.first }
+        val labels = options.map { (category, size) ->
+            "${blockingString(category.displayNameRes)} (${backup.formatShortFileSize(size)})"
+        }
+        val allPrefs = categories.indexOf(info.plateaukao.einkbro.backup.BackupCategory.ALL_PREFERENCES)
+        val gpt = categories.indexOf(info.plateaukao.einkbro.backup.BackupCategory.GPT_SETTINGS)
+        val lockedBy = if (allPrefs >= 0 && gpt >= 0) mapOf(gpt to allPrefs) else emptyMap()
+        val picked = AppServices.dialogManager.getMultiSelection(
+            title = blockingString(Res.string.dialog_title_restore_categories),
+            options = labels,
+            lockedBy = lockedBy,
+        ) ?: return
+        val summary = backup.importBackupZip(bytes, picked.map { categories[it] }.toSet())
+        EBToast.show(context, summary?.describe() ?: invalidMessage)
     }
 
     override fun shareAppData() {
@@ -156,10 +183,9 @@ private class RealBackupOps(
             onConnected = { EBToast.show(context, "Receiving app data…") },
             onReceived = { bytes ->
                 scope.launch {
-                    val summary = info.plateaukao.einkbro.backup.BackupManager.importBackupZip(bytes)
                     // Close the "waiting" dialog now that the transfer finished.
                     DialogManager.pendingOkCancel.value = null
-                    EBToast.show(context, summary?.describe() ?: "Received data is not a valid EinkBro backup")
+                    restoreWithPicker(bytes, "Received data is not a valid EinkBro backup")
                 }
             },
         )
@@ -214,10 +240,9 @@ private class RealBackupOps(
                 "${formatDriveTime(remote.modifiedTime)} ($platform)",
             ) to {
                 val bytes = repo.downloadBackup(remote.id)
-                // Append-only merge: the Drive file (Android's or ours) only adds
-                // what this device lacks; nothing local is replaced.
-                val summary = info.plateaukao.einkbro.backup.BackupManager.importBackupZip(bytes)
-                EBToast.show(context, summary?.describe() ?: "Not a valid EinkBro backup")
+                // Same category picker as a file import; append-only merge: the
+                // Drive file (Android's or ours) only adds what this device lacks.
+                restoreWithPicker(bytes, "Not a valid EinkBro backup")
             }
         }
         options += blockingString(Res.string.drive_sign_out, repo.email.orEmpty()) to {
@@ -279,6 +304,7 @@ fun SettingsScreen(
     onOpenAdBlockSettings: () -> Unit = {},
     onOpenWhitelist: (WhiteListType) -> Unit = {},
     onOpenMenuItemHide: () -> Unit = {},
+    onOpenSiteRules: () -> Unit = {},
     // Android's SettingActivity accepts a route extra (IntentUnit.gotoSettings)
     // so callers like the touch-area dialog can land directly on a sub-screen.
     initialRoute: SettingRoute = Main,
@@ -286,6 +312,7 @@ fun SettingsScreen(
     val config = AppServices.config
     val dialogManager = AppServices.dialogManager
     val context = LocalContext.current
+    var showThemeDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val deps = remember {
@@ -294,6 +321,8 @@ fun SettingsScreen(
             onOpenUserScripts, onOpenGptActions, onOpenGptQueries,
             onOpenToolbarConfig, onOpenStatusbarConfig, onOpenAdBlockSettings, onOpenWhitelist,
             onOpenMenuItemHide,
+            onOpenThemeDialog = { showThemeDialog = true },
+            onOpenSiteRules = onOpenSiteRules,
         )
     }
 
@@ -441,6 +470,12 @@ fun SettingsScreen(
                 }
             }
         }
+        // Drawn last so it overlays the Scaffold (Android: a DialogFragment window).
+        if (showThemeDialog) {
+            info.plateaukao.einkbro.view.dialog.compose.ThemeColorDialog(
+                onClose = { showThemeDialog = false },
+            )
+        }
     }
 }
 
@@ -455,13 +490,13 @@ fun SettingBar(
         title = {
             Text(
                 stringResource(currentScreen.titleId),
-                color = MaterialTheme.colors.onPrimary
+                color = MaterialTheme.colors.onTopBar
             )
         },
         navigationIcon = {
             IconButton(onClick = navigateUp) {
                 Icon(
-                    tint = MaterialTheme.colors.onPrimary,
+                    tint = MaterialTheme.colors.onTopBar,
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(Res.string.back)
                 )
@@ -470,7 +505,7 @@ fun SettingBar(
         actions = {
             IconButton(onClick = onSearch) {
                 Icon(
-                    tint = MaterialTheme.colors.onPrimary,
+                    tint = MaterialTheme.colors.onTopBar,
                     imageVector = Icons.Filled.Search,
                     contentDescription = stringResource(Res.string.search_hint)
                 )
@@ -478,7 +513,7 @@ fun SettingBar(
             if (currentScreen != SettingRoute.Main) {
                 IconButton(onClick = close) {
                     Icon(
-                        tint = MaterialTheme.colors.onPrimary,
+                        tint = MaterialTheme.colors.onTopBar,
                         imageVector = Icons.Filled.Close,
                         contentDescription = stringResource(Res.string.back)
                     )
@@ -503,13 +538,13 @@ fun SearchSettingBar(
                 placeholder = {
                     Text(
                         stringResource(Res.string.search_settings_hint),
-                        color = MaterialTheme.colors.onPrimary.copy(alpha = 0.6f)
+                        color = MaterialTheme.colors.onTopBar.copy(alpha = 0.6f)
                     )
                 },
                 singleLine = true,
                 colors = TextFieldDefaults.textFieldColors(
-                    textColor = MaterialTheme.colors.onPrimary,
-                    cursorColor = MaterialTheme.colors.onPrimary,
+                    textColor = MaterialTheme.colors.onTopBar,
+                    cursorColor = MaterialTheme.colors.onTopBar,
                     backgroundColor = Color.Transparent,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
@@ -525,7 +560,7 @@ fun SearchSettingBar(
         navigationIcon = {
             IconButton(onClick = onClose) {
                 Icon(
-                    tint = MaterialTheme.colors.onPrimary,
+                    tint = MaterialTheme.colors.onTopBar,
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(Res.string.back)
                 )

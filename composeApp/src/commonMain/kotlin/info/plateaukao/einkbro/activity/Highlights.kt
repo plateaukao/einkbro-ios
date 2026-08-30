@@ -18,6 +18,7 @@ import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
+import info.plateaukao.einkbro.view.compose.onTopBar
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
 import androidx.compose.material.TopAppBar
@@ -321,13 +322,13 @@ fun HighlightsBar(
         title = {
             Text(
                 stringResource(currentScreen.titleResId),
-                color = MaterialTheme.colors.onPrimary
+                color = MaterialTheme.colors.onTopBar
             )
         },
         navigationIcon = {
             IconButton(onClick = navigateUp) {
                 Icon(
-                    tint = MaterialTheme.colors.onPrimary,
+                    tint = MaterialTheme.colors.onTopBar,
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(Res.string.back)
                 )
@@ -336,7 +337,7 @@ fun HighlightsBar(
         actions = {
             IconButton(onClick = onClick) {
                 Icon(
-                    tint = MaterialTheme.colors.onPrimary,
+                    tint = MaterialTheme.colors.onTopBar,
                     imageVector = vectorResource(Res.drawable.icon_export),
                     contentDescription = ""
                 )

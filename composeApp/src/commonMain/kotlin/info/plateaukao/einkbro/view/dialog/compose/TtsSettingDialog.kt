@@ -34,6 +34,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import info.plateaukao.einkbro.view.compose.themedFrameShape
+import info.plateaukao.einkbro.view.compose.ebDialogFrame
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import info.plateaukao.einkbro.util.NoDimDialog as Dialog
@@ -113,9 +116,9 @@ fun TtsSettingDialogContent(
             Surface(
                 modifier = Modifier
                     .wrapContentSize()
-                    .border(1.dp, MaterialTheme.colors.onBackground, RoundedCornerShape(5.dp)),
-                shape = RoundedCornerShape(5.dp),
-                color = MaterialTheme.colors.background,
+                    .ebDialogFrame(),
+                shape = themedFrameShape(frame = true),
+                color = Color.Transparent,
             ) {
                 TtsLanguageDialogContent(
                     locales = remember { ttsManager.getAvailableLanguages() },

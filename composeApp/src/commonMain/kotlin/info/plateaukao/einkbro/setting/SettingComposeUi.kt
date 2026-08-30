@@ -42,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import info.plateaukao.einkbro.view.compose.ebItemFrame
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -100,7 +101,7 @@ fun SettingItemUi(
             interactionSource = interactionSource,
         ) { onClick?.invoke() }
     if (showBorder) modifier =
-        modifier.border(borderWidth, MaterialTheme.colors.onBackground, RoundedCornerShape(7.dp))
+        modifier.ebItemFrame(borderWidth)
 
     Row(
         modifier = modifier.then(
@@ -224,10 +225,10 @@ fun BooleanSettingItemUi(
                 .align(Alignment.CenterEnd)
                 .padding(end = 3.dp),
             colors = SwitchDefaults.colors(
-                checkedThumbColor = MaterialTheme.colors.onBackground,
+                checkedThumbColor = MaterialTheme.colors.primary,
                 uncheckedThumbColor = Color.Gray,
                 uncheckedTrackColor = Color.Gray,
-                checkedTrackColor = MaterialTheme.colors.onBackground,
+                checkedTrackColor = MaterialTheme.colors.primary,
             )
         )
     }
@@ -375,7 +376,7 @@ private fun ToolbarPositionDialog(
             .padding(2.dp)
             .border(
                 width = 1.dp,
-                color = MaterialTheme.colors.onBackground,
+                color = MaterialTheme.colors.primary,
                 shape = RoundedCornerShape(8.dp),
             )
             .padding(2.dp),
@@ -587,8 +588,8 @@ private fun RowScope.EinkOptionChip(
             .weight(1f)
             .border(
                 width = if (selected) 2.dp else 1.dp,
-                color = if (selected) MaterialTheme.colors.onBackground
-                else MaterialTheme.colors.onBackground.copy(alpha = 0.3f),
+                color = if (selected) MaterialTheme.colors.primary
+                else MaterialTheme.colors.primary.copy(alpha = 0.3f),
                 shape = RoundedCornerShape(4.dp),
             )
             .clickable(onClick = onClick)
@@ -613,7 +614,7 @@ private fun EinkImageAdjustmentDialog(
                 .background(MaterialTheme.colors.background, RoundedCornerShape(8.dp))
                 .border(
                     width = 1.dp,
-                    color = MaterialTheme.colors.onBackground,
+                    color = MaterialTheme.colors.primary,
                     shape = RoundedCornerShape(8.dp),
                 )
                 .padding(16.dp),
@@ -785,7 +786,7 @@ fun ProgressActionSettingItemUi(
             }
         }
 
-    if (showBorder) modifier = modifier.border(borderWidth, MaterialTheme.colors.onBackground, RoundedCornerShape(7.dp))
+    if (showBorder) modifier = modifier.ebItemFrame(borderWidth)
 
     Column(modifier = modifier) {
         Row(

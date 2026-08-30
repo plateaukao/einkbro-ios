@@ -10,6 +10,7 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import info.plateaukao.einkbro.view.compose.ebItemFrame
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -33,7 +34,7 @@ fun SelectableText(
         overflow = TextOverflow.Ellipsis,
         textAlign = textAlign,
         modifier = modifier
-            .border(borderWidth, MaterialTheme.colors.onBackground, RoundedCornerShape(7.dp))
+            .ebItemFrame(borderWidth)
             .padding(horizontal = 6.dp, vertical = 6.dp)
             .clickable(
                 indication = null,

@@ -43,6 +43,23 @@ DONE (2026-07-18 overnight):
 - ✅ **Offline error page + retry** — `error_page.html` rendered on main-frame
   failures; `einkbro://retry` re-fetches through the nav delegate.
 - ✅ **Backup: nested bookmark folders + domain configurations.**
+- ✅ **Path-scoped site rules + configured-sites list** (2026-08-30) — port of
+  Android `94c8194d3`/`3ffca4d84`: rule keys are `host` or `host/path/prefix`,
+  every field nullable and resolved along the rule chain (`DomainConfigManager`
+  rewrite, `SiteRuleKey`); Site Settings gets the "Apply to" scope picker,
+  inherited-value hints, per-rule delete, CSS/JS on-off switches; Settings →
+  Site Settings → Configured sites lists/edits/removes every rule. Same-document
+  navigations re-apply config when the rule chain changes.
+- ✅ **Restore category picker** (2026-08-30) — file import, LAN receive and
+  Google Drive restore scan the zip and show Android's multi-choice
+  "Select data to restore" dialog (All Preferences locks Gen AI).
+- ✅ **UI theming** (2026-08-30) — port of Android feature/ui-color-themes:
+  Settings → UI → Theme opens the color / border / fill picker (8 color
+  themes incl. custom HSV wheel, invert toggle, 10 border styles, 8 fills
+  with gradient dial). `UiThemeState` + `MyTheme` retint live; `ebItemFrame`
+  / `ebDialogFrame` replace the hardcoded 1dp borders; the start page gets
+  Android's `themeStyle` CSS. Dark mode Force on / Disabled now also drive
+  the app chrome. Not ported: themed system splash (Android 12 API).
 - ✅ **Backup: Android BackupUnit v2 layout, append-only restore** (2026-08-30)
   — export writes `_manifest.json`, `gpt_settings.json`, `database_data.json`
   (favicons/articles/highlights/AI queries/site rules), `userscripts/`,
@@ -60,8 +77,9 @@ Remaining:
 - **Custom font file import** — `FontBrowserDialog` picker is stubbed and
   `FontType.CUSTOM` renders nothing; needs `UIDocumentPicker` for the TTF and a
   `WKURLSchemeHandler` to serve it into `@font-face`.
-- **Backup: category picker** — Android lets the user choose which categories
-  to back up / restore; iOS always does all of them.
+- **Backup: export category picker** — Android lets the user choose which
+  categories to back up; iOS export always writes all of them (restore has
+  the picker).
 - **Tap-to-select sentence/paragraph** — context-menu "Select text" toasts;
   port `select_sentence.js`/`select_paragraph.js`.
 - **SiteSettings per-site CSS/JS editor** — the text editor is stubbed; wire

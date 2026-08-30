@@ -32,6 +32,17 @@ class DialogManager(private val context: Context = Context()) {
         val onResult: (Int?) -> Unit,
     )
 
+    /** Multi-choice list (Android AlertDialog.setMultiChoiceItems). [lockedBy]
+     *  maps an option index to the index that forces it checked and disabled
+     *  while checked (BackupCategory ALL_PREFERENCES -> GPT_SETTINGS). */
+    class MultiSelectRequest(
+        val title: String,
+        val options: List<String>,
+        val initiallyChecked: List<Boolean>,
+        val lockedBy: Map<Int, Int> = emptyMap(),
+        val onResult: (Set<Int>?) -> Unit,
+    )
+
     class TextInputRequest(
         val title: String,
         val description: String?,
@@ -126,6 +137,25 @@ class DialogManager(private val context: Context = Context()) {
         cont.invokeOnCancellation { pendingSelectOption.value = null }
     }
 
+    /** Multi-choice picker; null when cancelled, the checked indices otherwise. */
+    suspend fun getMultiSelection(
+        title: String,
+        options: List<String>,
+        initiallyChecked: List<Boolean> = options.map { true },
+        lockedBy: Map<Int, Int> = emptyMap(),
+    ): Set<Int>? = suspendCancellableCoroutine { cont ->
+        pendingMultiSelect.value = MultiSelectRequest(
+            title = title,
+            options = options,
+            initiallyChecked = initiallyChecked,
+            lockedBy = lockedBy,
+        ) { result ->
+            pendingMultiSelect.value = null
+            if (cont.isActive) cont.resume(result)
+        }
+        cont.invokeOnCancellation { pendingMultiSelect.value = null }
+    }
+
     suspend fun getBookmarkFolderName(): String? = null
 
     fun showBookmarkFilePicker(launcher: Any?) {}
@@ -140,5 +170,6 @@ class DialogManager(private val context: Context = Context()) {
         val pendingOkCancel = mutableStateOf<OkCancelRequest?>(null)
         val pendingSelectOption = mutableStateOf<SelectOptionRequest?>(null)
         val pendingTextInput = mutableStateOf<TextInputRequest?>(null)
+        val pendingMultiSelect = mutableStateOf<MultiSelectRequest?>(null)
     }
 }

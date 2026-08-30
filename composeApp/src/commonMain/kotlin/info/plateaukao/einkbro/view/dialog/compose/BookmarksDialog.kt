@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import info.plateaukao.einkbro.view.compose.ebItemFrame
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
@@ -258,7 +259,7 @@ fun DialogPanel(
         Box(Modifier.weight(1F, fill = false)) {
             content()
         }
-        Divider(thickness = 1.dp, color = MaterialTheme.colors.onBackground)
+        Divider(thickness = 1.dp, color = MaterialTheme.colors.primary)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -449,7 +450,7 @@ fun BookmarkItem(
         modifier = modifier
             .height(54.dp)
             .padding(4.dp)
-            .border(borderWidth, MaterialTheme.colors.onBackground, RoundedCornerShape(7.dp))
+            .ebItemFrame(borderWidth)
             .padding(4.dp),
         horizontalArrangement = Arrangement.Center,
     ) {
@@ -518,7 +519,7 @@ fun BookmarkGridItem(
     Column(
         modifier = modifier
             .padding(4.dp)
-            .border(borderWidth, MaterialTheme.colors.onBackground, RoundedCornerShape(7.dp))
+            .ebItemFrame(borderWidth)
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,

@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import info.plateaukao.einkbro.view.compose.ebItemFrame
 import androidx.compose.ui.graphics.vector.ImageVector
 import info.plateaukao.einkbro.util.screenWidthDp
 import info.plateaukao.einkbro.util.screenHeightDp
@@ -287,7 +288,7 @@ private fun TabItem(
         modifier = modifier
             .height(54.dp)
             .padding(4.dp)
-            .border(borderWidth, MaterialTheme.colors.onBackground, RoundedCornerShape(7.dp))
+            .ebItemFrame(borderWidth)
             .padding(4.dp),
         horizontalArrangement = Arrangement.Center
     ) {

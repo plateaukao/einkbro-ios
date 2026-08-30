@@ -2,6 +2,7 @@ package info.plateaukao.einkbro.preference
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import info.plateaukao.einkbro.view.compose.UiThemeState
 
 class DisplayConfig(private val sp: SharedPreferences) {
 
@@ -59,10 +60,100 @@ class DisplayConfig(private val sp: SharedPreferences) {
     var customFontChanged by BooleanPreference(sp, K_CUSTOM_FONT_CHANGED, false)
 
     var darkMode: DarkMode
-        // Android defaults to DISABLED (e-ink devices); on iOS the app chrome
-        // always follows the system appearance, so web content does too.
+        // Android defaults to DISABLED (e-ink devices); on iOS the default
+        // follows the system appearance. Force on / Disabled now drive the
+        // app chrome too (isAppInDarkTheme), not only web content.
         get() = DarkMode.entries[sp.getString(K_DARK_MODE, "0")?.toInt() ?: 0]
-        set(value) = sp.edit { putString(K_DARK_MODE, value.ordinal.toString()) }
+        set(value) {
+            sp.edit { putString(K_DARK_MODE, value.ordinal.toString()) }
+            UiThemeState.darkMode.value = value
+        }
+
+    // --- UI theming (Android feature/ui-color-themes). Setters also push the
+    // value into UiThemeState so every MyTheme root retints immediately. ---
+
+    var uiTheme: UiTheme
+        get() = UiTheme.entries.getOrElse(sp.getInt(K_UI_THEME, 0)) { UiTheme.CLASSIC }
+        set(value) {
+            sp.edit { putInt(K_UI_THEME, value.ordinal) }
+            UiThemeState.current.value = value
+        }
+
+    var uiBorder: UiBorder
+        get() {
+            migrateUiStyleIfNeeded()
+            return UiBorder.entries.getOrElse(
+                sp.getInt(K_UI_BORDER, UiBorder.CLASSIC.ordinal)
+            ) { UiBorder.CLASSIC }
+        }
+        set(value) {
+            sp.edit { putInt(K_UI_BORDER, value.ordinal) }
+            UiThemeState.uiBorder.value = value
+        }
+
+    var uiFill: UiFill
+        get() {
+            migrateUiStyleIfNeeded()
+            return UiFill.entries.getOrElse(sp.getInt(K_UI_FILL, 0)) { UiFill.NONE }
+        }
+        set(value) {
+            sp.edit { putInt(K_UI_FILL, value.ordinal) }
+            UiThemeState.uiFill.value = value
+        }
+
+    // maps Android's legacy single style preference (may arrive through a
+    // restored backup) onto the border/fill pair
+    private fun migrateUiStyleIfNeeded() {
+        if (sp.contains(K_UI_BORDER) || !sp.contains(K_UI_STYLE)) return
+        val (border, fill) = when (sp.getInt(K_UI_STYLE, 0)) {
+            1 -> UiBorder.ROUND to UiFill.NONE
+            2 -> UiBorder.SHARP to UiFill.NONE
+            3 -> UiBorder.PAPER to UiFill.NONE
+            4 -> UiBorder.DASHED to UiFill.NONE
+            5 -> UiBorder.NONE to UiFill.TONAL
+            6 -> UiBorder.ROUND to UiFill.GRADIENT
+            7 -> UiBorder.STAMP to UiFill.NONE
+            8, 9 -> UiBorder.NONE to UiFill.GRADIENT
+            10 -> UiBorder.SKETCH to UiFill.NONE
+            11 -> UiBorder.CERTIFICATE to UiFill.NONE
+            12 -> UiBorder.STICKER to UiFill.NONE
+            else -> UiBorder.CLASSIC to UiFill.NONE
+        }
+        sp.edit {
+            putInt(K_UI_BORDER, border.ordinal)
+            putInt(K_UI_FILL, fill.ordinal)
+        }
+    }
+
+    // gradient flow direction in degrees (0 = left-to-right, 90 = top-down)
+    var gradientAngle: Int
+        get() = sp.getInt(K_GRADIENT_ANGLE, 45)
+        set(value) {
+            sp.edit { putInt(K_GRADIENT_ANGLE, value) }
+            UiThemeState.gradientAngle.value = value
+        }
+
+    // percent: 100 = the style's default blend strength
+    var gradientLevel: Int
+        get() = sp.getInt(K_GRADIENT_LEVEL, 100)
+        set(value) {
+            sp.edit { putInt(K_GRADIENT_LEVEL, value) }
+            UiThemeState.gradientLevel.value = value
+        }
+
+    var uiThemeInverted: Boolean
+        get() = sp.getBoolean(K_UI_THEME_INVERTED, false)
+        set(value) {
+            sp.edit { putBoolean(K_UI_THEME_INVERTED, value) }
+            UiThemeState.inverted.value = value
+        }
+
+    var customThemeColor: Int
+        get() = sp.getInt(K_CUSTOM_THEME_COLOR, DEFAULT_CUSTOM_THEME_COLOR)
+        set(value) {
+            sp.edit { putInt(K_CUSTOM_THEME_COLOR, value) }
+            UiThemeState.customColor.value = androidx.compose.ui.graphics.Color(value)
+        }
 
     var einkImageAdjustment: EinkImageAdjustment
         get() = try {
@@ -117,6 +208,15 @@ class DisplayConfig(private val sp: SharedPreferences) {
         const val K_CUSTOM_FONT_CHANGED = "sp_custom_font_changed"
         const val K_FONT_FOLDER_URI = "sp_font_folder_uri"
         const val K_DARK_MODE = "sp_dark_mode"
+        const val K_UI_THEME = "sp_ui_theme"
+        const val K_CUSTOM_THEME_COLOR = "sp_custom_theme_color"
+        const val K_UI_STYLE = "sp_ui_style"
+        const val K_UI_BORDER = "sp_ui_border"
+        const val K_UI_FILL = "sp_ui_fill"
+        const val K_UI_THEME_INVERTED = "sp_ui_theme_inverted"
+        const val K_GRADIENT_ANGLE = "sp_gradient_angle"
+        const val K_GRADIENT_LEVEL = "sp_gradient_level"
+        const val DEFAULT_CUSTOM_THEME_COLOR = 0xFF4A90D9.toInt()
         const val K_ENABLE_IMAGE_ADJUSTMENT = "sp_image_adjustment"
         const val K_EINK_IMAGE_MODE = "sp_eink_image_mode"
         const val K_HIGHLIGHT_STYLE = "sp_highlight_style"

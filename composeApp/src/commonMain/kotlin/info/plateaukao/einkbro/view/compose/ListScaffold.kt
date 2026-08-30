@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
+import info.plateaukao.einkbro.view.compose.onTopBar
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
 import androidx.compose.material.TopAppBar
@@ -42,11 +43,11 @@ fun ListScaffold(
             modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
             topBar = {
                 TopAppBar(
-                    title = { Text(title, color = MaterialTheme.colors.onPrimary) },
+                    title = { Text(title, color = MaterialTheme.colors.onTopBar) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(
-                                tint = MaterialTheme.colors.onPrimary,
+                                tint = MaterialTheme.colors.onTopBar,
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(Res.string.back),
                             )

@@ -13,13 +13,20 @@ data class DomainConfiguration(
     var configuration: String,
 )
 
+/**
+ * One site rule. [domain] is the rule key: either a bare host
+ * (`example.com`) or a host plus a segment-aligned path prefix
+ * (`example.com/docs/api`), see [SiteRuleKey]. Every field is nullable —
+ * null means "not set here", so a path rule inherits from the host rule and
+ * the host rule from the global setting.
+ */
 @Serializable
 data class DomainConfigurationData(
     val domain: String,
-    var shouldFixScroll: Boolean = false,
-    var shouldTranslateSite: Boolean = false,
-    var shouldUseWhiteBackground: Boolean = false,
-    var shouldInvertColor: Boolean = false,
+    var shouldFixScroll: Boolean? = null,
+    var shouldTranslateSite: Boolean? = null,
+    var shouldUseWhiteBackground: Boolean? = null,
+    var shouldInvertColor: Boolean? = null,
     // Per-site display overrides (null = use global setting)
     var fontSize: Int? = null,
     var fontType: FontType? = null,
@@ -34,4 +41,167 @@ data class DomainConfigurationData(
     var translationMode: TranslationMode? = null,
     var customCss: String? = null,
     var postLoadJavascript: String? = null,
-)
+    // Off = keep the script but do not apply it (temporary disable without
+    // losing the code). A disabled script is treated as unset for resolution,
+    // so a parent rule's script takes over.
+    var customCssEnabled: Boolean = true,
+    var postLoadJavascriptEnabled: Boolean = true,
+) {
+    val host: String get() = SiteRuleKey.hostOf(domain)
+    val path: String get() = SiteRuleKey.pathOf(domain)
+    val isHostRule: Boolean get() = path.isEmpty()
+
+    /** [customCss] when it is set and switched on, else null. */
+    val activeCustomCss: String?
+        get() = customCss?.takeIf { customCssEnabled && it.isNotBlank() }
+
+    /** [postLoadJavascript] when it is set and switched on, else null. */
+    val activePostLoadJavascript: String?
+        get() = postLoadJavascript?.takeIf { postLoadJavascriptEnabled && it.isNotBlank() }
+
+    /** Number of fields this rule sets explicitly. */
+    val overrideCount: Int
+        get() = listOf(
+            shouldFixScroll, shouldTranslateSite, shouldUseWhiteBackground, shouldInvertColor,
+            fontSize, fontType, boldFontStyle, blackFontStyle, fontBoldness,
+            desktopMode, desktopViewportWidth, enableJavascript, enableAdBlock, enableCookies,
+            translationMode, customCss?.takeIf { it.isNotBlank() },
+            postLoadJavascript?.takeIf { it.isNotBlank() },
+        ).count { it != null }
+
+    val isEmpty: Boolean get() = overrideCount == 0
+
+    /**
+     * This rule with every unset field filled in from [fallback]. Used when a
+     * restore meets a rule that already exists locally: local values win,
+     * the backup only contributes what is missing here.
+     */
+    fun mergedWith(fallback: DomainConfigurationData): DomainConfigurationData = copy(
+        shouldFixScroll = shouldFixScroll ?: fallback.shouldFixScroll,
+        shouldTranslateSite = shouldTranslateSite ?: fallback.shouldTranslateSite,
+        shouldUseWhiteBackground = shouldUseWhiteBackground ?: fallback.shouldUseWhiteBackground,
+        shouldInvertColor = shouldInvertColor ?: fallback.shouldInvertColor,
+        fontSize = fontSize ?: fallback.fontSize,
+        fontType = fontType ?: fallback.fontType,
+        boldFontStyle = boldFontStyle ?: fallback.boldFontStyle,
+        blackFontStyle = blackFontStyle ?: fallback.blackFontStyle,
+        fontBoldness = fontBoldness ?: fallback.fontBoldness,
+        desktopMode = desktopMode ?: fallback.desktopMode,
+        desktopViewportWidth = desktopViewportWidth ?: fallback.desktopViewportWidth,
+        enableJavascript = enableJavascript ?: fallback.enableJavascript,
+        enableAdBlock = enableAdBlock ?: fallback.enableAdBlock,
+        enableCookies = enableCookies ?: fallback.enableCookies,
+        translationMode = translationMode ?: fallback.translationMode,
+        customCss = customCss?.takeIf { it.isNotBlank() } ?: fallback.customCss,
+        postLoadJavascript = postLoadJavascript?.takeIf { it.isNotBlank() } ?: fallback.postLoadJavascript,
+        // the on/off switch travels with whichever side supplied the script
+        customCssEnabled = if (customCss.isNullOrBlank()) fallback.customCssEnabled else customCssEnabled,
+        postLoadJavascriptEnabled = if (postLoadJavascript.isNullOrBlank()) fallback.postLoadJavascriptEnabled
+            else postLoadJavascriptEnabled,
+    )
+
+    /**
+     * Rows written before path rules existed stored the four legacy flags as
+     * plain `false`. On a host rule `false` and `null` resolve identically (the
+     * host rule is the end of the chain), so normalise to null; otherwise old
+     * rows would show every flag as an explicit override in the editor.
+     */
+    fun normalizedLegacyFlags(): DomainConfigurationData {
+        if (!isHostRule) return this
+        return copy(
+            shouldFixScroll = shouldFixScroll?.takeIf { it },
+            shouldTranslateSite = shouldTranslateSite?.takeIf { it },
+            shouldUseWhiteBackground = shouldUseWhiteBackground?.takeIf { it },
+            shouldInvertColor = shouldInvertColor?.takeIf { it },
+        )
+    }
+}
+
+/**
+ * Rule-key helpers. A key is `host` or `host/path/prefix` — lower-case host,
+ * no scheme, no query, no trailing slash.
+ */
+object SiteRuleKey {
+    fun hostOf(key: String): String = key.substringBefore('/')
+
+    /** `""` for a host rule, otherwise `/a/b` (leading slash, no trailing slash). */
+    fun pathOf(key: String): String {
+        val p = key.substringAfter('/', "")
+        return if (p.isEmpty()) "" else "/$p"
+    }
+
+    fun of(host: String, path: String): String {
+        val normalized = normalizePath(path)
+        return if (normalized.isEmpty()) host else host + normalized
+    }
+
+    /** Strips trailing slashes and collapses "/" to "" (root == host rule). */
+    fun normalizePath(path: String?): String {
+        if (path.isNullOrEmpty()) return ""
+        val trimmed = path.trimEnd('/')
+        if (trimmed.isEmpty()) return ""
+        return if (trimmed.startsWith("/")) trimmed else "/$trimmed"
+    }
+
+    // Hand-rolled instead of a URL parser so hosts compare case-insensitively.
+    fun hostOfUrl(url: String): String? {
+        val authority = authorityOf(url) ?: return null
+        var host = authority.substringAfterLast('@')
+        host = if (host.startsWith("[")) {
+            host.substringBefore(']') + "]"
+        } else {
+            host.substringBefore(':')
+        }
+        return host.lowercase().takeIf { it.isNotBlank() }
+    }
+
+    fun pathOfUrl(url: String): String {
+        val schemeEnd = url.indexOf("://")
+        if (schemeEnd < 0) return ""
+        val afterAuthority = url.indexOf('/', schemeEnd + 3)
+        if (afterAuthority < 0) return ""
+        val end = url.indexOfAny(charArrayOf('?', '#'), afterAuthority)
+            .let { if (it < 0) url.length else it }
+        return normalizePath(url.substring(afterAuthority, end))
+    }
+
+    private fun authorityOf(url: String): String? {
+        val schemeEnd = url.indexOf("://")
+        if (schemeEnd < 0) return null
+        val start = schemeEnd + 3
+        val end = url.indexOfAny(charArrayOf('/', '?', '#'), start)
+            .let { if (it < 0) url.length else it }
+        return url.substring(start, end).takeIf { it.isNotEmpty() }
+    }
+
+    /** True when a rule with [key] applies to a page at [host] + [path]. */
+    fun matches(key: String, host: String, path: String): Boolean {
+        if (!hostOf(key).equals(host, ignoreCase = true)) return false
+        val rulePath = pathOf(key)
+        if (rulePath.isEmpty()) return true
+        return path == rulePath || path.startsWith("$rulePath/")
+    }
+
+    /** Number of path segments; host rules are 0. Higher = more specific. */
+    fun specificity(key: String): Int {
+        val p = pathOf(key)
+        return if (p.isEmpty()) 0 else p.count { it == '/' }
+    }
+
+    /**
+     * Every key that could scope a rule for [url], from the host down to the
+     * full path: `["example.com", "example.com/a", "example.com/a/b"]`.
+     */
+    fun candidateKeysFor(url: String): List<String> {
+        val host = hostOfUrl(url) ?: return emptyList()
+        val segments = pathOfUrl(url).split('/').filter { it.isNotEmpty() }
+        val keys = ArrayList<String>(segments.size + 1)
+        keys += host
+        val sb = StringBuilder(host)
+        for (seg in segments) {
+            sb.append('/').append(seg)
+            keys += sb.toString()
+        }
+        return keys
+    }
+}

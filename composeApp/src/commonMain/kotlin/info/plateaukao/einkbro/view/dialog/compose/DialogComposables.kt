@@ -34,6 +34,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import info.plateaukao.einkbro.view.compose.themedFrameShape
+import info.plateaukao.einkbro.view.compose.ebDialogFrame
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
@@ -105,9 +108,9 @@ fun AnchoredDialogFrame(
             Surface(
                 modifier = Modifier
                     .wrapContentSize()
-                    .border(1.dp, MaterialTheme.colors.onBackground, RoundedCornerShape(5.dp)),
-                shape = RoundedCornerShape(5.dp),
-                color = MaterialTheme.colors.background,
+                    .ebDialogFrame(),
+                shape = themedFrameShape(frame = true),
+                color = Color.Transparent,
             ) {
                 if (scrollable) {
                     Box(Modifier.verticalScroll(rememberScrollState())) {
@@ -197,9 +200,9 @@ fun PointAnchoredDialogFrame(
             Surface(
                 modifier = Modifier
                     .wrapContentSize()
-                    .border(1.dp, MaterialTheme.colors.onBackground, RoundedCornerShape(5.dp)),
-                shape = RoundedCornerShape(5.dp),
-                color = MaterialTheme.colors.background,
+                    .ebDialogFrame(),
+                shape = themedFrameShape(frame = true),
+                color = Color.Transparent,
             ) {
                 content()
             }
@@ -250,7 +253,7 @@ fun PointAnchoredDialogFrame(
 
 @Composable
 fun HorizontalSeparator() {
-    Divider(thickness = 1.dp, color = MaterialTheme.colors.onBackground)
+    Divider(thickness = 1.dp, color = MaterialTheme.colors.primary)
 }
 
 @OptIn(ExperimentalFoundationApi::class)
