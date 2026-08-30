@@ -160,14 +160,15 @@ sealed class MenuEntry {
 }
 
 /**
- * Build-flagged items stay out of the menu grid — and out of the hide/reorder
- * editor. LAN link / app-data sharing rides on the same flag as backup-restore
- * (both need the multicast entitlement Apple has not granted for this team);
- * Instapaper has its own flag (it is inert without account credentials).
+ * Gated items stay out of the menu grid — and out of the hide/reorder editor.
+ * LAN link / app-data sharing rides on the same runtime unlock as the Backup
+ * screen (einkbro://googlesync; both need the multicast entitlement Apple has
+ * not granted for this team); Instapaper has its own build flag (it is inert
+ * without account credentials).
  */
 private val MenuItemType.isEnabled: Boolean
     get() = when (this) {
-        MenuItemType.SendLink, MenuItemType.ReceiveData -> BuildConfig.BACKUP_RESTORE_ENABLED
+        MenuItemType.SendLink, MenuItemType.ReceiveData -> AppServices.config.isBackupRestoreUnlocked
         MenuItemType.Instapaper -> BuildConfig.INSTAPAPER_ENABLED
         else -> true
     }

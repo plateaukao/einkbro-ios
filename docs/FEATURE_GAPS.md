@@ -42,9 +42,15 @@ DONE (2026-07-18 overnight):
   (MPNowPlayingInfoCenter + MPRemoteCommandCenter) + `UIBackgroundModes:audio`.
 - ✅ **Offline error page + retry** — `error_page.html` rendered on main-frame
   failures; `einkbro://retry` re-fetches through the nav delegate.
-- ✅ **Backup: nested bookmark folders + domain configurations.** (Remaining
-  backup tables — favicons re-derivable, articles/highlights/gptQueries/saved
-  pages — still pending; not started.)
+- ✅ **Backup: nested bookmark folders + domain configurations.**
+- ✅ **Backup: Android BackupUnit v2 layout, append-only restore** (2026-08-30)
+  — export writes `_manifest.json`, `gpt_settings.json`, `database_data.json`
+  (favicons/articles/highlights/AI queries/site rules), `userscripts/`,
+  `transcripts.json`, `chat_sessions.json`; restore (file, LAN, Google Drive —
+  incl. the Android app's Drive file) merges every table by content key and
+  only fills prefs this device never set. The Backup screen is hidden until
+  `einkbro://googlesync` is typed in the URL bar (`ConfigManager.isBackupRestoreUnlocked`).
+  Saved pages stay out (file-backed); domain whitelists are in-memory on iOS.
 
 Remaining:
 - **App Quick Actions** (`UIApplicationShortcutItems`) — deferred: needs Swift
@@ -54,8 +60,8 @@ Remaining:
 - **Custom font file import** — `FontBrowserDialog` picker is stubbed and
   `FontType.CUSTOM` renders nothing; needs `UIDocumentPicker` for the TTF and a
   `WKURLSchemeHandler` to serve it into `@font-face`.
-- **Backup: remaining DB tables** — articles/highlights, chatGptQueries, saved
-  pages; plus a category picker.
+- **Backup: category picker** — Android lets the user choose which categories
+  to back up / restore; iOS always does all of them.
 - **Tap-to-select sentence/paragraph** — context-menu "Select text" toasts;
   port `select_sentence.js`/`select_paragraph.js`.
 - **SiteSettings per-site CSS/JS editor** — the text editor is stubbed; wire

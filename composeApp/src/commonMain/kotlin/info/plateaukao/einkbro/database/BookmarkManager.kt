@@ -82,6 +82,17 @@ class BookmarkManager(private val database: AppDatabase) {
         }
     }
 
+    /** Same row write as [addDomainConfiguration], but awaited — restore needs
+     *  the rows in place before it re-reads them to refresh the in-memory map. */
+    suspend fun upsertDomainConfiguration(data: DomainConfigurationData) {
+        domainConfigurationDao.insert(
+            DomainConfiguration(
+                domain = data.domain,
+                configuration = json.encodeToString(DomainConfigurationData.serializer(), data),
+            )
+        )
+    }
+
     suspend fun getAllDomainConfigurations(): List<DomainConfigurationData> =
         domainConfigurationDao.getAll().mapNotNull {
             runCatching {

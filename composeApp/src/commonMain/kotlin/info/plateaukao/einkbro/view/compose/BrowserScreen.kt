@@ -2195,6 +2195,14 @@ fun BrowserScreen(
             browserViewModel.pendingStartPageAdd.value = null
         }
     }
+    // einkbro://googlesync typed in the URL bar: land on the Backup screen.
+    LaunchedEffect(browserViewModel.pendingOpenBackupSettings.value) {
+        if (browserViewModel.pendingOpenBackupSettings.value) {
+            browserViewModel.pendingOpenBackupSettings.value = false
+            settingsInitialRoute = info.plateaukao.einkbro.activity.SettingRoute.Backup
+            showSettings = true
+        }
+    }
     // einkbro://config_start_page (wordmark tap): rename the heading or
     // set/remove the background image.
     LaunchedEffect(browserViewModel.pendingStartPageConfig.value) {

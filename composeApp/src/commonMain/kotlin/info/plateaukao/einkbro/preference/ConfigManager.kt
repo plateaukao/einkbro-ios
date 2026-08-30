@@ -38,6 +38,14 @@ class ConfigManager(
 
     var restartChanged by BooleanPreference(sp, K_RESTART_CHANGED, false)
 
+    /**
+     * Reveals the Backup screen (export/import/LAN share/Google Drive) and the
+     * two LAN menu items. Off by default so App Review never meets the flow;
+     * typing `einkbro://googlesync` in the URL bar turns it on. Device-local:
+     * the key has no `sp_` prefix, so it never travels inside a backup.
+     */
+    var isBackupRestoreUnlocked by BooleanPreference(sp, K_BACKUP_RESTORE_UNLOCKED, false)
+
     private var originalSaveHistoryMode: SaveHistoryMode? = null
     var isIncognitoMode: Boolean
         get() = sp.getBoolean(K_IS_INCOGNITO_MODE, false)
@@ -288,6 +296,7 @@ class ConfigManager(
         const val K_START_PAGE_ITEMS = "sp_start_page_items"
         const val K_START_PAGE_TITLE = "sp_start_page_title"
         const val K_RESTART_CHANGED = "restart_changed"
+        const val K_BACKUP_RESTORE_UNLOCKED = "backup_restore_unlocked"
 
         const val K_CLEAR_CACHE = "SP_CLEAR_CACHE_9"
         const val K_CLEAR_HISTORY = "SP_CLEAR_HISTORY_9"

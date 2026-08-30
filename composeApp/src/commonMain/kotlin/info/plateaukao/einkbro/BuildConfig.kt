@@ -10,18 +10,8 @@ internal object BuildConfig {
     val VERSION_NAME: String get() = appVersionName()
     const val APPLICATION_ID: String = "info.plateaukao.einkbro.ios"
 
-    /**
-     * Gates the "Data" (backup / restore) settings screen — the whole
-     * export/import/LAN-share/Google-Drive group — plus the two LAN menu
-     * items (Send Link / Receive Data), which need the same multicast
-     * entitlement.
-     *
-     * Off for the first App Store submission: the flow is awkward to demo for
-     * App Review (it needs a second device for LAN share, and Drive sync sends
-     * the reviewer through a Google account sign-in). Flip to `true` to bring
-     * the screen back; nothing else needs to change.
-     */
-    const val BACKUP_RESTORE_ENABLED: Boolean = false
+    // Backup/restore is a runtime unlock, not a build flag: see
+    // ConfigManager.isBackupRestoreUnlocked (einkbro://googlesync in the URL bar).
 
     /**
      * Gates the Instapaper menu item and its gesture action.

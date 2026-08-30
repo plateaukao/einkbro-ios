@@ -120,6 +120,33 @@ class UserScriptManager(database: AppDatabase) {
         }
     }
 
+    // --- backup / restore (BackupManager) ---
+
+    /** Every installed script with its GM values, for the backup zip. */
+    suspend fun getAllForBackup(): List<Pair<UserScript, Map<String, String>>> =
+        scriptDao.getAll().map { it to valuesFor(it.id) }
+
+    /**
+     * Installs one script from a backup, append-only: a script whose `@name`
+     * is already installed is left exactly as it is (code, enabled state and
+     * GM values), so a restore can never downgrade or wipe a local script.
+     * Returns the new id, or null when skipped/unparseable. Callers importing
+     * a batch should [reload] once afterwards.
+     */
+    suspend fun importScript(
+        code: String,
+        enabled: Boolean,
+        sourceUrl: String?,
+        values: Map<String, String>,
+    ): Long? {
+        val meta = runCatching { UserScriptMetadata.parse(code) }.getOrNull() ?: return null
+        if (meta.name.isBlank() || scriptDao.getAll().any { it.name == meta.name }) return null
+        val id = runCatching { add(code, sourceUrl) }.getOrNull() ?: return null
+        if (!enabled) scriptDao.getById(id)?.let { scriptDao.update(it.copy(enabled = false)) }
+        values.forEach { (key, value) -> valueDao.setValue(UserScriptValue(id, key, value)) }
+        return id
+    }
+
     // --- GM_setValue / getValue storage (called from the JS bridge) ---
 
     suspend fun setValue(scriptId: Long, key: String, value: String) =

@@ -63,6 +63,9 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     val pendingFocusInput = mutableStateOf(false)
     val pendingStartPageAdd = mutableStateOf<WebViewEngine?>(null)
     val pendingStartPageConfig = mutableStateOf<WebViewEngine?>(null)
+    // einkbro://googlesync typed in the URL bar: open Settings on the Backup
+    // screen it just unlocked.
+    val pendingOpenBackupSettings = mutableStateOf(false)
 
     // Parity Phase C: a tab awaiting close confirmation (confirmTabClose pref).
     val pendingTabClose = mutableStateOf<Album?>(null)
@@ -793,9 +796,11 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             trimmed = info.plateaukao.einkbro.util.UrlTidy.trimBeforeScheme(trimmed)
         }
         if (trimmed.isEmpty()) return
+        if (trimmed.startsWith("einkbro://", ignoreCase = true) && handleTypedCommand(trimmed)) return
         var url = when {
             trimmed.startsWith("http://") || trimmed.startsWith("https://") ||
-                trimmed.startsWith("file://") || trimmed.startsWith("about:") -> trimmed
+                trimmed.startsWith("file://") || trimmed.startsWith("about:") ||
+                trimmed.startsWith("einkbro://") -> trimmed
 
             !trimmed.contains(' ') && trimmed.contains('.') -> "https://$trimmed"
 
@@ -808,6 +813,28 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         currentEngine?.let { engine ->
             applyWebConfig(engine, url)
             engine.loadUrl(url)
+        }
+    }
+
+    /**
+     * `einkbro://` commands typed into the URL bar (as opposed to the start-page
+     * links the engine intercepts). Returns true when consumed; anything else
+     * falls through and loads as a URL (e.g. einkbro://startpage).
+     *
+     *  - `googlesync` reveals the hidden Backup settings screen (Google Drive
+     *    sync, export/import, LAN share) and opens it.
+     */
+    private fun handleTypedCommand(url: String): Boolean {
+        val command = url.substringAfter("://").substringBefore('?').substringBefore('/')
+            .trim().lowercase()
+        return when (command) {
+            "googlesync" -> {
+                config.isBackupRestoreUnlocked = true
+                EBToast.show(AppServices.context, "Backup & Google Drive sync unlocked")
+                pendingOpenBackupSettings.value = true
+                true
+            }
+            else -> false
         }
     }
 

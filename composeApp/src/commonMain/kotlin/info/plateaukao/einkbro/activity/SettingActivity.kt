@@ -39,7 +39,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import info.plateaukao.einkbro.AppServices
-import info.plateaukao.einkbro.BuildConfig
 import info.plateaukao.einkbro.activity.SettingRoute.Backup
 import info.plateaukao.einkbro.activity.SettingRoute.Behavior
 import info.plateaukao.einkbro.activity.SettingRoute.ChatGPT
@@ -130,12 +129,8 @@ private class RealBackupOps(
     override fun importAppData() {
         info.plateaukao.einkbro.util.FilePicker.pick { _, bytes ->
             scope.launch {
-                val ok = info.plateaukao.einkbro.backup.BackupManager.importBackupZip(bytes)
-                EBToast.show(
-                    context,
-                    if (ok) "Backup restored — relaunch to apply all settings"
-                    else "Not a valid EinkBro backup",
-                )
+                val summary = info.plateaukao.einkbro.backup.BackupManager.importBackupZip(bytes)
+                EBToast.show(context, summary?.describe() ?: "Not a valid EinkBro backup")
             }
         }
     }
@@ -161,14 +156,10 @@ private class RealBackupOps(
             onConnected = { EBToast.show(context, "Receiving app data…") },
             onReceived = { bytes ->
                 scope.launch {
-                    val ok = info.plateaukao.einkbro.backup.BackupManager.importBackupZip(bytes)
+                    val summary = info.plateaukao.einkbro.backup.BackupManager.importBackupZip(bytes)
                     // Close the "waiting" dialog now that the transfer finished.
                     DialogManager.pendingOkCancel.value = null
-                    EBToast.show(
-                        context,
-                        if (ok) "Backup restored — relaunch to apply all settings"
-                        else "Received data is not a valid EinkBro backup",
-                    )
+                    EBToast.show(context, summary?.describe() ?: "Received data is not a valid EinkBro backup")
                 }
             },
         )
@@ -223,12 +214,10 @@ private class RealBackupOps(
                 "${formatDriveTime(remote.modifiedTime)} ($platform)",
             ) to {
                 val bytes = repo.downloadBackup(remote.id)
-                val ok = info.plateaukao.einkbro.backup.BackupManager.importBackupZip(bytes)
-                EBToast.show(
-                    context,
-                    if (ok) "Backup restored — relaunch to apply all settings"
-                    else "Not a valid EinkBro backup",
-                )
+                // Append-only merge: the Drive file (Android's or ours) only adds
+                // what this device lacks; nothing local is replaced.
+                val summary = info.plateaukao.einkbro.backup.BackupManager.importBackupZip(bytes)
+                EBToast.show(context, summary?.describe() ?: "Not a valid EinkBro backup")
             }
         }
         options += blockingString(Res.string.drive_sign_out, repo.email.orEmpty()) to {
@@ -265,8 +254,11 @@ private class RealBackupOps(
     override fun importBookmarks() {
         info.plateaukao.einkbro.util.FilePicker.pick { _, bytes ->
             scope.launch {
-                info.plateaukao.einkbro.backup.BackupManager.importBookmarks(bytes.decodeToString())
-                EBToast.show(context, "Bookmarks imported")
+                val added = info.plateaukao.einkbro.backup.BackupManager.importBookmarks(bytes.decodeToString())
+                EBToast.show(
+                    context,
+                    if (added > 0) "Added $added bookmarks" else "No new bookmarks to add",
+                )
             }
         }
     }
@@ -328,8 +320,8 @@ fun SettingsScreen(
             Behavior.titleId to behaviorSettingItems,
             Gesture.titleId to gestureSettingItems,
             Search.titleId to searchSettingItems,
-            // Keep backup actions out of settings search while the screen is off.
-            if (BuildConfig.BACKUP_RESTORE_ENABLED) Backup.titleId to dataSettingItems else null,
+            // Keep backup actions out of settings search while the screen is hidden.
+            if (config.isBackupRestoreUnlocked) Backup.titleId to dataSettingItems else null,
             DataControl.titleId to clearDataSettingItems,
             StartControl.titleId to startSettingItems,
             Misc.titleId to miscSettingItems,
@@ -417,7 +409,7 @@ fun SettingsScreen(
                 composable(SettingRoute.GesturePicker.name) {
                     GesturePickerScreen(navController)
                 }
-                if (BuildConfig.BACKUP_RESTORE_ENABLED) composable(Backup.name) {
+                if (config.isBackupRestoreUnlocked) composable(Backup.name) {
                     SettingScreen(navController, dataSettingItems, dialogManager, action, 1)
                 }
                 composable(StartControl.name) {

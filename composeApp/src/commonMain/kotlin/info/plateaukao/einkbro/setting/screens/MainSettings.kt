@@ -1,6 +1,6 @@
 package info.plateaukao.einkbro.setting.screens
 
-import info.plateaukao.einkbro.BuildConfig
+import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.activity.SettingRoute.Backup
 import info.plateaukao.einkbro.activity.SettingRoute.Behavior
 import info.plateaukao.einkbro.activity.SettingRoute.ChatGPT
@@ -37,8 +37,9 @@ fun buildMainSettingItems(): List<SettingItemInterface> = listOfNotNull(
         destination = Gesture
     ),
     DividerSettingItem(),
-    // Backup/restore is behind a build flag — see BuildConfig.BACKUP_RESTORE_ENABLED.
-    if (BuildConfig.BACKUP_RESTORE_ENABLED) NavigateSettingItem(
+    // Hidden until unlocked with einkbro://googlesync — see
+    // ConfigManager.isBackupRestoreUnlocked.
+    if (AppServices.config.isBackupRestoreUnlocked) NavigateSettingItem(
         Res.string.setting_title_data,
         Res.drawable.icon_backup,
         destination = Backup
