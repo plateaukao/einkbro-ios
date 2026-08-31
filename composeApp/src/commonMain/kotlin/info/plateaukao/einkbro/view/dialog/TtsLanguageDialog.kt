@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.Divider
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.RadioButton
 import androidx.compose.material.Text
@@ -23,6 +22,7 @@ import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.setting_tts_locale
 import info.plateaukao.einkbro.util.Locale
 import org.jetbrains.compose.resources.stringResource
+import info.plateaukao.einkbro.view.compose.ThemedDivider
 
 /**
  * Single-choice picker for the system-TTS language; the Android original is an
@@ -46,7 +46,7 @@ fun TtsLanguageDialogContent(
             style = MaterialTheme.typography.h6,
             fontWeight = FontWeight.Bold,
         )
-        Divider()
+        ThemedDivider()
         LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
             items(sorted) { locale ->
                 Row(
@@ -66,7 +66,7 @@ fun TtsLanguageDialogContent(
                         color = MaterialTheme.colors.onBackground,
                     )
                 }
-                Divider()
+                ThemedDivider()
             }
         }
     }

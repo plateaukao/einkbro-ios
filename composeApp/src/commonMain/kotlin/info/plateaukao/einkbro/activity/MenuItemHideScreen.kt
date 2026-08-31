@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
@@ -51,6 +50,7 @@ import info.plateaukao.einkbro.view.dialog.compose.menuDisplayToUnderlying
 import org.jetbrains.compose.resources.stringResource
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyGridState
+import info.plateaukao.einkbro.view.compose.ThemedDivider
 
 /**
  * Port of Android's MenuItemHideActivity: tap items to hide/show them in the
@@ -183,7 +183,7 @@ private fun ReorderableMenuGrid(
                                 .fillMaxWidth()
                                 .padding(vertical = 6.dp),
                         ) {
-                            Divider(color = MaterialTheme.colors.primary, thickness = 1.dp)
+                            ThemedDivider()
                             entry.sectionStart.headerRes?.let { res ->
                                 Text(
                                     text = stringResource(res),

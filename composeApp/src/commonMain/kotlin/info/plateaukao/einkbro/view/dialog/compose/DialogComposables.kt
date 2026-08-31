@@ -49,6 +49,7 @@ import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
+import info.plateaukao.einkbro.view.compose.ThemedDivider
 
 fun Offset.toScreenPoint(boxPosition: Offset): Point {
     return Point((x + boxPosition.x).toInt(), (y + boxPosition.y).toInt())
@@ -253,7 +254,7 @@ fun PointAnchoredDialogFrame(
 
 @Composable
 fun HorizontalSeparator() {
-    Divider(thickness = 1.dp, color = MaterialTheme.colors.primary)
+    ThemedDivider()
 }
 
 @OptIn(ExperimentalFoundationApi::class)

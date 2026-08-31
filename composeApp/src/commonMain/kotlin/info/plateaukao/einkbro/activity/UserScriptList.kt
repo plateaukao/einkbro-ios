@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.CircularProgressIndicator
-import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
@@ -77,6 +76,7 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import info.plateaukao.einkbro.view.compose.ThemedDivider
 
 private const val GREASY_FORK_URL = "https://greasyfork.org/"
 
@@ -213,7 +213,7 @@ fun UserScriptListScreen(
                                 }
                             },
                         )
-                        Divider()
+                        ThemedDivider()
                     }
                 }
             }

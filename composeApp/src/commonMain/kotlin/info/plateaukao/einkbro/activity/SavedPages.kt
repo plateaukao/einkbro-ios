@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
@@ -35,6 +34,7 @@ import info.plateaukao.einkbro.view.compose.ListScaffold
 import info.plateaukao.einkbro.viewmodel.SavedPageViewModel
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
+import info.plateaukao.einkbro.view.compose.ThemedDivider
 
 /** Port of SavedPagesActivity: the saved-pages (offline archive) list. */
 @Composable
@@ -91,7 +91,7 @@ fun SavedPagesList(
                     onClick = { onPageClick(savedPage) },
                     onDelete = { onPageDelete(savedPage) },
                 )
-                if (index < savedPages.lastIndex) Divider(thickness = 1.dp)
+                if (index < savedPages.lastIndex) ThemedDivider()
             }
         }
     }

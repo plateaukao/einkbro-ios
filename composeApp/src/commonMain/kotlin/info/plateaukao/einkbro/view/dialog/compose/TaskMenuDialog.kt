@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.Divider
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +18,7 @@ import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.*
 import info.plateaukao.einkbro.task.TaskCatalog
 import info.plateaukao.einkbro.task.TaskDescriptor
+import info.plateaukao.einkbro.view.compose.ThemedDivider
 
 @Composable
 fun TaskMenuDialogContent(
@@ -63,7 +63,7 @@ fun TaskMenuDialogContent(
                     )
                 }
             }
-            Divider(color = MaterialTheme.colors.primary)
+            ThemedDivider()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()

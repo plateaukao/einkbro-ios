@@ -3,6 +3,9 @@ package info.plateaukao.einkbro.view.compose
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Colors
@@ -27,6 +30,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.LinearGradientShader
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Shader
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.Shape
@@ -341,6 +346,32 @@ fun themedFrameShape(frame: Boolean = false): Shape {
 }
 
 /**
+ * Extra content inset a border style needs beyond the plain classic 1dp
+ * look — the iOS counterpart of Android ThemedBorders.contentPad. Irregular
+ * outlines reach into the bounds (stamp bites, sketch wobble, the
+ * certificate's inner line, paper's inner frame, the sticker's shadow
+ * offset), so the framed box grows by this much instead of letting the
+ * border crowd or cross the content. Item frames apply it even when
+ * currently unframed, so selecting an item never changes its layout size.
+ */
+fun UiBorder.contentPad(frame: Boolean): Dp {
+    val styleExtra = when (this) {
+        UiBorder.NONE, UiBorder.CLASSIC, UiBorder.ROUND -> 0f
+        UiBorder.SHARP -> 1f
+        UiBorder.DASHED -> 1f
+        // outer line + 2dp gap + inner line already inset the content via
+        // the border chain's own padding; keep a hairline of clearance
+        UiBorder.PAPER -> 1f
+        UiBorder.STAMP -> 4f      // scallop bite radius
+        UiBorder.SKETCH -> 4f     // wobble amplitude + safety inset
+        UiBorder.CERTIFICATE -> 8f // outer 3 + gap 4 + inner line
+        UiBorder.STICKER -> 3f    // shadow offset shrinks the front box
+    }
+    // dialog windows additionally grow by the stroke and a breathing ring
+    return if (frame) (styleExtra + widthDp + 2f).dp else styleExtra.dp
+}
+
+/**
  * Themed frame for in-content bordered items, combining the independent
  * border and fill preferences. A non-positive widthOverride keeps the call
  * site's "no frame in this state" behavior; a positive one keeps its
@@ -357,7 +388,10 @@ fun Modifier.ebItemFrame(
 ): Modifier = composed {
     val border = UiThemeState.uiBorder.value
     val fill = UiThemeState.uiFill.value
-    if (widthOverride != null && widthOverride <= 0.dp) return@composed this
+    // the style's content inset applies framed or not, so an item keeps the
+    // same layout size whether or not it is currently selected/bordered
+    val contentPad = border.contentPad(frame)
+    if (widthOverride != null && widthOverride <= 0.dp) return@composed padding(contentPad)
     // the fill must clip to the border's actual outline (stamp bites,
     // sketch wobble), not to a plain rounded rect
     val shape = themedFrameShape(frame)
@@ -392,7 +426,7 @@ fun Modifier.ebItemFrame(
                 clipPath(clip) { drawFillPattern(fill, patternColor) }
             }
             drawRoundRect(accent, size = boxSize, cornerRadius = corner, style = Stroke(width.toPx()))
-        }
+        }.padding(contentPad)
     }
 
     val m: Modifier = when (fill) {
@@ -402,10 +436,16 @@ fun Modifier.ebItemFrame(
         else -> withBase.patternFill(fill, shape, patternLineColor())
     }
 
-    when (border) {
+    val framed = when (border) {
         UiBorder.NONE, UiBorder.STICKER -> m
-        UiBorder.CLASSIC, UiBorder.ROUND, UiBorder.SHARP, UiBorder.PAPER ->
+        UiBorder.CLASSIC, UiBorder.ROUND, UiBorder.SHARP ->
             m.border(width, accent, shape)
+        // print-like double frame: two thin concentric lines (this is what
+        // the picker preview shows; it used to render as a single line)
+        UiBorder.PAPER -> m
+            .border(width, accent, shape)
+            .padding(width + 2.dp)
+            .border(width, accent, RoundedCornerShape((radius - 3f).coerceAtLeast(0f).dp))
         UiBorder.DASHED -> m.dashedBorder(width, radius.dp, accent)
         UiBorder.STAMP, UiBorder.SKETCH -> m.border(width, accent, shape)
         UiBorder.CERTIFICATE -> m.drawBehind {
@@ -417,14 +457,21 @@ fun Modifier.ebItemFrame(
                 style = Stroke(outer),
             )
             val inset = outer + 4.dp.toPx()
-            drawRect(
-                color = accent,
-                topLeft = Offset(inset, inset),
-                size = Size(size.width - 2 * inset, size.height - 2 * inset),
-                style = Stroke(1.dp.toPx()),
-            )
+            val innerW = size.width - 2 * inset
+            val innerH = size.height - 2 * inset
+            // the hairline inner frame only fits once the box is big
+            // enough; on tiny chips a degenerate rect would scribble
+            if (innerW > 4.dp.toPx() && innerH > 4.dp.toPx()) {
+                drawRect(
+                    color = accent,
+                    topLeft = Offset(inset, inset),
+                    size = Size(innerW, innerH),
+                    style = Stroke(1.dp.toPx()),
+                )
+            }
         }
     }
+    framed.padding(contentPad)
 }
 
 /**
@@ -433,6 +480,97 @@ fun Modifier.ebItemFrame(
  * the selected fill, and the selected border at its frame radius.
  */
 fun Modifier.ebDialogFrame(): Modifier = ebItemFrame(paintBackground = true, frame = true)
+
+/**
+ * Divider that follows the selected UiBorder, so separators speak the same
+ * visual language as the frames around them: dashed borders get dashed
+ * lines, the stamp's perforated edge gets a dotted line, sketch gets a
+ * wobbly hand-drawn line, paper/certificate get double rules. Drop-in
+ * replacement for material Divider (defaults to the accent color, matching
+ * the app's existing primary-colored separators).
+ */
+@Composable
+fun ThemedDivider(
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colors.primary,
+    thickness: Dp = 1.dp,
+) {
+    val border = UiThemeState.uiBorder.value
+    val height = when (border) {
+        UiBorder.PAPER, UiBorder.CERTIFICATE -> 5.dp
+        UiBorder.SKETCH -> 5.dp
+        UiBorder.STAMP -> 3.dp
+        UiBorder.SHARP, UiBorder.STICKER -> maxOf(thickness, 2.dp)
+        else -> thickness
+    }
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(height)
+            .drawBehind { drawThemedDividerLine(border, color, thickness.toPx()) }
+    )
+}
+
+private fun DrawScope.drawThemedDividerLine(border: UiBorder, color: Color, baseWidth: Float) {
+    val midY = size.height / 2f
+    val w = size.width
+    when (border) {
+        UiBorder.SHARP ->
+            drawLine(color, Offset(0f, midY), Offset(w, midY), maxOf(baseWidth, 2.dp.toPx()))
+        UiBorder.DASHED ->
+            drawLine(
+                color, Offset(0f, midY), Offset(w, midY), maxOf(baseWidth, 1.5.dp.toPx()),
+                pathEffect = PathEffect.dashPathEffect(
+                    floatArrayOf(5.dp.toPx(), 4.dp.toPx()), 0f,
+                ),
+            )
+        UiBorder.STAMP -> {
+            // perforation: a run of small dots, centered horizontally
+            val pitch = 6.dp.toPx()
+            val r = 1.2.dp.toPx()
+            val n = max(1, (w / pitch).toInt())
+            var x = (w - (n - 1) * pitch) / 2f
+            repeat(n) {
+                drawCircle(color, r, Offset(x, midY))
+                x += pitch
+            }
+        }
+        UiBorder.SKETCH -> {
+            // wobbly hand-drawn line, deterministic per width so it doesn't
+            // shimmer across recompositions
+            val a = 1.5.dp.toPx()
+            val step = 14.dp.toPx()
+            val n = max(2, (w / step).toInt())
+            val path = Path()
+            for (k in 0..n) {
+                val x = w * k / n
+                val h = sin(k * 12.9898 + w) * 43758.5453
+                val j = if (k == 0 || k == n) 0f else ((h - floor(h)).toFloat() * 2f - 1f) * a
+                if (k == 0) path.moveTo(x, midY + j) else path.lineTo(x, midY + j)
+            }
+            drawPath(path, color, style = Stroke(1.2.dp.toPx()))
+        }
+        UiBorder.PAPER -> {
+            // double thin rule
+            drawLine(color, Offset(0f, midY - 1.5.dp.toPx()), Offset(w, midY - 1.5.dp.toPx()), 1.dp.toPx())
+            drawLine(color, Offset(0f, midY + 1.5.dp.toPx()), Offset(w, midY + 1.5.dp.toPx()), 1.dp.toPx())
+        }
+        UiBorder.CERTIFICATE -> {
+            // thick rule with a hairline echo, like the frame
+            drawLine(color, Offset(0f, midY - 1.5.dp.toPx()), Offset(w, midY - 1.5.dp.toPx()), 2.dp.toPx())
+            drawLine(color, Offset(0f, midY + 1.5.dp.toPx()), Offset(w, midY + 1.5.dp.toPx()), 0.8.dp.toPx())
+        }
+        UiBorder.STICKER -> {
+            val sw = maxOf(baseWidth, 2.dp.toPx())
+            drawLine(
+                color, Offset(sw / 2f, midY), Offset(w - sw / 2f, midY), sw,
+                cap = StrokeCap.Round,
+            )
+        }
+        UiBorder.NONE, UiBorder.CLASSIC, UiBorder.ROUND ->
+            drawLine(color, Offset(0f, midY), Offset(w, midY), baseWidth)
+    }
+}
 
 @Composable
 fun MyTheme(

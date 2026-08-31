@@ -25,7 +25,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
@@ -73,6 +72,7 @@ import info.plateaukao.einkbro.viewmodel.TranslationViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.vectorResource
+import info.plateaukao.einkbro.view.compose.ThemedDivider
 
 /**
  * Entry composable for the translation popup; was TranslateDialogFragment.Content().
@@ -210,7 +210,7 @@ private fun TranslateResponse(
                         .fillMaxWidth(),
                     textAlign = TextAlign.Start
                 )
-                Divider()
+                ThemedDivider()
             }
             if (viewModel.isWebViewStyle() && responseMessage.text != "...") {
                 WebResultView(

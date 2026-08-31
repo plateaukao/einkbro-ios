@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
@@ -61,6 +60,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
+import info.plateaukao.einkbro.view.compose.ThemedDivider
 
 /**
  * Port of HighlightsActivity: articles list + per-article highlights, with
@@ -162,7 +162,7 @@ fun ArticlesScreen(
                     highlightViewModel.deleteArticle(article.id)
                 }
             )
-            if (index < articles.lastIndex) Divider(thickness = 1.dp)
+            if (index < articles.lastIndex) ThemedDivider()
         }
     }
 }
@@ -259,7 +259,7 @@ fun HighlightsScreen(
                 highlight = highlights[index],
                 deleteHighlight = deleteHighlight,
             )
-            if (index < highlights.lastIndex) Divider(thickness = 1.dp)
+            if (index < highlights.lastIndex) ThemedDivider()
         }
     }
 }

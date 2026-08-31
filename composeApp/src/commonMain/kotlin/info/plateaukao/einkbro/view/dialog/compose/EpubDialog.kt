@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.LinearProgressIndicator
@@ -34,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import info.plateaukao.einkbro.util.NoDimDialog as Dialog
 import info.plateaukao.einkbro.preference.SavedFileInfo
+import info.plateaukao.einkbro.view.compose.ThemedDivider
 
 /**
  * "Save as EPUB" dialog (parity Phase I). Mirrors Android's two-mode flow: save
@@ -128,7 +128,7 @@ fun EpubDialog(
                                 )
                             }
                         }
-                        Divider()
+                        ThemedDivider()
                     }
                 }
             }

@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
@@ -81,6 +80,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.vectorResource
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyGridState
+import info.plateaukao.einkbro.view.compose.ThemedDivider
 
 typealias OnBookmarkClick = (bookmark: Bookmark) -> Unit
 typealias OnBookmarkLongClick = (bookmark: Bookmark, point: Point) -> Unit
@@ -259,7 +259,7 @@ fun DialogPanel(
         Box(Modifier.weight(1F, fill = false)) {
             content()
         }
-        Divider(thickness = 1.dp, color = MaterialTheme.colors.primary)
+        ThemedDivider()
         Row(
             modifier = Modifier
                 .fillMaxWidth()

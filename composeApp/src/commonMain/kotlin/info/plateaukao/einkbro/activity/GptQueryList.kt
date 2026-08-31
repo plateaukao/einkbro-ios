@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Card
-import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
@@ -51,6 +50,7 @@ import info.plateaukao.einkbro.viewmodel.GptQueryViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.jetbrains.compose.resources.vectorResource
+import info.plateaukao.einkbro.view.compose.ThemedDivider
 
 // Android KeyEvent codes for the volume keys (the Activity forwarded them to
 // scroll+expand the list; on iOS nothing emits, but the plumbing is kept).
@@ -183,7 +183,7 @@ fun QueryItem(
                 style = MaterialTheme.typography.body1,
             )
             if (showResult || forceExpand) {
-                Divider(
+                ThemedDivider(
                     modifier = Modifier.padding(vertical = 8.dp),
                     thickness = 1.dp,
                     color = MaterialTheme.colors.onBackground.copy(alpha = 0.2f),

@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.Checkbox
 import androidx.compose.material.CheckboxDefaults
-import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
@@ -48,6 +47,7 @@ import info.plateaukao.einkbro.util.LocalContext
 import info.plateaukao.einkbro.view.EBToast
 import info.plateaukao.einkbro.view.compose.MyTheme
 import org.jetbrains.compose.resources.StringResource
+import info.plateaukao.einkbro.view.compose.ThemedDivider
 
 @Composable
 fun FastToggleDialogContent(
@@ -124,7 +124,7 @@ fun FastToggleItemList(
             onClicked(false)
         }
 
-        Divider(thickness = 1.dp, color = MaterialTheme.colors.primary)
+        ThemedDivider()
 
         ToggleItem(
             state = config.browser.shareLocation,

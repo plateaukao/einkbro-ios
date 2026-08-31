@@ -134,6 +134,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import info.plateaukao.einkbro.view.compose.ThemedDivider
 
 /**
  * Phase-1 browser: real WKWebView behind the ported EinkBro chrome.
@@ -2506,7 +2507,7 @@ private fun SplitPane(
             SplitBarButton("A+") { browserViewModel.adjustSplitFont(20) }
             SplitBarButton("Close") { browserViewModel.closeSplitScreen() }
         }
-        androidx.compose.material.Divider(
+        ThemedDivider(
             color = MaterialTheme.colors.primary.copy(alpha = 0.3f),
         )
         if (splitEngine != null && splitAlbum != null) {
