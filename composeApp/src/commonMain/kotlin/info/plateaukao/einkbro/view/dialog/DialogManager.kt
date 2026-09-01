@@ -5,6 +5,9 @@ import androidx.compose.runtime.mutableStateOf
 import info.plateaukao.einkbro.util.blockingString
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
+import info.plateaukao.einkbro.resources.Res
+import info.plateaukao.einkbro.resources.folder_name
+import info.plateaukao.einkbro.resources.folder_name_description
 import org.jetbrains.compose.resources.StringResource
 
 /**
@@ -156,7 +159,11 @@ class DialogManager(private val context: Context = Context()) {
         cont.invokeOnCancellation { pendingMultiSelect.value = null }
     }
 
-    suspend fun getBookmarkFolderName(): String? = null
+    suspend fun getBookmarkFolderName(): String? = getTextInput(
+        Res.string.folder_name,
+        Res.string.folder_name_description,
+        "",
+    )
 
     fun showBookmarkFilePicker(launcher: Any?) {}
     fun showImportBookmarkFilePicker(launcher: Any?) {}

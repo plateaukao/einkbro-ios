@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import info.plateaukao.einkbro.util.NoDimAlertDialog as AlertDialog
 import androidx.compose.material.DropdownMenu
@@ -72,14 +71,8 @@ fun BookmarkEditContent(
     val dialogManager = AppServices.dialogManager
 
     AlertDialog(
-        modifier = Modifier
-            .padding(2.dp)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colors.onBackground,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(2.dp),
+        // No extra hand-drawn border: the themed dialog frame already draws
+        // the window chrome in the selected border style.
         title = { Text(stringResource(Res.string.menu_save_bookmark)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -157,18 +150,14 @@ fun BookmarkEditContent(
                             .padding(8.dp)
                             .clickable {
                                 coroutineScope.launch {
-                                    // The DialogManager stub resolves text
-                                    // input to null (no folder-name prompt on
-                                    // the catalog); signal it instead.
+                                    // Prompts for the folder name (Android
+                                    // DialogManager.getBookmarkFolderName);
+                                    // null = cancelled.
                                     val folderName =
                                         dialogManager.getBookmarkFolderName()
-                                    if (folderName == null) {
-                                        EBToast.show(
-                                            context,
-                                            "would prompt for a new folder name"
-                                        )
-                                        return@launch
-                                    }
+                                            ?.trim()
+                                            ?.takeIf { it.isNotEmpty() }
+                                            ?: return@launch
                                     bookmarkViewModel.insertDirectory(folderName)
                                     val updatedFolders =
                                         bookmarkViewModel.getBookmarkFolders()

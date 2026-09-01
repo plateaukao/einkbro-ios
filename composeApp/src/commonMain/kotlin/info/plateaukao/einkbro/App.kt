@@ -29,6 +29,7 @@ import androidx.compose.material.RadioButton
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
+import androidx.compose.material.TextFieldDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
@@ -400,6 +401,9 @@ private fun TextInputDialogHost() {
                     onValueChange = { text = it },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        textColor = MaterialTheme.colors.onBackground,
+                    ),
                 )
             }
         },
