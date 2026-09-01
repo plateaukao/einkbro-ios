@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import info.plateaukao.einkbro.view.compose.ebDialogFrame
+import info.plateaukao.einkbro.view.compose.themedFrameShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
@@ -55,12 +58,17 @@ fun DialogFrame(onDismiss: (() -> Unit)? = null, content: @Composable () -> Unit
         Modifier.fillMaxSize().then(dismissModifier).padding(16.dp),
         contentAlignment = Alignment.Center,
     ) {
+        // Themed window chrome (same as AnchoredDialogFrame): ebDialogFrame
+        // paints the opaque theme background clipped to the border's actual
+        // outline, so irregular frames (stamp bites, sketch wobble, sticker
+        // shadow) stay transparent outside the border instead of showing a
+        // white rectangle over the content behind.
         Surface(
             modifier = Modifier
                 .wrapContentSize()
-                .border(1.dp, MaterialTheme.colors.onBackground, RoundedCornerShape(5.dp)),
-            shape = RoundedCornerShape(5.dp),
-            color = MaterialTheme.colors.background,
+                .ebDialogFrame(),
+            shape = themedFrameShape(frame = true),
+            color = Color.Transparent,
         ) {
             Box(Modifier.verticalScroll(rememberScrollState())) {
                 content()

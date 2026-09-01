@@ -139,13 +139,18 @@ fun ComposedToolbar(
             }
         }
     } else {
-        val height = if (showTabs) 100.dp else 50.dp
+        // Themed top border: the edge facing the page speaks the same visual
+        // language as the frames/dividers. The column grows by the divider's
+        // band so the 50dp rows are never squeezed.
+        val dividerBand = themedDividerHeight()
+        val height = (if (showTabs) 100.dp else 50.dp) + dividerBand
         Column(
             modifier = Modifier
                 .height(height)
                 .background(MaterialTheme.colors.background),
             horizontalAlignment = Alignment.End
         ) {
+            ThemedDivider()
             if (showTabs) {
                 Row(
                     Modifier

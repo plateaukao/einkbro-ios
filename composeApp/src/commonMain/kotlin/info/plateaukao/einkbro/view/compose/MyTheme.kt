@@ -489,6 +489,20 @@ fun Modifier.ebDialogFrame(): Modifier = ebItemFrame(paintBackground = true, fra
  * replacement for material Divider (defaults to the accent color, matching
  * the app's existing primary-colored separators).
  */
+/**
+ * Layout band [ThemedDivider] occupies for the current border style — public
+ * so containers with otherwise fixed heights (the toolbar) can grow by
+ * exactly the divider's band instead of squeezing their content.
+ */
+@Composable
+fun themedDividerHeight(thickness: Dp = 1.dp): Dp =
+    when (UiThemeState.uiBorder.value) {
+        UiBorder.PAPER, UiBorder.CERTIFICATE, UiBorder.SKETCH -> 5.dp
+        UiBorder.STAMP -> 3.dp
+        UiBorder.SHARP, UiBorder.STICKER -> maxOf(thickness, 2.dp)
+        else -> thickness
+    }
+
 @Composable
 fun ThemedDivider(
     modifier: Modifier = Modifier,
@@ -496,13 +510,7 @@ fun ThemedDivider(
     thickness: Dp = 1.dp,
 ) {
     val border = UiThemeState.uiBorder.value
-    val height = when (border) {
-        UiBorder.PAPER, UiBorder.CERTIFICATE -> 5.dp
-        UiBorder.SKETCH -> 5.dp
-        UiBorder.STAMP -> 3.dp
-        UiBorder.SHARP, UiBorder.STICKER -> maxOf(thickness, 2.dp)
-        else -> thickness
-    }
+    val height = themedDividerHeight(thickness)
     Box(
         modifier
             .fillMaxWidth()

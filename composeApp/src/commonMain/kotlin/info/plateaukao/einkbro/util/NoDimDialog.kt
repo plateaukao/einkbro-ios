@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import info.plateaukao.einkbro.view.compose.ebDialogFrame
+import info.plateaukao.einkbro.view.compose.themedFrameShape
 
 /**
  * Dialog wrapper used across the app in place of compose's Dialog: EinkBro
@@ -77,16 +79,14 @@ fun NoDimAlertDialog(
             // imePadding: with onFocusBehavior=DoNothing the scene is not
             // panned for the keyboard; padding the centered dialog re-centers
             // it in the space left above the ime.
-            modifier = Modifier.imePadding().then(modifier),
-            shape = shape,
-            color = backgroundColor,
+            // ebDialogFrame draws the themed window chrome: opaque theme
+            // background clipped to the border's actual outline, so irregular
+            // frames (stamp bites, sketch wobble, sticker shadow) show the
+            // content behind instead of a white rectangle.
+            modifier = Modifier.imePadding().then(modifier).ebDialogFrame(),
+            shape = themedFrameShape(frame = true),
+            color = Color.Transparent,
             contentColor = contentColor,
-            // The popup AlertDialog separated itself with an elevation shadow;
-            // this flat replacement needs an explicit edge — gray in dark mode
-            // (onBackground), black in light, matching the e-ink dialogs.
-            border = androidx.compose.foundation.BorderStroke(
-                1.dp, MaterialTheme.colors.onBackground,
-            ),
         ) {
             Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 8.dp)) {
                 title?.let {
