@@ -12,40 +12,26 @@ targets:
     platform: iOS
     sources:
       - iosApp
-    # LAN link/app-data share uses raw UDP multicast (Android-compatible
-    # protocol); iOS requires the restricted multicast entitlement for it.
-    # Apple must first grant "Multicast Networking" to team 3WD42GF27D for
-    # this bundle id (request at developer.apple.com/contact/request/networking-multicast);
-    # until then including it fails provisioning. Once granted, restore:
-    #   entitlements:
-    #     path: iosApp/EinkBro.entitlements
-    #     properties:
-    #       com.apple.developer.networking.multicast: true
+    # Managed entitlements (granted per-team by Apple):
     #
-    # Default-browser support is blocked the same way. Being offered in
-    # Settings > Apps > Default Apps > Browser needs
-    # com.apple.developer.web-browser, a MANAGED entitlement Apple grants only
-    # on request. Request it via the web form (Account Holder must be signed in):
-    # developer.apple.com/contact/request/default-browser-entitlement
-    # (reported waits run weeks).
+    # - com.apple.developer.web-browser (default browser): GRANTED 2026-09-01
+    #   for info.plateaukao.einkbro.ios, after the shipping binary declared
+    #   http/https in CFBundleURLTypes (Apple validates the released build's
+    #   Info.plist mechanically — see the comment there). With it, EinkBro is
+    #   offered in Settings > Apps > Default Apps > Browser. Receiving side:
+    #   iOSApp.swift onOpenURL -> handleExternalUrl -> ExternalUrlBridge.
     #
-    # PRECONDITION, learned the hard way: Apple rejected the 2026-08-11 request
-    # because the SHIPPING App Store binary did not list http/https in
-    # CFBundleURLTypes. The request is validated mechanically against the
-    # released build's Info.plist — a "will be added in the next release"
-    # promise in the justification text is not accepted. Info.plist now
-    # declares http/https (inert without the entitlement); that build must be
-    # LIVE on the App Store before re-submitting the request.
-    #
-    # Remaining change once Apple grants it:
-    #   - managed entitlements require MANUAL signing, so CODE_SIGN_STYLE below
-    #     must move off Automatic and a matching profile must be installed.
-    # The receiving side is already implemented: iOSApp.swift's onOpenURL hands
-    # every incoming URL to handleExternalUrl, and ExternalUrlBridge.normalize
-    # passes non-einkbro:// URLs through unchanged, so http(s) hand-offs already
-    # open in a tab. Adding the entitlement before Apple grants it fails
-    # provisioning. Once granted, add to the entitlements block above:
-    #       com.apple.developer.web-browser: true
+    # - com.apple.developer.networking.multicast: NOT granted yet. LAN
+    #   link/app-data share uses raw UDP multicast (Android-compatible
+    #   protocol); request at
+    #   developer.apple.com/contact/request/networking-multicast. Adding it
+    #   before the grant fails provisioning. Once granted, add
+    #   "com.apple.developer.networking.multicast: true" to properties below
+    #   (xcodegen regenerates EinkBro.entitlements from properties).
+    entitlements:
+      path: iosApp/EinkBro.entitlements
+      properties:
+        com.apple.developer.web-browser: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: info.plateaukao.einkbro.ios
