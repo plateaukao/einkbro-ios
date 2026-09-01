@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -516,6 +517,155 @@ fun ThemedDivider(
             .fillMaxWidth()
             .height(height)
             .drawBehind { drawThemedDividerLine(border, color, thickness.toPx()) }
+    )
+}
+
+/** Band height of [ThemedEdgeBorder]. */
+val EDGE_BORDER_BAND = 5.dp
+
+/**
+ * The toolbar's page-facing edge as a TRUE themed border: the accent edge
+ * line in the current border style, theme background filled on the toolbar
+ * side of the line, and full transparency on the page side — the same
+ * inside-opaque / outside-transparent semantics as the dialog frames (stamp
+ * bites and sketch wobble are die-cut, showing the page through them).
+ * [edgeAtTop] is true when the toolbar sits below the band (bottom toolbar).
+ */
+@Composable
+fun ThemedEdgeBorder(
+    edgeAtTop: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val border = UiThemeState.uiBorder.value
+    val accent = MaterialTheme.colors.primary
+    val bg = MaterialTheme.colors.background
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(EDGE_BORDER_BAND)
+            .drawBehind { drawThemedEdgeBorder(border, accent, bg, edgeAtTop) }
+    )
+}
+
+private fun DrawScope.drawThemedEdgeBorder(
+    border: UiBorder,
+    accent: Color,
+    bg: Color,
+    edgeAtTop: Boolean,
+) {
+    val w = size.width
+    val h = size.height
+    // Edge space: v=0 is the page-facing side of the band, growing toward the
+    // toolbar. Mirrored vertically when the toolbar is above the band.
+    fun y(v: Float): Float = if (edgeAtTop) v else h - v
+    fun fillFrom(v: Float) {
+        if (edgeAtTop) drawRect(bg, Offset(0f, v), Size(w, h - v))
+        else drawRect(bg, Offset(0f, 0f), Size(w, h - v))
+    }
+    fun hline(v: Float, stroke: Float, effect: PathEffect? = null) {
+        drawLine(accent, Offset(0f, y(v)), Offset(w, y(v)), stroke, pathEffect = effect)
+    }
+    when (border) {
+        UiBorder.STAMP -> {
+            // straight edge with perforation bites cut into the surface,
+            // matching stampShape's spacing; the page shows through the bites
+            val r = 3.dp.toPx()
+            val edgeV = 0.75.dp.toPx()
+            val margin = 3f * r
+            val span = w - 2f * margin
+            val centers = if (span < 2f * r) listOf(w / 2f) else {
+                val n = max(1, (span / (3.5f * r)).toInt())
+                val step = span / n
+                List(n) { margin + (it + 0.5f) * step }
+            }
+            val edge = Path()
+            edge.moveTo(0f, y(edgeV))
+            centers.forEach { cx ->
+                edge.lineTo(cx - r, y(edgeV))
+                val rect = Rect(cx - r, y(edgeV) - r, cx + r, y(edgeV) + r)
+                edge.arcTo(rect, 180f, if (edgeAtTop) -180f else 180f, false)
+            }
+            edge.lineTo(w, y(edgeV))
+            val fill = Path().apply {
+                addPath(edge)
+                lineTo(w, y(h))
+                lineTo(0f, y(h))
+                close()
+            }
+            drawPath(fill, bg)
+            drawPath(edge, accent, style = Stroke(1.25.dp.toPx()))
+        }
+        UiBorder.SKETCH -> {
+            // wobbly hand-drawn edge; background follows the wobble
+            val a = 1.5.dp.toPx()
+            val step = 14.dp.toPx()
+            val base = a + 0.75.dp.toPx()
+            val n = max(2, (w / step).toInt())
+            val edge = Path()
+            for (k in 0..n) {
+                val x = w * k / n
+                val hsh = sin(k * 12.9898 + w) * 43758.5453
+                val j = if (k == 0 || k == n) 0f
+                    else ((hsh - floor(hsh)).toFloat() * 2f - 1f) * a
+                if (k == 0) edge.moveTo(x, y(base + j)) else edge.lineTo(x, y(base + j))
+            }
+            val fill = Path().apply {
+                addPath(edge)
+                lineTo(w, y(h))
+                lineTo(0f, y(h))
+                close()
+            }
+            drawPath(fill, bg)
+            drawPath(edge, accent, style = Stroke(1.5.dp.toPx()))
+        }
+        UiBorder.PAPER -> {
+            fillFrom(0.5.dp.toPx())
+            hline(0.5.dp.toPx(), 1.dp.toPx())
+            hline(3.5.dp.toPx(), 1.dp.toPx())
+        }
+        UiBorder.CERTIFICATE -> {
+            fillFrom(1.25.dp.toPx())
+            hline(1.25.dp.toPx(), 2.5.dp.toPx())
+            hline(4.25.dp.toPx(), 1.dp.toPx())
+        }
+        UiBorder.DASHED -> {
+            fillFrom(0.75.dp.toPx())
+            hline(
+                0.75.dp.toPx(), 1.5.dp.toPx(),
+                PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx()), 0f),
+            )
+        }
+        // NONE, CLASSIC, ROUND, SHARP, STICKER: solid edge at the border's weight
+        else -> {
+            val stroke = max(border.widthDp, 1f).dp.toPx()
+            fillFrom(stroke / 2f)
+            hline(stroke / 2f, stroke)
+        }
+    }
+}
+
+/**
+ * Page-load progress line in the theme's border language: the themed divider
+ * pattern (dots for stamp, wobble for sketch, double rule for paper...)
+ * revealed left-to-right by the load fraction.
+ */
+@Composable
+fun ThemedProgressBar(
+    progress: Float,
+    modifier: Modifier = Modifier,
+    // same accent as the themed borders/dividers
+    color: Color = MaterialTheme.colors.primary,
+) {
+    val border = UiThemeState.uiBorder.value
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(themedDividerHeight(2.dp))
+            .drawBehind {
+                clipRect(right = size.width * progress.coerceIn(0f, 1f)) {
+                    drawThemedDividerLine(border, color, 2.dp.toPx())
+                }
+            }
     )
 }
 

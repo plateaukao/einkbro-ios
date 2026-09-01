@@ -32,7 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import info.plateaukao.einkbro.view.compose.ebItemFrame
+import info.plateaukao.einkbro.view.compose.ebDialogFrame
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
@@ -58,10 +58,12 @@ fun ActionModeMenu(
     LazyVerticalGrid(
         columns = GridCells.Fixed(4),
         modifier = Modifier
-            .background(MaterialTheme.colors.background)
             .wrapContentHeight()
             .width(280.dp)
-            .ebItemFrame()
+            // ebDialogFrame paints the theme background CLIPPED to the border's
+            // outline — a raw rectangular .background() here spilled white past
+            // the stamp bites / sketch wobble instead of showing the page.
+            .ebDialogFrame()
     ) {
         val menuInfos = menus.value
         items(menuInfos.size) { index ->

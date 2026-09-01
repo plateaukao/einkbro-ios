@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.icons.Icons
@@ -135,6 +134,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import info.plateaukao.einkbro.view.compose.ThemedDivider
+import info.plateaukao.einkbro.view.compose.ThemedProgressBar
+import info.plateaukao.einkbro.view.compose.ThemedEdgeBorder
+import info.plateaukao.einkbro.view.compose.EDGE_BORDER_BAND
 
 /**
  * Phase-1 browser: real WKWebView behind the ported EinkBro chrome.
@@ -1514,15 +1516,38 @@ fun BrowserScreen(
                 if (!onLeft) renderToolbar()
             }
         } else {
-            renderPaneArea()
+            // The pane is wrapped in a Box so the themed toolbar border (and
+            // the load progress line) can OVERLAY the page's toolbar-facing
+            // edge on a transparent band — the pattern's gaps show the page
+            // itself, matching the dialog frames' die-cut transparency.
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                Column(Modifier.fillMaxSize()) { renderPaneArea() }
+                if (!isFullscreen && !showUrlInput && toolbarHideOffset.value <= 0f) {
+                    ThemedEdgeBorder(
+                        edgeAtTop = !toolbarAtTop,
+                        modifier = Modifier.align(
+                            if (toolbarAtTop) Alignment.TopCenter else Alignment.BottomCenter
+                        ),
+                    )
+                }
+                if (progress < 1f) {
+                    // Themed: the load progress line speaks the border style's
+                    // language (dots for stamp, wobble for sketch, ...), sitting
+                    // just above the themed border.
+                    ThemedProgressBar(
+                        progress = progress,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(
+                                bottom = if (toolbarAtTop) 0.dp else EDGE_BORDER_BAND
+                            ),
+                    )
+                }
+            }
         }
 
-        if (progress < 1f) {
-            LinearProgressIndicator(
-                progress = progress,
-                modifier = Modifier.fillMaxWidth().height(2.dp),
-                color = MaterialTheme.colors.onBackground,
-            )
+        if (config.ui.isVerticalToolbar && progress < 1f) {
+            ThemedProgressBar(progress = progress)
         }
 
         // Find-on-page bar (parity Phase E) sits just above the toolbar.
