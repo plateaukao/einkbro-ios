@@ -26,11 +26,11 @@ import info.plateaukao.einkbro.AppServices
 import info.plateaukao.einkbro.preference.FontType
 import info.plateaukao.einkbro.resources.Res
 import info.plateaukao.einkbro.resources.*
-import info.plateaukao.einkbro.util.LocalContext
-import info.plateaukao.einkbro.view.EBToast
 import info.plateaukao.einkbro.view.compose.MyTheme
 import info.plateaukao.einkbro.view.compose.SelectableText
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Entry composable for the (web page) font dialog; was FontDialogFragment.Content().
@@ -41,14 +41,15 @@ fun FontDialogContent(
     onDismiss: () -> Unit = {},
 ) {
     val config = AppServices.config
-    val context = LocalContext.current
     val customFontName = remember {
         mutableStateOf(config.display.customFontInfo?.name.orEmpty())
     }
     val fontSizeState = remember { mutableIntStateOf(config.display.fontSize) }
+    val customFontSizeState = remember { mutableIntStateOf(config.display.customFontSize) }
+    val scope = rememberCoroutineScope()
     MainFontDialog(
         selectedFontSizeValue = fontSizeState.value,
-        customFontSizeValue = config.display.customFontSize,
+        customFontSizeValue = customFontSizeState.value,
         selectedFontType = config.display.fontType,
         customFontName = customFontName.value,
         onFontSizeClick = {
@@ -66,8 +67,19 @@ fun FontDialogContent(
         },
         onFontTypeChanged = { onFontTypeChanged() },
         onCustomFontSizeClick = {
-            // Android shows a TextInputDialog for a custom scale value.
-            EBToast.show(context, "would ask for a custom font scale")
+            // Android: TextInputDialog(custom_scale, custom_scale_desc); null = cancelled.
+            scope.launch {
+                val value = AppServices.dialogManager.getTextInput(
+                    Res.string.custom_scale,
+                    Res.string.custom_scale_desc,
+                    customFontSizeState.value.toString(),
+                )?.trim()?.toIntOrNull() ?: return@launch
+                config.display.fontSize = value
+                config.display.customFontSize = value
+                fontSizeState.value = value
+                customFontSizeState.value = value
+                onDismiss()
+            }
         },
         okAction = { onDismiss() },
     )

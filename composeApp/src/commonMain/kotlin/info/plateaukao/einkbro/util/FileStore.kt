@@ -21,6 +21,9 @@ expect object FileStore {
     fun writeToPath(path: String, bytes: ByteArray): String?
 
     fun exists(path: String): Boolean
+
+    /** File names (not paths) directly inside Documents/[subDir], sorted; empty if missing. */
+    fun listFiles(subDir: String): List<String>
     fun delete(path: String)
 
     /** Opens the file in the system share / preview sheet (UIActivityViewController). */

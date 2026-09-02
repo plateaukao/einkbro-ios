@@ -67,6 +67,13 @@ actual object FileStore {
     actual fun exists(path: String): Boolean =
         NSFileManager.defaultManager.fileExistsAtPath(path)
 
+    actual fun listFiles(subDir: String): List<String> {
+        val dir = dirPath(subDir) ?: return emptyList()
+        val names = NSFileManager.defaultManager.contentsOfDirectoryAtPath(dir, error = null)
+            ?: return emptyList()
+        return names.mapNotNull { it as? String }.sortedBy { it.lowercase() }
+    }
+
     actual fun delete(path: String) {
         NSFileManager.defaultManager.removeItemAtPath(path, error = null)
     }

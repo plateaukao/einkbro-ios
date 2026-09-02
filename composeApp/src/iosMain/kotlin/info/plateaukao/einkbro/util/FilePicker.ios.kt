@@ -8,6 +8,7 @@ import platform.UIKit.UIApplication
 import platform.UIKit.UIDocumentPickerViewController
 import platform.UIKit.UIDocumentPickerDelegateProtocol
 import platform.UniformTypeIdentifiers.UTTypeData
+import platform.UniformTypeIdentifiers.UTTypeFont
 import platform.UniformTypeIdentifiers.UTTypeItem
 import platform.darwin.NSObject
 
@@ -16,9 +17,15 @@ actual object FilePicker {
     // Strong ref: the picker holds its delegate weakly.
     private var delegate: PickerDelegate? = null
 
-    actual fun pick(onResult: (name: String, bytes: ByteArray) -> Unit) {
+    actual fun pick(kind: PickKind, onResult: (name: String, bytes: ByteArray) -> Unit) {
+        val types = when (kind) {
+            PickKind.Any -> listOf(UTTypeItem, UTTypeData)
+            // public.font covers .ttf / .otf / .ttc; woff files are a web
+            // delivery format users rarely hold as files.
+            PickKind.Font -> listOf(UTTypeFont)
+        }
         val controller = UIDocumentPickerViewController(
-            forOpeningContentTypes = listOf(UTTypeItem, UTTypeData),
+            forOpeningContentTypes = types,
             asCopy = true,
         )
         val d = PickerDelegate(onResult)

@@ -15,6 +15,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import info.plateaukao.einkbro.util.FileStore
+import info.plateaukao.einkbro.util.resolveStoredPath
 
 /**
  * Per-tab content pipeline: the iOS port of WebViewReaderHelper +
@@ -263,7 +265,7 @@ class WebContentHelper(
             FontType.SYSTEM_DEFAULT -> ""
             FontType.SERIF -> SERIF_FONT_CSS
             FontType.GOOGLE_SERIF -> NOTO_SANS_SERIF_FONT_CSS
-            FontType.CUSTOM -> "" // custom TTF needs the URL-scheme handler (later phase)
+            FontType.CUSTOM -> customFontCss(reader = isReaderModeOn)
             FontType.TC_IANSUI -> IANSUI_FONT_CSS
             FontType.JA_MINCHO -> JA_MINCHO_FONT_CSS
             FontType.KO_GAMJA -> KO_GAMJA_FONT_CSS
@@ -288,6 +290,28 @@ class WebContentHelper(
         // Empty blob clears the slot — that's how styles turn off without reload.
         updateCssSlot(CSS_SLOT_MAIN, cssStyle)
         updateFitWidthClip()
+    }
+
+    /**
+     * @font-face for the user's custom font (Android WebViewReaderHelper
+     * .getCustomFontCss + NinjaWebViewClient.processCustomFontRequest). Android
+     * serves the file by intercepting a synthetic same-origin URL; WKWebView
+     * can't intercept https requests, and a custom-scheme or file: URL is
+     * blocked as mixed content / cross-origin by the page, so the font rides
+     * inline as a data: URL. The base64 payload is cached per file path (CJK
+     * fonts run to tens of MB) and the family name is versioned by the path,
+     * so switching fonts forces a refetch while repeated style updates with
+     * the same font keep hitting the already-loaded face.
+     */
+    private fun customFontCss(reader: Boolean): String {
+        val info = if (reader) config.display.readerCustomFontInfo else config.display.customFontInfo
+        val storedPath = info?.url?.takeIf { it.isNotBlank() } ?: return ""
+        val path = resolveStoredPath(storedPath)
+        val dataUrl = customFontDataUrl(path) ?: return ""
+        val version = path.hashCode().toUInt().toString(16)
+        return CUSTOM_FONT_CSS
+            .replace("mycustomfont", dataUrl)
+            .replace("fontfamily", "fontfamily$version")
     }
 
     /**
@@ -699,6 +723,38 @@ p.translated::before { content: ''; display: inline-block; width: 2px; height: 9
         const val VIEWPORT_FIXED_SCALE = "width=device-width, initial-scale=1.0, minimum-scale=1.0"
 
         const val SERIF_FONT_CSS = "* {\nfont-family: serif !important;\n}\n"
+
+        /** Android WebViewJsBridge.CUSTOM_FONT_CSS; 'mycustomfont' / 'fontfamily' are substituted. */
+        const val CUSTOM_FONT_CSS = """
+            @font-face {
+                 font-family: fontfamily;
+                 font-weight: 400;
+                 font-display: swap;
+                 src: url('mycustomfont');
+            }
+            html body * {
+              font-family: fontfamily, serif, popular-symbols, lite-glyphs-outlined, lite-glyphs-filled, snaptu-symbols !important;
+            }
+        """
+
+        // path -> data: URL of the font file, so every tab's style refresh
+        // doesn't re-read and re-encode the same file.
+        private var fontDataUrlCache: Pair<String, String>? = null
+
+        @OptIn(ExperimentalEncodingApi::class)
+        private fun customFontDataUrl(path: String): String? {
+            fontDataUrlCache?.let { (cachedPath, url) -> if (cachedPath == path) return url }
+            val bytes = FileStore.readBytes(path) ?: return null
+            val mime = when (path.substringAfterLast('.', "").lowercase()) {
+                "otf" -> "font/otf"
+                "woff" -> "font/woff"
+                "woff2" -> "font/woff2"
+                else -> "font/ttf"
+            }
+            val url = "data:$mime;base64," + Base64.encode(bytes)
+            fontDataUrlCache = path to url
+            return url
+        }
 
         const val NOTO_SANS_SERIF_FONT_CSS =
             "@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400&display=swap');" +

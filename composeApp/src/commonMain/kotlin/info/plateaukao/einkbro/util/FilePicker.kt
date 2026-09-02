@@ -7,6 +7,9 @@ package info.plateaukao.einkbro.util
  * UIDocumentPickerViewController with asCopy so no security-scoped access is
  * needed.
  */
+/** What the system document picker offers: any file, or font files only. */
+enum class PickKind { Any, Font }
+
 expect object FilePicker {
-    fun pick(onResult: (name: String, bytes: ByteArray) -> Unit)
+    fun pick(kind: PickKind = PickKind.Any, onResult: (name: String, bytes: ByteArray) -> Unit)
 }

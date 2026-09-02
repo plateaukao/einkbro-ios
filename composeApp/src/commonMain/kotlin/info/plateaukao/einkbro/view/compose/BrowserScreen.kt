@@ -101,6 +101,7 @@ import info.plateaukao.einkbro.view.dialog.compose.ContextMenuItemType
 import info.plateaukao.einkbro.view.dialog.compose.FastToggleDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.FontBoldnessContent
 import info.plateaukao.einkbro.view.dialog.compose.FontDialogContent
+import info.plateaukao.einkbro.view.dialog.compose.FontBrowserDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.ReaderFontDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.LanguageSettingDialogContent
 import info.plateaukao.einkbro.view.dialog.compose.AnchoredDialogFrame
@@ -161,6 +162,9 @@ fun BrowserScreen(
         mutableStateOf(info.plateaukao.einkbro.activity.SettingRoute.Main)
     }
     var showFontDialog by remember { mutableStateOf(false) }
+    // Custom-font browser (Android DisplayConfigDelegate.openCustomFontPicker →
+    // FontBrowserDialogFragment), opened from the font dialog's settings icon.
+    var showFontBrowser by remember { mutableStateOf(false) }
     // Reader mode keeps its own font size/type prefs (Android
     // DisplayConfigDelegate.showFontSizeChangeDialog); captured at open time.
     var fontDialogForReader by remember { mutableStateOf(false) }
@@ -1743,7 +1747,10 @@ fun BrowserScreen(
             }) {
                 if (fontDialogForReader) {
                     ReaderFontDialogContent(
-                        onFontCustomizeClick = { helper?.updateCssStyle() },
+                        onFontCustomizeClick = {
+                            showFontDialog = false
+                            showFontBrowser = true
+                        },
                         onDismiss = {
                             showFontDialog = false
                             helper?.updateCssStyle()
@@ -1751,13 +1758,32 @@ fun BrowserScreen(
                     )
                 } else {
                     FontDialogContent(
-                        onFontTypeChanged = { helper?.updateCssStyle() },
+                        onFontTypeChanged = {
+                            showFontDialog = false
+                            showFontBrowser = true
+                        },
                         onDismiss = {
                             showFontDialog = false
                             helper?.updateCssStyle()
                         },
                     )
                 }
+            }
+        }
+    }
+    if (showFontBrowser) {
+        // Centered like Android's FontBrowserDialogFragment (shouldShowInCenter).
+        val dismissFontBrowser: () -> Unit = {
+            showFontBrowser = false
+            helper?.updateCssStyle()
+            config.display.customFontChanged = false
+        }
+        Dialog(onDismissRequest = dismissFontBrowser) {
+            ThemedDialogCard {
+                FontBrowserDialogContent(
+                    isReaderMode = fontDialogForReader,
+                    onDismiss = dismissFontBrowser,
+                )
             }
         }
     }

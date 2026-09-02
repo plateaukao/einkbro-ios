@@ -347,6 +347,8 @@
     <string name="setting_summary_vi_binding">Enable Vi key bindings for faster keyboard navigation</string>
     <string name="select_font_folder">Select Font Folder</string>
     <string name="change_folder">Change Folder</string>
+    <string name="add_font_file">Add font…</string>
+    <string name="no_fonts_added">No fonts yet. Tap "Add font…" to import a .ttf or .otf file.</string>
     <string name="search_fonts">Search fonts…</string>
     <string name="no_fonts_found">No fonts found in this folder</string>
     <string name="font_preview_text">AaBbCc 123</string>
