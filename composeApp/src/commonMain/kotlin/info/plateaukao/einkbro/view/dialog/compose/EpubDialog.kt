@@ -1,6 +1,5 @@
 package info.plateaukao.einkbro.view.dialog.compose
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -54,90 +53,91 @@ fun EpubDialog(
     var chapterTitle by remember { mutableStateOf(defaultTitle) }
 
     Dialog(onDismissRequest = { if (progress == null) onDismiss() }) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colors.surface)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            Text(
-                "Save as EPUB",
-                style = MaterialTheme.typography.h6,
-                color = MaterialTheme.colors.onSurface,
-                modifier = Modifier.padding(bottom = 12.dp),
-            )
-
-            if (progress != null) {
-                Text("Exporting… $progress%", color = MaterialTheme.colors.onSurface)
-                Spacer(Modifier.width(8.dp))
-                LinearProgressIndicator(
-                    progress = progress / 100f,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                )
-                return@Column
-            }
-
-            TextField(
-                value = bookName,
-                onValueChange = { bookName = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Book name") },
-            )
-            Spacer(Modifier.width(8.dp))
-            TextField(
-                value = chapterTitle,
-                onValueChange = { chapterTitle = it },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                singleLine = true,
-                label = { Text("Chapter title") },
-            )
-
-            OutlinedButton(
-                onClick = { onSaveNew(bookName, chapterTitle) },
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            ) { Text("Save as new EPUB") }
-
-            if (savedEpubs.isNotEmpty()) {
+        ThemedDialogCard {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
                 Text(
-                    "Add chapter to:",
+                    "Save as EPUB",
+                    style = MaterialTheme.typography.h6,
                     color = MaterialTheme.colors.onSurface,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                    modifier = Modifier.padding(bottom = 12.dp),
                 )
-                Column(modifier = Modifier.heightIn(max = 220.dp)) {
-                    savedEpubs.forEach { info ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                info.title,
-                                color = MaterialTheme.colors.onSurface,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { onAppend(chapterTitle, info.uri) }
-                                    .padding(vertical = 14.dp),
-                            )
-                            IconButton(onClick = { onRemove(info) }) {
-                                Icon(
-                                    Icons.Filled.Close,
-                                    contentDescription = "Remove",
-                                    tint = MaterialTheme.colors.onSurface,
+
+                if (progress != null) {
+                    Text("Exporting… $progress%", color = MaterialTheme.colors.onSurface)
+                    Spacer(Modifier.width(8.dp))
+                    LinearProgressIndicator(
+                        progress = progress / 100f,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    )
+                    return@Column
+                }
+
+                TextField(
+                    value = bookName,
+                    onValueChange = { bookName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Book name") },
+                )
+                Spacer(Modifier.width(8.dp))
+                TextField(
+                    value = chapterTitle,
+                    onValueChange = { chapterTitle = it },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    singleLine = true,
+                    label = { Text("Chapter title") },
+                )
+
+                OutlinedButton(
+                    onClick = { onSaveNew(bookName, chapterTitle) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                ) { Text("Save as new EPUB") }
+
+                if (savedEpubs.isNotEmpty()) {
+                    Text(
+                        "Add chapter to:",
+                        color = MaterialTheme.colors.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                    )
+                    Column(modifier = Modifier.heightIn(max = 220.dp)) {
+                        savedEpubs.forEach { info ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    info.title,
+                                    color = MaterialTheme.colors.onSurface,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { onAppend(chapterTitle, info.uri) }
+                                        .padding(vertical = 14.dp),
                                 )
+                                IconButton(onClick = { onRemove(info) }) {
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = "Remove",
+                                        tint = MaterialTheme.colors.onSurface,
+                                    )
+                                }
                             }
+                            ThemedDivider()
                         }
-                        ThemedDivider()
                     }
                 }
-            }
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                }
             }
         }
     }

@@ -67,6 +67,28 @@ object ComposeDialogFragment {
 }
 
 /**
+ * Themed window card for a plain centered Dialog: the same chrome as
+ * [AnchoredDialogFrame] (ebDialogFrame + themedFrameShape on a transparent
+ * Surface) for dialogs that don't anchor to the toolbar — the runtime
+ * stand-in for Android's ThemedBorders.dialogFrame window background. Use
+ * it instead of a flat Surface/background box so every dialog carries the
+ * selected UiBorder style and nothing else.
+ */
+@Composable
+fun ThemedDialogCard(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = modifier.wrapContentSize().ebDialogFrame(),
+        shape = themedFrameShape(frame = true),
+        color = Color.Transparent,
+    ) {
+        content()
+    }
+}
+
+/**
  * Positions dialog content the way Android's ComposeDialogFragment window does:
  * snapped to the toolbar's edge (config.ui.toolbarPosition) and centered on the
  * toolbar icon that opened it ([ComposeDialogFragment.anchorX]/[anchorY], written

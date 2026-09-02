@@ -1,7 +1,6 @@
 package info.plateaukao.einkbro.activity
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import info.plateaukao.einkbro.util.NoDimAlertDialog as AlertDialog
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
@@ -344,14 +342,8 @@ fun GptActionDialog(
     val model = remember(editActionIndex, action) { mutableStateOf(action.model) }
 
     AlertDialog(
-        modifier = Modifier
-            .padding(2.dp)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colors.onBackground,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(2.dp),
+        // No hand-drawn border: the themed NoDimAlertDialog frame is the only
+        // window chrome (in the selected UiBorder style).
         // use caption style
         title = { Text("Action Setting", style = MaterialTheme.typography.h6) },
         text = {

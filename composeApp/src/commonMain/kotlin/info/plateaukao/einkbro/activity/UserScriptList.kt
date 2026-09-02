@@ -1,7 +1,6 @@
 package info.plateaukao.einkbro.activity
 
 import android.content.Context
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -77,6 +76,7 @@ import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import info.plateaukao.einkbro.view.compose.ThemedDivider
+import info.plateaukao.einkbro.view.dialog.compose.ThemedDialogCard
 
 private const val GREASY_FORK_URL = "https://greasyfork.org/"
 
@@ -352,52 +352,53 @@ private fun ScriptEditorDialog(
     val tooLargeToEdit = code.length > EDITOR_DISPLAY_LIMIT
 
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colors.surface)
-                .padding(16.dp),
-        ) {
-            Text(
-                stringResource(Res.string.setting_title_userscripts),
-                style = MaterialTheme.typography.h6,
-                color = MaterialTheme.colors.onSurface,
-                modifier = Modifier.padding(bottom = 12.dp),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    label = { Text(stringResource(Res.string.userscript_install_from_url)) },
-                )
-                Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = { if (url.isNotBlank()) onFetchUrl(url) { code = it } }) {
-                    Text(stringResource(Res.string.userscript_fetch))
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            TextField(
-                value = if (tooLargeToEdit) code.take(EDITOR_DISPLAY_LIMIT) + "\n..." else code,
-                onValueChange = { if (!tooLargeToEdit) code = it },
-                readOnly = tooLargeToEdit,
+        ThemedDialogCard {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 200.dp, max = 360.dp),
-                label = { Text(stringResource(Res.string.userscript_code)) },
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                horizontalArrangement = Arrangement.End,
+                    .padding(16.dp),
             ) {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
-                Spacer(Modifier.width(8.dp))
-                TextButton(onClick = { if (code.isNotBlank()) onSaveCode(code) }) {
-                    Text("OK")
+                Text(
+                    stringResource(Res.string.setting_title_userscripts),
+                    style = MaterialTheme.typography.h6,
+                    color = MaterialTheme.colors.onSurface,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextField(
+                        value = url,
+                        onValueChange = { url = it },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        label = { Text(stringResource(Res.string.userscript_install_from_url)) },
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedButton(onClick = { if (url.isNotBlank()) onFetchUrl(url) { code = it } }) {
+                        Text(stringResource(Res.string.userscript_fetch))
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                TextField(
+                    value = if (tooLargeToEdit) code.take(EDITOR_DISPLAY_LIMIT) + "\n..." else code,
+                    onValueChange = { if (!tooLargeToEdit) code = it },
+                    readOnly = tooLargeToEdit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 200.dp, max = 360.dp),
+                    label = { Text(stringResource(Res.string.userscript_code)) },
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(onClick = { if (code.isNotBlank()) onSaveCode(code) }) {
+                        Text("OK")
+                    }
                 }
             }
         }

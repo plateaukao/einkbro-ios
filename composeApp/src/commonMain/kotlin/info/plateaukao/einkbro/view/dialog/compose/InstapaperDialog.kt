@@ -1,6 +1,5 @@
 package info.plateaukao.einkbro.view.dialog.compose
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,41 +36,42 @@ fun InstapaperDialog(
     var password by remember { mutableStateOf(initialPassword) }
 
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colors.surface)
-                .padding(16.dp),
-        ) {
-            Text(
-                "Instapaper credentials",
-                style = MaterialTheme.typography.h6,
-                color = MaterialTheme.colors.onSurface,
-                modifier = Modifier.padding(bottom = 12.dp),
-            )
-            TextField(
-                value = username,
-                onValueChange = { username = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Username / email") },
-            )
-            Spacer(Modifier.height(8.dp))
-            TextField(
-                value = password,
-                onValueChange = { password = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                label = { Text("Password") },
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                horizontalArrangement = Arrangement.End,
+        ThemedDialogCard {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
             ) {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                Text(
+                    "Instapaper credentials",
+                    style = MaterialTheme.typography.h6,
+                    color = MaterialTheme.colors.onSurface,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+                TextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Username / email") },
+                )
                 Spacer(Modifier.height(8.dp))
-                TextButton(onClick = { onSave(username, password) }) { Text("Save") }
+                TextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    label = { Text("Password") },
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = { onSave(username, password) }) { Text("Save") }
+                }
             }
         }
     }

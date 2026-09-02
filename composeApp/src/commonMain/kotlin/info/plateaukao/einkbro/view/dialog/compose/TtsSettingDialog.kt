@@ -96,7 +96,7 @@ fun TtsSettingDialogContent(
     val showEttsVoiceDialog = remember { mutableStateOf(false) }
     if (showEttsVoiceDialog.value) {
         Dialog(onDismissRequest = { showEttsVoiceDialog.value = false }) {
-            Surface {
+            ThemedDialogCard {
                 ETtsVoiceDialogContent {
                     ettsVoice.value = it
                     showEttsVoiceDialog.value = false

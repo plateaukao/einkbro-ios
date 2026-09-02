@@ -137,6 +137,7 @@ import info.plateaukao.einkbro.view.compose.ThemedDivider
 import info.plateaukao.einkbro.view.compose.ThemedProgressBar
 import info.plateaukao.einkbro.view.compose.ThemedEdgeBorder
 import info.plateaukao.einkbro.view.compose.EDGE_BORDER_BAND
+import info.plateaukao.einkbro.view.dialog.compose.ThemedDialogCard
 
 /**
  * Phase-1 browser: real WKWebView behind the ported EinkBro chrome.
@@ -2114,7 +2115,7 @@ fun BrowserScreen(
 
     languageConfigApi?.let { api ->
         Dialog(onDismissRequest = { languageConfigApi = null }) {
-            Surface(color = MaterialTheme.colors.background) {
+            ThemedDialogCard {
                 LanguageSettingDialogContent(
                     translateApi = api,
                     translationViewModel = translationViewModel,
@@ -2130,7 +2131,7 @@ fun BrowserScreen(
 
     tocItems?.let { chapters ->
         Dialog(onDismissRequest = { tocItems = null }) {
-            Surface(color = MaterialTheme.colors.background) {
+            ThemedDialogCard {
                 TocDialogContent(
                     chapters = chapters,
                     isEditable = false,
@@ -2312,7 +2313,7 @@ fun BrowserScreen(
     browserViewModel.pendingTabClose.value?.let { album ->
         val cancel = { browserViewModel.pendingTabClose.value = null }
         Dialog(onDismissRequest = cancel) {
-            Surface(color = MaterialTheme.colors.background) {
+            ThemedDialogCard {
                 Column(Modifier.padding(16.dp)) {
                     androidx.compose.material.Text(
                         "Close this tab?",
@@ -2350,7 +2351,7 @@ fun BrowserScreen(
             browserViewModel.pendingAuthRequest.value = null
         }
         Dialog(onDismissRequest = { finish(null) }) {
-            Surface(color = MaterialTheme.colors.background) {
+            ThemedDialogCard {
                 AuthenticationDialogContent(
                     okAction = { username, password -> finish(username to password) },
                     onDismiss = { finish(null) },
@@ -2365,7 +2366,7 @@ fun BrowserScreen(
             browserViewModel.pendingSslError.value = null
         }
         Dialog(onDismissRequest = { finish(false) }) {
-            Surface(color = MaterialTheme.colors.background) {
+            ThemedDialogCard {
                 SslErrorDialogContent(host = request.host, onResult = finish)
             }
         }
@@ -2377,7 +2378,7 @@ fun BrowserScreen(
             browserViewModel.pendingJsDialog.value = null
         }
         Dialog(onDismissRequest = { finish(false, null) }) {
-            Surface(color = MaterialTheme.colors.background) {
+            ThemedDialogCard {
                 JsPanelDialogContent(request = request, onResult = finish)
             }
         }

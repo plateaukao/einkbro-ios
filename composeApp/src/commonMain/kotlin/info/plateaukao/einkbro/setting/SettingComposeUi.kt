@@ -75,6 +75,7 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
+import info.plateaukao.einkbro.view.dialog.compose.ThemedDialogCard
 
 @Composable
 fun SettingItemUi(
@@ -372,14 +373,8 @@ private fun ToolbarPositionDialog(
 ) {
     var pending by remember { mutableStateOf(initial) }
     AlertDialog(
-        modifier = Modifier
-            .padding(2.dp)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colors.primary,
-                shape = RoundedCornerShape(8.dp),
-            )
-            .padding(2.dp),
+        // No hand-drawn border: the themed NoDimAlertDialog frame is the only
+        // window chrome (in the selected UiBorder style).
         onDismissRequest = onDismiss,
         backgroundColor = MaterialTheme.colors.background,
         title = {
@@ -609,78 +604,73 @@ private fun EinkImageAdjustmentDialog(
     var pendingMode by remember { mutableStateOf(initialMode) }
 
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .background(MaterialTheme.colors.background, RoundedCornerShape(8.dp))
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colors.primary,
-                    shape = RoundedCornerShape(8.dp),
+        ThemedDialogCard {
+            Column(
+                modifier = Modifier.padding(16.dp),
+            ) {
+                Text(
+                    text = stringResource(titleResId),
+                    style = MaterialTheme.typography.h6,
+                    color = MaterialTheme.colors.onBackground,
                 )
-                .padding(16.dp),
-        ) {
-            Text(
-                text = stringResource(titleResId),
-                style = MaterialTheme.typography.h6,
-                color = MaterialTheme.colors.onBackground,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            // On Android, QUALITY mode ran the native EinkImageProcessor over a
-            // decoded Bitmap; in the catalog both modes are previewed with the
-            // CSS color-matrix approximation applied as a ColorFilter.
-            Image(
-                painter = painterResource(Res.drawable.eink_image_preview),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(240.dp)
-                    .align(Alignment.CenterHorizontally)
-                    .border(1.dp, MaterialTheme.colors.onBackground),
-                contentScale = ContentScale.Fit,
-                colorFilter = if (pending.strength > 0) {
-                    ColorFilter.colorMatrix(cssFilterColorMatrix(pending.strength))
-                } else {
-                    null
-                },
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                EinkImageAdjustment.entries.forEach { adjustment ->
-                    EinkOptionChip(
-                        text = stringResource(adjustment.labelResId),
-                        selected = adjustment == pending,
-                        onClick = { pending = adjustment },
-                    )
+                Spacer(modifier = Modifier.height(12.dp))
+                // On Android, QUALITY mode ran the native EinkImageProcessor over a
+                // decoded Bitmap; in the catalog both modes are previewed with the
+                // CSS color-matrix approximation applied as a ColorFilter.
+                Image(
+                    painter = painterResource(Res.drawable.eink_image_preview),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(240.dp)
+                        .align(Alignment.CenterHorizontally)
+                        .border(1.dp, MaterialTheme.colors.onBackground),
+                    contentScale = ContentScale.Fit,
+                    colorFilter = if (pending.strength > 0) {
+                        ColorFilter.colorMatrix(cssFilterColorMatrix(pending.strength))
+                    } else {
+                        null
+                    },
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    EinkImageAdjustment.entries.forEach { adjustment ->
+                        EinkOptionChip(
+                            text = stringResource(adjustment.labelResId),
+                            selected = adjustment == pending,
+                            onClick = { pending = adjustment },
+                        )
+                    }
                 }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                EinkImageMode.entries.forEach { mode ->
-                    EinkOptionChip(
-                        text = stringResource(mode.labelResId),
-                        selected = mode == pendingMode,
-                        onClick = { pendingMode = mode },
-                    )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    EinkImageMode.entries.forEach { mode ->
+                        EinkOptionChip(
+                            text = stringResource(mode.labelResId),
+                            selected = mode == pendingMode,
+                            onClick = { pendingMode = mode },
+                        )
+                    }
                 }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.align(Alignment.End)) {
-                TextButton(onClick = onDismiss) {
-                    Text(
-                        text = "Cancel",
-                        color = MaterialTheme.colors.onBackground,
-                    )
-                }
-                TextButton(onClick = { onConfirm(pending, pendingMode) }) {
-                    Text(
-                        text = "OK",
-                        color = MaterialTheme.colors.onBackground,
-                    )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.align(Alignment.End)) {
+                    TextButton(onClick = onDismiss) {
+                        Text(
+                            text = "Cancel",
+                            color = MaterialTheme.colors.onBackground,
+                        )
+                    }
+                    TextButton(onClick = { onConfirm(pending, pendingMode) }) {
+                        Text(
+                            text = "OK",
+                            color = MaterialTheme.colors.onBackground,
+                        )
+                    }
                 }
             }
         }
