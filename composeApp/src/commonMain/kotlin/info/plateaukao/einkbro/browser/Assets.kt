@@ -78,6 +78,8 @@ object Assets {
         "split_scroll_report.js",
         // Userscripts (Phase H): GM_* runtime + per-page injection dispatcher.
         "userscript_runtime.js",
+        // Per-site style CSS installed at document start (first layout is styled).
+        "document_start_css.js",
         // EPUB export (Phase I): capture the page as a chapter (reader XHTML + images).
         "get_epub_chapter.js",
         // Built-in start page (shared verbatim with Android's assets/start_page.html);

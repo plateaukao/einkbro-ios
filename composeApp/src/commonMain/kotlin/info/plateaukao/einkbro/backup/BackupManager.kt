@@ -54,7 +54,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
  * | `prefs.json` | every portable `sp_` pref (iOS-only; Android ignores it) |
  * | `gpt_settings.json` | the Gen-AI subset of prefs, flat typed JSON (Android's GPT_SETTINGS) |
  * | `bookmarks.json` / `history.json` | same JSON shapes on both platforms |
- * | `database_data.json` | favicons, articles, highlights, chat_gpt_queries, domain_configurations |
+ * | `database_data.json` | articles, highlights, chat_gpt_queries, domain_configurations (favicons are read from old backups but no longer written: re-fetchable, and they dominated the size) |
  * | `userscripts/NAME.user.js` + `userscripts/userscripts.json` | script bodies + enabled/sourceUrl/GM values |
  * | `transcripts.json` / `chat_sessions.json` | only when non-empty |
  *
@@ -314,14 +314,10 @@ object BackupManager {
     // --- database_data.json (Android's DATABASE_DATA category) ---
 
     private suspend fun exportDatabaseDataJson(): String {
-        val favicons = buildJsonArray {
-            database.faviconDao().getAllFavicons().forEach { f ->
-                add(buildJsonObject {
-                    put("domain", f.domain)
-                    put("icon", f.icon?.let { Base64.encode(it) })
-                })
-            }
-        }
+        // Favicon blobs are deliberately not exported (same as Android's
+        // BackupUnit since its memory pass): they are re-fetched from the sites
+        // and, Base64-inflated, used to dominate the backup. Restore still
+        // accepts a "favicons" array from older backups.
         val articles = buildJsonArray {
             database.articleDao().getAllArticles().forEach { a ->
                 add(buildJsonObject {
@@ -354,7 +350,6 @@ object BackupManager {
             }
         }
         return buildJsonObject {
-            put("favicons", favicons)
             put("articles", articles)
             put("highlights", highlights)
             put("chat_gpt_queries", queries)
@@ -378,14 +373,14 @@ object BackupManager {
         val root = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return false
 
         root["favicons"]?.asArrayOrNull()?.let { arr ->
-            val dao = database.faviconDao()
-            val existing = dao.getAllFavicons().map { it.domain }.toHashSet()
+            val existing = database.faviconDao().getAllDomains().toHashSet()
             arr.forEach { el ->
                 val obj = el as? JsonObject ?: return@forEach
                 val domain = obj.string("domain") ?: return@forEach
                 if (!existing.add(domain)) return@forEach
                 val icon = obj.string("icon")?.let { runCatching { Base64.decode(it) }.getOrNull() }
-                dao.insert(FaviconInfo(domain, icon))
+                // Through the manager so its resident domain set learns the row.
+                bookmarkManager.insertFavicon(FaviconInfo(domain, icon))
                 summary.favicons++
             }
         }

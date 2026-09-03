@@ -85,7 +85,7 @@ fun BrowseHistoryList(
 
             RecordItem(
                 record = record,
-                bitmap = remember(record.url) { bookmarkManager?.findFaviconBitmapBy(record.url) },
+                bitmap = bookmarkManager?.findFaviconBitmapBy(record.url),
                 modifier = Modifier
                     .pointerInput(record) {
                         detectTapGestures(
@@ -122,7 +122,7 @@ private fun ThumbnailHistoryGrid(
             val boxPosition = remember { mutableStateOf(Offset.Zero) }
             ThumbnailHistoryItem(
                 record = record,
-                bitmap = remember(record.url) { bookmarkManager?.findFaviconBitmapBy(record.url) },
+                bitmap = bookmarkManager?.findFaviconBitmapBy(record.url),
                 modifier = Modifier
                     .pointerInput(record) {
                         detectTapGestures(

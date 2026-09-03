@@ -251,21 +251,34 @@ class WebContentHelper(
     // --- main style slot (fonts, colors, filters, text size) --------------
 
     fun updateCssStyle() {
-        val url = engine.currentUrl().orEmpty()
+        updateCssSlot(CSS_SLOT_MAIN, buildMainCss(engine.currentUrl().orEmpty(), isReaderModeOn))
+        updateFitWidthClip()
+    }
+
+    /**
+     * The main style slot for a fresh navigation to [url], installed at
+     * document start by the engine (a new document always starts with reader
+     * mode off; invert persists per tab). Same CSS updateCssStyle applies at
+     * page finish, so that later call finds the slot populated and skips the
+     * DOM mutation.
+     */
+    fun documentStartCss(url: String): String = buildMainCss(url, readerMode = false)
+
+    private fun buildMainCss(url: String, readerMode: Boolean): String {
         val fontType =
-            if (isReaderModeOn) config.display.readerFontType else config.getFontType(url)
+            if (readerMode) config.display.readerFontType else config.getFontType(url)
         val isBlackFont = config.getBlackFontStyle(url)
         val isBoldFont = config.getBoldFontStyle(url)
         val boldness = config.getFontBoldness(url)
         val textSize =
-            if (isReaderModeOn) config.display.readerFontSize else config.getFontSize(url)
+            if (readerMode) config.display.readerFontSize else config.getFontSize(url)
 
         // Font CSS first: its @import rules must precede any other rule.
         val fontCss = when (fontType) {
             FontType.SYSTEM_DEFAULT -> ""
             FontType.SERIF -> SERIF_FONT_CSS
             FontType.GOOGLE_SERIF -> NOTO_SANS_SERIF_FONT_CSS
-            FontType.CUSTOM -> customFontCss(reader = isReaderModeOn)
+            FontType.CUSTOM -> customFontCss(reader = readerMode)
             FontType.TC_IANSUI -> IANSUI_FONT_CSS
             FontType.JA_MINCHO -> JA_MINCHO_FONT_CSS
             FontType.KO_GAMJA -> KO_GAMJA_FONT_CSS
@@ -280,16 +293,14 @@ class WebContentHelper(
                 "html, body { -webkit-text-size-adjust: $textSize% !important; }\n"
             else ""
 
-        val cssStyle = fontCss +
+        // Empty blob clears the slot — that's how styles turn off without reload.
+        return fontCss +
                 textSizeCss +
                 (if (isBlackFont) MAKE_TEXT_BLACK_CSS else "") +
                 (if (config.whiteBackground(url)) WHITE_BACKGROUND_CSS else "") +
                 (if (isBoldFont) BOLD_FONT_CSS.replace("value", "$boldness") else "") +
                 (if (isInvertOn) INVERT_CSS else "") +
                 config.getCustomCss(url).orEmpty()
-        // Empty blob clears the slot — that's how styles turn off without reload.
-        updateCssSlot(CSS_SLOT_MAIN, cssStyle)
-        updateFitWidthClip()
     }
 
     /**

@@ -354,7 +354,7 @@ fun BookmarkList(
                         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                             BookmarkGridItem(
                                 bookmark = bookmark,
-                                bitmap = remember(bookmark.url) { bookmarkViewModel.getFavicon(bookmark) },
+                                bitmap = bookmarkViewModel.getFavicon(bookmark),
                                 isPressed = isPressed || isDragging,
                                 shouldShowDragHandle = shouldShowDragHandle,
                                 iconDragModifier = if (shouldShowDragHandle) Modifier.draggableHandle() else Modifier,
@@ -390,7 +390,7 @@ fun BookmarkList(
                     } else {
                         BookmarkItem(
                             bookmark = bookmark,
-                            bitmap = remember(bookmark.url) { bookmarkViewModel.getFavicon(bookmark) },
+                            bitmap = bookmarkViewModel.getFavicon(bookmark),
                             isPressed = isPressed || isDragging,
                             shouldShowDragHandle = shouldShowDragHandle,
                             dragModifier = Modifier.draggableHandle(),

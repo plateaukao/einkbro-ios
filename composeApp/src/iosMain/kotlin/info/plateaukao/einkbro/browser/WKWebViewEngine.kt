@@ -31,6 +31,8 @@ import platform.Foundation.dataTaskWithURL
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 import platform.Foundation.NSError
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import platform.Foundation.NSHTTPURLResponse
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLAuthenticationChallenge
@@ -100,7 +102,7 @@ import platform.darwin.NSObject
  * load progress is polled from estimatedProgress on a timer (KVO isn't reachable
  * from Kotlin/Native), giving a real 0→1 progress bar.
  */
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
 class WKWebViewEngine(
     override val album: Album,
     private val listener: WebViewEngineListener,
@@ -113,6 +115,17 @@ class WKWebViewEngine(
 
     // Strong refs: WKUserContentController holds message handlers weakly.
     private val messageHandlers = mutableMapOf<String, ScriptMessageHandler>()
+
+    // Every installed user script, so the set can be re-added after
+    // removeAllUserScripts (WKUserContentController can't remove one script).
+    private val userScripts = mutableListOf<WKUserScript>()
+    private var documentStartCss: String? = null
+
+    // Set when WebKit's content process died while this tab was off-screen
+    // (jetsam reclaiming a background WebContent process); the reload waits
+    // until the tab is next shown so the freed memory isn't re-taken behind
+    // the user's back.
+    private var reloadWhenShown = false
 
     private val browserConfig = AppServices.config.browser
     private val refreshTarget = RefreshTarget { webView.reload() }
@@ -167,13 +180,13 @@ class WKWebViewEngine(
         // shareLocation off (Android setGeolocationEnabled(false)): stub the
         // geolocation API at document start so pages can't even prompt.
         if (!AppServices.config.browser.shareLocation) {
-            configuration.userContentController.addUserScript(
-                WKUserScript(
-                    source = GEOLOCATION_BLOCK_JS,
-                    injectionTime = WKUserScriptInjectionTime.WKUserScriptInjectionTimeAtDocumentStart,
-                    forMainFrameOnly = false,
-                )
+            val script = WKUserScript(
+                source = GEOLOCATION_BLOCK_JS,
+                injectionTime = WKUserScriptInjectionTime.WKUserScriptInjectionTimeAtDocumentStart,
+                forMainFrameOnly = false,
             )
+            userScripts += script
+            configuration.userContentController.addUserScript(script)
         }
     }.apply {
         navigationDelegate = this@WKWebViewEngine.navigationDelegate
@@ -362,9 +375,47 @@ class WKWebViewEngine(
     override fun installUserScript(source: String, atDocumentStart: Boolean) {
         val time = if (atDocumentStart) WKUserScriptInjectionTime.WKUserScriptInjectionTimeAtDocumentStart
         else WKUserScriptInjectionTime.WKUserScriptInjectionTimeAtDocumentEnd
-        webView.configuration.userContentController.addUserScript(
-            WKUserScript(source = source, injectionTime = time, forMainFrameOnly = false)
-        )
+        val script = WKUserScript(source = source, injectionTime = time, forMainFrameOnly = false)
+        userScripts += script
+        webView.configuration.userContentController.addUserScript(script)
+    }
+
+    /**
+     * Installs the per-site style CSS (fonts, text size, custom CSS) as a
+     * document-start user script for the main frame, so the first layout is
+     * already the right one instead of the page rendering in its own fonts and
+     * restyling after didFinish (Android applies style CSS at onPageStarted for
+     * the same reason). Called per main-frame navigation before the load is
+     * allowed; a no-op when the CSS is unchanged. The page-finished
+     * updateCssStyle still runs and finds the slot already populated.
+     */
+    internal fun refreshDocumentStartCss(url: String) {
+        if (!Assets.isLoaded) return
+        val css = listener.documentStartCssFor(this, url)?.takeIf { it.isNotBlank() }
+        if (css == documentStartCss) return
+        documentStartCss = css
+        val controller = webView.configuration.userContentController
+        controller.removeAllUserScripts()
+        userScripts.forEach { controller.addUserScript(it) }
+        if (css != null) {
+            val encoded = Base64.encode(css.encodeToByteArray())
+            controller.addUserScript(
+                WKUserScript(
+                    source = Assets.get("document_start_css.js").replace("__CSS_B64__", encoded),
+                    injectionTime = WKUserScriptInjectionTime.WKUserScriptInjectionTimeAtDocumentStart,
+                    forMainFrameOnly = true,
+                )
+            )
+        }
+    }
+
+    /**
+     * WebKit killed this tab's content process (memory pressure, or a crash).
+     * Without a reload the view stays blank white. A visible tab reloads right
+     * away; an off-screen one reloads when it is next shown.
+     */
+    internal fun onContentProcessTerminated() {
+        if (webView.window != null) webView.reload() else reloadWhenShown = true
     }
 
     override fun addMessageHandler(name: String, handler: (String) -> Unit) {
@@ -595,7 +646,12 @@ class WKWebViewEngine(
         // which matches EinkBro's background-tab behavior.
     }
 
-    override fun resume() {}
+    override fun resume() {
+        if (reloadWhenShown) {
+            reloadWhenShown = false
+            webView.reload()
+        }
+    }
 
     override fun destroy() {
         stopProgressTimer()
@@ -661,6 +717,18 @@ class WKWebViewEngine(
         // file another site's icon under this host.
         val preRedirectHost = requestedHost.takeIf { it != host }
         requestedHost = null
+        // Android only receives an icon when the WebView pushes one; here the
+        // probe + download + decode + insert ran on every page load. Once a
+        // host has an icon stored, set the tab cover from the DB instead.
+        val bookmarks = AppServices.bookmarkManager
+        if (bookmarks.hasFavicon(host) &&
+            (preRedirectHost == null || bookmarks.hasFavicon(preRedirectHost))
+        ) {
+            bookmarks.loadFaviconBitmap(host) { bitmap ->
+                if (bitmap != null) album.setAlbumCover(bitmap)
+            }
+            return
+        }
         evaluateJavascript(FAVICON_URL_JS) { result ->
             val candidates = result.orEmpty().trim('"')
                 .split('\n')
@@ -771,6 +839,10 @@ private class NavigationDelegate(
         engine.notifyFinished()
     }
 
+    override fun webViewWebContentProcessDidTerminate(webView: WKWebView) {
+        engine.onContentProcessTerminated()
+    }
+
     override fun webView(
         webView: WKWebView,
         didFailProvisionalNavigation: WKNavigation?,
@@ -798,6 +870,7 @@ private class NavigationDelegate(
     ) {
         val url = decidePolicyForNavigationAction.request.URL
         val scheme = url?.scheme?.lowercase()
+        val isMainFrame = decidePolicyForNavigationAction.targetFrame?.mainFrame == true
         // Error-page retry button: re-fetch the failed URL, never leave the app.
         if (url?.absoluteString?.startsWith("einkbro://retry") == true) {
             decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyCancel)
@@ -825,6 +898,7 @@ private class NavigationDelegate(
         // URLs): render it, never hand it to the OS or show the leave-app
         // dialog.
         if (scheme == "einkbro") {
+            if (isMainFrame) engine.refreshDocumentStartCss(url?.absoluteString.orEmpty())
             decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyAllow)
             return
         }
@@ -902,6 +976,7 @@ private class NavigationDelegate(
             engine.loadSuppressingAppLink(decidePolicyForNavigationAction.request)
             return
         }
+        if (isMainFrame) engine.refreshDocumentStartCss(url?.absoluteString.orEmpty())
         decisionHandler(WKNavigationActionPolicy.WKNavigationActionPolicyAllow)
     }
 

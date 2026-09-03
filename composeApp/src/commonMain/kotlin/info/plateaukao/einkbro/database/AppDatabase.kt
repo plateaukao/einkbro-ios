@@ -215,6 +215,10 @@ interface FaviconDao {
     @Query("SELECT * FROM favicons")
     suspend fun getAllFavicons(): List<FaviconInfo>
 
+    /** Just the keys: what stays resident so lookups never load every blob. */
+    @Query("SELECT domain FROM favicons")
+    suspend fun getAllDomains(): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(faviconInfo: FaviconInfo)
 

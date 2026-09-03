@@ -2,11 +2,11 @@ package info.plateaukao.einkbro.userscript
 
 /**
  * Converts Tampermonkey `@match` / `@include` / `@exclude` patterns into
- * **JavaScript-compatible** regex source strings. The Android matcher tests URLs
- * in Kotlin; here the actual test runs in the injected runtime against
- * `location.href`, so this only compiles patterns to regex sources (with a
- * JS-safe escaper — Kotlin's `Regex.escape` emits `\Q…\E`, which JS RegExp
- * rejects).
+ * **JavaScript-compatible** regex source strings. The injected runtime tests
+ * them against `location.href`; [matches] runs the same test in Kotlin first so
+ * a page with no matching script gets no injection at all (the sources are
+ * compiled with a JS-safe escaper — Kotlin's `Regex.escape` emits `\Q…\E`,
+ * which JS RegExp rejects — and are plain enough to compile on both sides).
  *
  * - `@match` follows the Chrome match-pattern grammar (scheme://host/path with `*`).
  * - `@include` is looser: a glob where `*` matches any run of chars; a value that
@@ -27,6 +27,29 @@ object UrlMatcher {
     /** Regex sources for `@exclude`: each pattern as include OR match (mirrors Android). */
     fun excludeRegexes(patterns: List<String>): List<String> =
         patterns.flatMap { listOfNotNull(includeRegex(it), matchRegex(it)) }
+
+    /**
+     * Kotlin-side mirror of the runtime's `matchesUrl`: included by any match or
+     * include source, then not excluded. A source Kotlin's Regex rejects (the
+     * raw `/regex/` include form can use JS-only syntax) counts as a match on
+     * the include side and as no match on the exclude side, so the page still
+     * gets the script and the runtime makes the final call.
+     */
+    fun matches(url: String, matches: List<String>, includes: List<String>, excludes: List<String>): Boolean {
+        if (!url.startsWith("http")) return false
+        val included = testAny(matches, url, onBadRegex = true) ||
+            testAny(includes, url, onBadRegex = true)
+        if (!included) return false
+        return !testAny(excludes, url, onBadRegex = false)
+    }
+
+    private val compiled = HashMap<String, Regex?>()
+
+    private fun testAny(sources: List<String>, url: String, onBadRegex: Boolean): Boolean =
+        sources.any { source ->
+            val regex = compiled.getOrPut(source) { runCatching { Regex(source) }.getOrNull() }
+            regex?.containsMatchIn(url) ?: onBadRegex
+        }
 
     private fun matchRegex(pattern: String): String? {
         if (pattern == "*" || pattern == "<all_urls>") return "^http"

@@ -3,8 +3,10 @@ import androidx.compose.ui.uikit.OnFocusBehavior
 import info.plateaukao.einkbro.App
 import info.plateaukao.einkbro.browser.ClearDataService
 import info.plateaukao.einkbro.util.ExternalUrlBridge
+import info.plateaukao.einkbro.AppServices
 import platform.Foundation.NSNotificationCenter
 import platform.UIKit.UIApplicationDidEnterBackgroundNotification
+import platform.UIKit.UIApplicationDidReceiveMemoryWarningNotification
 
 /**
  * Called from Swift (`onOpenURL`) when the app is opened via the `einkbro://`
@@ -32,5 +34,12 @@ fun MainViewController() = ComposeUIViewController(
         `object` = null,
         queue = null,
     ) { ClearDataService.clearOnExitIfConfigured() }
+    // Android onTrimMemory: under memory pressure drop what can be rebuilt on
+    // demand (decoded favicon bitmaps); WebKit trims its own caches.
+    NSNotificationCenter.defaultCenter.addObserverForName(
+        name = UIApplicationDidReceiveMemoryWarningNotification,
+        `object` = null,
+        queue = null,
+    ) { AppServices.bookmarkManager.trimMemory() }
     App()
 }

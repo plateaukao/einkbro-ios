@@ -178,7 +178,44 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
             onRemove = { closeTab(it) },
         )
         album.incognito = incognito
-        val engine = createWebViewEngine(album, this, incognito)
+        // A restored background tab is only a title-and-URL record until it is
+        // first shown (Android LazyAlbumController): no WKWebView, no user
+        // scripts, no message handlers. Restoring N tabs used to build N live
+        // web views before the first frame; flushPendingLoad materializes the
+        // real engine on activation, and the Album keeps its identity in the
+        // tab list throughout.
+        if (lazyLoad && !activate) {
+            pendingLoads[album.id] = url
+            albums.value = albums.value + album
+            persistTabs()
+            return
+        }
+        val engine = materializeEngine(album, url)
+        albums.value = albums.value + album
+        if (activate) {
+            focusIndex.value = albums.value.lastIndex
+            syncCurrentState()
+        }
+        // Behavior pref: a background tab only preloads when background loading
+        // is enabled; otherwise defer the load until the tab is first shown.
+        if (url.isNotBlank()) {
+            if (activate || config.tab.enableWebBkgndLoad) {
+                engine.loadUrl(url)
+            } else {
+                pendingLoads[album.id] = url
+            }
+        }
+        persistTabs()
+    }
+
+    /**
+     * Builds the live web engine for [album] and wires everything a browsing
+     * tab needs (page scripts, JS bridges, per-site web config for [url]).
+     * Called from newTab for tabs that load right away and from
+     * flushPendingLoad the first time a lazily restored tab is shown.
+     */
+    private fun materializeEngine(album: Album, url: String): WebViewEngine {
+        val engine = createWebViewEngine(album, this, album.incognito)
         engines[album.id] = engine
         helpers[album.id] = WebContentHelper(engine, config)
         if (Assets.isLoaded) {
@@ -193,22 +230,8 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         // Android EBWebView init: the start-page search bridge is attached to
         // every tab; its handlers gate on the current url being the sentinel.
         StartPageBridge.attach(engine, this)
-        albums.value = albums.value + album
-        if (activate) {
-            focusIndex.value = albums.value.lastIndex
-            syncCurrentState()
-        }
         applyWebConfig(engine, url.ifBlank { DEFAULT_HOME })
-        // Behavior pref: a background tab only preloads when background loading
-        // is enabled; otherwise defer the load until the tab is first shown.
-        if (url.isNotBlank()) {
-            if (activate || (config.tab.enableWebBkgndLoad && !lazyLoad)) {
-                engine.loadUrl(url)
-            } else {
-                pendingLoads[album.id] = url
-            }
-        }
-        persistTabs()
+        return engine
     }
 
     /**
@@ -591,8 +614,8 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
         if (index >= 0) {
             currentEngine?.pause()
             focusIndex.value = index
-            currentEngine?.resume()
             flushPendingLoad(album)
+            currentEngine?.resume()
             // Stale selection/menu from the previous tab must not linger.
             selectionInfo.value = null
             contextMenuLink.value = null
@@ -611,9 +634,11 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
      * stays blank with no URL for Refresh to act on.
      */
     private fun flushPendingLoad(album: Album) {
-        pendingLoads.remove(album.id)?.let { url ->
-            engines[album.id]?.loadUrl(url)
-        }
+        val url = pendingLoads.remove(album.id) ?: return
+        // A lazily restored tab has no engine yet; a deferred background tab
+        // (enableWebBkgndLoad off) has one that simply hasn't loaded.
+        val engine = engines[album.id] ?: materializeEngine(album, url)
+        if (url.isNotBlank()) engine.loadUrl(url)
     }
 
     /**
@@ -868,6 +893,9 @@ class BrowserViewModel : ViewModel(), WebViewEngineListener {
     override fun onProgressChanged(engine: WebViewEngine, progress: Float) {
         if (engine === currentEngine) this.progress.value = progress
     }
+
+    override fun documentStartCssFor(engine: WebViewEngine, url: String): String? =
+        helpers[engine.album.id]?.documentStartCss(url)
 
     override fun onPageFinished(engine: WebViewEngine, url: String, title: String) {
         engine.album.isLoaded = true

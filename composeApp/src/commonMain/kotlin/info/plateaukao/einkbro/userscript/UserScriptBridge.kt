@@ -59,7 +59,7 @@ class UserScriptBridge(
     fun onPageFinished(engine: WebViewEngine) {
         menuByEngine[engine.album.id]?.clear()
         scope.launch {
-            val js = manager.buildInjectionJs() ?: return@launch
+            val js = manager.buildInjectionJs(engine.currentUrl().orEmpty()) ?: return@launch
             engine.evaluateJavascript(js)
         }
     }

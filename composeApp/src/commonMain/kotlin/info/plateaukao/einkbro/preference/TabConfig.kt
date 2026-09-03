@@ -18,37 +18,49 @@ class TabConfig(private val sp: SharedPreferences) {
         get() = NewTabBehavior.entries[sp.getString(K_NEW_TAB_BEHAVIOR, "0")?.toInt() ?: 0]
         set(value) = sp.edit { putString(K_NEW_TAB_BEHAVIOR, value.ordinal.toString()) }
 
+    // The decoded list, keyed on the raw stored string: the getter used to
+    // JSON-decode on every read, and the setter re-decoded for its equality
+    // check, on every page finish and tab switch (persistTabs). Keying on the
+    // raw string keeps a pref import that rewrites the key from going stale.
+    private var cachedAlbumInfoRaw: String? = null
+    private var cachedAlbumInfoList: List<AlbumInfo> = emptyList()
+
     var savedAlbumInfoList: List<AlbumInfo>
         get() {
             val string = sp.getString(K_SAVED_ALBUM_INFO, "").orEmpty()
-            if (string.isBlank()) return emptyList()
-
-            return try {
-                Json.decodeFromString(albumInfoListSerializer, string)
-            } catch (exception: Exception) {
-                // Not JSON: migrate from the legacy "title::url" format
-                try {
-                    string.split(ALBUM_INFO_SEPARATOR).mapNotNull { it.toAlbumInfo() }
-                } catch (exception: Exception) {
-                    sp.edit { remove(K_SAVED_ALBUM_INFO) }
-                    emptyList()
-                }
-            }
+            if (string == cachedAlbumInfoRaw) return cachedAlbumInfoList
+            val list = if (string.isBlank()) emptyList() else decodeAlbumInfoList(string)
+            cachedAlbumInfoRaw = string
+            cachedAlbumInfoList = list
+            return list
         }
         set(value) {
             if (value == savedAlbumInfoList) {
                 return
             }
 
+            val encoded = if (value.isEmpty()) "" else Json.encodeToString(albumInfoListSerializer, value)
             sp.edit {
                 if (value.isEmpty()) {
                     remove(K_SAVED_ALBUM_INFO)
                 } else {
-                    putString(
-                        K_SAVED_ALBUM_INFO,
-                        Json.encodeToString(albumInfoListSerializer, value)
-                    )
+                    putString(K_SAVED_ALBUM_INFO, encoded)
                 }
+            }
+            cachedAlbumInfoRaw = encoded
+            cachedAlbumInfoList = value
+        }
+
+    private fun decodeAlbumInfoList(string: String): List<AlbumInfo> =
+        try {
+            Json.decodeFromString(albumInfoListSerializer, string)
+        } catch (exception: Exception) {
+            // Not JSON: migrate from the legacy "title::url" format
+            try {
+                string.split(ALBUM_INFO_SEPARATOR).mapNotNull { it.toAlbumInfo() }
+            } catch (exception: Exception) {
+                sp.edit { remove(K_SAVED_ALBUM_INFO) }
+                emptyList()
             }
         }
 

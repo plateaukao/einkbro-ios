@@ -30,15 +30,8 @@ actual object ContentBlocker {
             onReady()
             return
         }
-        val store = WKContentRuleListStore.defaultStore()
-        if (store == null) {
-            onReady()
-            return
-        }
-        store.compileContentRuleListForIdentifier(
-            identifier = "einkbro-adblock",
-            encodedContentRuleList = rulesJson,
-        ) { list, _ ->
+        val store = WKContentRuleListStore.defaultStore() ?: run { onReady(); return }
+        loadOrCompile(store, "einkbro-adblock", rulesJson) { list ->
             if (list != null) compiledList = list
             onReady()
         }
@@ -49,23 +42,58 @@ actual object ContentBlocker {
         var pending = 3
         val done = { pending--; if (pending == 0) onReady() }
         if (imageBlockList == null) {
-            store.compileContentRuleListForIdentifier(
-                identifier = "einkbro-block-images",
-                encodedContentRuleList = IMAGE_BLOCK_JSON,
-            ) { list, _ -> if (list != null) imageBlockList = list; done() }
+            loadOrCompile(store, "einkbro-block-images", IMAGE_BLOCK_JSON) { list ->
+                if (list != null) imageBlockList = list; done()
+            }
         } else done()
         if (cookieBlockList == null) {
-            store.compileContentRuleListForIdentifier(
-                identifier = "einkbro-block-cookies",
-                encodedContentRuleList = COOKIE_BLOCK_JSON,
-            ) { list, _ -> if (list != null) cookieBlockList = list; done() }
+            loadOrCompile(store, "einkbro-block-cookies", COOKIE_BLOCK_JSON) { list ->
+                if (list != null) cookieBlockList = list; done()
+            }
         } else done()
         if (analyticsBlockList == null) {
-            store.compileContentRuleListForIdentifier(
-                identifier = "einkbro-block-analytics",
-                encodedContentRuleList = ANALYTICS_BLOCK_JSON,
-            ) { list, _ -> if (list != null) analyticsBlockList = list; done() }
+            loadOrCompile(store, "einkbro-block-analytics", ANALYTICS_BLOCK_JSON) { list ->
+                if (list != null) analyticsBlockList = list; done()
+            }
         } else done()
+    }
+
+    /**
+     * The store persists compiled lists on disk by identifier, but only a
+     * lookUp reuses them; compileContentRuleListForIdentifier recompiles every
+     * launch. The identifier carries a hash of the JSON, so a rule change (an
+     * app update) misses the cache and compiles fresh instead of serving a
+     * stale list; the superseded entries under the same base name are removed.
+     */
+    private fun loadOrCompile(
+        store: WKContentRuleListStore,
+        baseId: String,
+        json: String,
+        onDone: (WKContentRuleList?) -> Unit,
+    ) {
+        val identifier = "$baseId-" + json.hashCode().toUInt().toString(16)
+        store.lookUpContentRuleListForIdentifier(identifier) { cached, _ ->
+            if (cached != null) {
+                onDone(cached)
+                return@lookUpContentRuleListForIdentifier
+            }
+            store.compileContentRuleListForIdentifier(
+                identifier = identifier,
+                encodedContentRuleList = json,
+            ) { compiled, _ ->
+                onDone(compiled)
+                if (compiled != null) pruneStale(store, baseId, keep = identifier)
+            }
+        }
+    }
+
+    private fun pruneStale(store: WKContentRuleListStore, baseId: String, keep: String) {
+        store.getAvailableContentRuleListIdentifiers { identifiers ->
+            identifiers.orEmpty()
+                .mapNotNull { it as? String }
+                .filter { it.startsWith("$baseId-") && it != keep }
+                .forEach { store.removeContentRuleListForIdentifier(it) { _ -> } }
+        }
     }
 
     private const val IMAGE_BLOCK_JSON =

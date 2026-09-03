@@ -1,9 +1,13 @@
 package info.plateaukao.einkbro.database
 
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
 /**
@@ -27,13 +31,28 @@ class BookmarkManager(private val database: AppDatabase) {
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; coerceInputValues = true }
 
-    // Mirrors Android BookmarkManager: favicons are kept in memory so lookups
-    // from composition (remember { getFavicon(...) }) stay synchronous.
-    private val faviconInfos: MutableList<FaviconInfo> = mutableListOf()
-    private val faviconBitmapCache = mutableMapOf<String, androidx.compose.ui.graphics.ImageBitmap>()
+    // Only the favicon domain names stay resident (a few KB); the icon blobs
+    // used to be loaded in full at startup and held for the process lifetime,
+    // 10-40 MB on a mature install, and answered lookups by linear scan. A
+    // bitmap is now loaded per host on demand into a bounded cache that is
+    // snapshot state, so a composable reading it recomposes when the decode
+    // lands (Android did the same in its memory pass).
+    private val faviconDomains = HashSet<String>()
+    // Snapshot state so a composable that asked before the domain set landed
+    // (cold start) recomposes and asks again once it has.
+    private val faviconDomainsReady = mutableStateOf(false)
+    private val faviconBitmapCache = mutableStateMapOf<String, ImageBitmap>()
+    private val faviconCacheOrder = ArrayDeque<String>()
+    private val faviconLoadsInFlight = HashSet<String>()
 
     init {
-        ioScope.launch { faviconInfos.addAll(faviconDao.getAllFavicons()) }
+        ioScope.launch {
+            val domains = faviconDao.getAllDomains()
+            withContext(Dispatchers.Main) {
+                faviconDomains.addAll(domains)
+                faviconDomainsReady.value = true
+            }
+        }
     }
 
     suspend fun getAllBookmarks(): List<Bookmark> = bookmarkDao.getAllBookmarks()
@@ -112,9 +131,45 @@ class BookmarkManager(private val database: AppDatabase) {
 
     suspend fun insertFavicon(faviconInfo: FaviconInfo) {
         faviconDao.insert(faviconInfo)
-        faviconInfos.removeAll { it.domain == faviconInfo.domain }
-        faviconInfos.add(faviconInfo)
-        faviconBitmapCache.remove(faviconInfo.domain)
+        withContext(Dispatchers.Main) {
+            faviconDomains.add(faviconInfo.domain)
+            // Drop the stale decode; the next read reloads from the new blob.
+            faviconBitmapCache.remove(faviconInfo.domain)
+            faviconCacheOrder.remove(faviconInfo.domain)
+        }
+    }
+
+    /** True once [host] has a stored icon (main thread; no I/O). */
+    fun hasFavicon(host: String): Boolean = host in faviconDomains
+
+    /**
+     * Decodes [host]'s stored icon off the main thread (or serves the cached
+     * bitmap) and hands it to [onLoaded] on the main thread; null when the host
+     * has no usable icon.
+     */
+    fun loadFaviconBitmap(host: String, onLoaded: (ImageBitmap?) -> Unit) {
+        faviconBitmapCache[host]?.let { onLoaded(it); return }
+        ioScope.launch {
+            val bitmap = faviconDao.findBy(host)?.getBitmap()
+            withContext(Dispatchers.Main) {
+                if (bitmap != null) cacheFaviconBitmap(host, bitmap)
+                onLoaded(bitmap)
+            }
+        }
+    }
+
+    /** Memory-pressure hook (Android onTrimMemory): drop the decoded bitmaps. */
+    fun trimMemory() {
+        faviconBitmapCache.clear()
+        faviconCacheOrder.clear()
+    }
+
+    private fun cacheFaviconBitmap(host: String, bitmap: ImageBitmap) {
+        if (host !in faviconBitmapCache && faviconCacheOrder.size >= FAVICON_BITMAP_CACHE_SIZE) {
+            faviconCacheOrder.removeFirstOrNull()?.let { faviconBitmapCache.remove(it) }
+        }
+        if (host !in faviconBitmapCache) faviconCacheOrder.addLast(host)
+        faviconBitmapCache[host] = bitmap
     }
 
     /** Fire-and-forget variant for non-suspend callers (the web engine). */
@@ -203,16 +258,30 @@ class BookmarkManager(private val database: AppDatabase) {
     suspend fun insertVideoTranscript(videoTranscript: VideoTranscript) =
         database.videoTranscriptDao().insert(videoTranscript)
 
-    // Decoded bitmaps are cached per domain so repeated lookups return the same
-    // instance; Compose skipping and mutableStateOf equality rely on that.
-    fun findFaviconBitmapBy(url: String): androidx.compose.ui.graphics.ImageBitmap? {
+    /**
+     * Favicon bitmap for [url] from composition: returns the cached decode, or
+     * null while one is loading. Reads snapshot state, so call it directly in
+     * the composable (not inside `remember`) and the item recomposes with the
+     * bitmap once the decode lands. Unknown hosts answer null with no I/O.
+     * Decoded bitmaps are cached per domain so repeated reads return the same
+     * instance; Compose skipping relies on that.
+     */
+    fun findFaviconBitmapBy(url: String): ImageBitmap? {
         val host = info.plateaukao.einkbro.util.Uri.parse(url).host ?: return null
         faviconBitmapCache[host]?.let { return it }
-        val bitmap = faviconInfos.firstOrNull { it.domain == host }?.getBitmap() ?: return null
-        if (faviconBitmapCache.size >= 100) {
-            faviconBitmapCache.remove(faviconBitmapCache.keys.first())
+        if (!faviconDomainsReady.value) return null
+        if (host !in faviconDomains || !faviconLoadsInFlight.add(host)) return null
+        ioScope.launch {
+            val bitmap = faviconDao.findBy(host)?.getBitmap()
+            withContext(Dispatchers.Main) {
+                faviconLoadsInFlight.remove(host)
+                if (bitmap != null) cacheFaviconBitmap(host, bitmap)
+            }
         }
-        faviconBitmapCache[host] = bitmap
-        return bitmap
+        return null
+    }
+
+    private companion object {
+        const val FAVICON_BITMAP_CACHE_SIZE = 200
     }
 }

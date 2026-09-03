@@ -141,6 +141,13 @@ interface WebViewEngineListener {
     fun onProgressChanged(engine: WebViewEngine, progress: Float) {}
     fun onPageFinished(engine: WebViewEngine, url: String, title: String) {}
 
+    /**
+     * Style CSS to install at document start for a main-frame navigation to
+     * [url] (fonts, text size, custom CSS), so the first layout is already
+     * styled. Null or blank installs nothing.
+     */
+    fun documentStartCssFor(engine: WebViewEngine, url: String): String? = null
+
     // --- delegate depth (parity Phase B) ---
     /** window.open / target=_blank: the host should open [url] in a new tab. */
     fun onNewWindowRequested(engine: WebViewEngine, url: String) {}

@@ -43,7 +43,9 @@ sealed class UpdateResult {
  * Injection (see [buildInjectionJs]) is pushed once per page load via
  * `evaluateJavascript` — WKWebView's K/N navigation delegate can't expose a
  * document-start hook, so `@run-at` collapses to page-finished, which is where
- * the runtime evaluates every matching script.
+ * the runtime evaluates every matching script. Only the scripts whose patterns
+ * match the page URL are serialized: every enabled script's full body used to
+ * ride into every page and be re-matched by the runtime there.
  */
 class UserScriptManager(database: AppDatabase) {
 
@@ -164,17 +166,19 @@ class UserScriptManager(database: AppDatabase) {
      * Returns null when nothing is enabled. The runtime shim does the actual
      * URL matching against `location.href`.
      */
-    suspend fun buildInjectionJs(): String? {
-        val enabled = scripts.filter { it.script.enabled }
-        if (enabled.isEmpty()) return null
-        val descriptors = enabled.map { parsed ->
+    suspend fun buildInjectionJs(pageUrl: String): String? {
+        val descriptors = scripts.filter { it.script.enabled }.mapNotNull { parsed ->
             val m = parsed.metadata
+            val matches = UrlMatcher.matchRegexes(m.matches)
+            val includes = UrlMatcher.includeRegexes(m.includes)
+            val excludes = UrlMatcher.excludeRegexes(m.excludes)
+            if (!UrlMatcher.matches(pageUrl, matches, includes, excludes)) return@mapNotNull null
             Descriptor(
                 id = parsed.script.id,
                 runAt = if (m.runAt == RunAt.DOCUMENT_START) "start" else "end",
-                matches = UrlMatcher.matchRegexes(m.matches),
-                includes = UrlMatcher.includeRegexes(m.includes),
-                excludes = UrlMatcher.excludeRegexes(m.excludes),
+                matches = matches,
+                includes = includes,
+                excludes = excludes,
                 connects = m.connects,
                 grants = m.grants,
                 info = GmInfo(
